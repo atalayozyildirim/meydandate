@@ -5,11 +5,21 @@ import type {
   SocialAuthProvider,
   VerifyOtpPayload,
 } from "@/domain/repositories/AuthRepository";
-import type { User } from "@/domain/entities/User";
 import { supabase } from "./client";
 import { mapSupabaseUser } from "./userMapper";
 
+const signOutAndThrow = async (message: string): Promise<never> => {
+  await supabase.auth.signOut();
+  throw new Error(message);
+};
+
 export class SupabaseAuthRepository implements AuthRepository {
+  private async getMyProfile() {
+    const { data, error } = await supabase.rpc("get_my_profile").maybeSingle();
+
+    return error ? null : data;
+  }
+
   async requestOtp(challenge: OtpChallenge): Promise<void> {
     const { error } = await supabase.auth.signInWithOtp({
       phone: challenge.phoneNumber,
@@ -35,15 +45,14 @@ export class SupabaseAuthRepository implements AuthRepository {
       throw new Error(error?.message ?? "Telefon doğrulanamadı.");
     }
 
-    let { data: profile } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", data.user.id)
-      .maybeSingle();
+    let profile = await this.getMyProfile();
+
+    if (profile && payload.purpose === "register") {
+      return signOutAndThrow("Bu telefon numarası zaten kayıtlı.");
+    }
 
     if (!profile && payload.purpose === "register") {
-      const timestamp = new Date().toISOString();
-      const newProfile: User = {
+      const newProfile = {
         id: data.user.id,
         name: payload.name ?? data.user.user_metadata?.name ?? "Yeni Üye",
         email: data.user.email ?? `${payload.phoneNumber.replace(/\D/g, "")}@phone.ehlibyte.local`,
@@ -55,28 +64,20 @@ export class SupabaseAuthRepository implements AuthRepository {
         cultureImportance: "somewhat_important",
         interests: [],
         photos: [],
-        badges: ["community_member"],
-        isPremium: false,
-        hasPassedEntryTest: false,
-        hasCompletedOnboarding: false,
-        createdAt: timestamp,
-        updatedAt: timestamp,
       };
-      const { data: createdProfile, error: profileError } = await supabase
+      const { error: profileError } = await supabase
         .from("users")
-        .insert(newProfile)
-        .select()
-        .single();
+        .insert(newProfile);
 
-      if (profileError || !createdProfile) {
-        throw new Error("Telefon doğrulandı ancak profil oluşturulamadı.");
+      if (profileError) {
+        return signOutAndThrow("Telefon doğrulandı ancak profil oluşturulamadı.");
       }
 
-      profile = createdProfile;
+      profile = await this.getMyProfile();
     }
 
     if (!profile) {
-      throw new Error("Bu telefon numarasına bağlı profil bulunamadı.");
+      return signOutAndThrow("Bu telefon numarasına bağlı profil bulunamadı.");
     }
 
     return {
@@ -107,13 +108,9 @@ export class SupabaseAuthRepository implements AuthRepository {
       return null;
     }
 
-    const { data: userData, error: userError } = await supabase
-      .from("users")
-      .select("*")
-      .eq("id", data.user.id)
-      .single();
+    const userData = await this.getMyProfile();
 
-    if (userError || !userData) {
+    if (!userData) {
       return null;
     }
 

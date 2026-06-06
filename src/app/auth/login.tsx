@@ -17,6 +17,7 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { testAccount } from "@/shared/constants/testAccount";
+import { env } from "@/infrastructure/config/env";
 import { formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
@@ -30,7 +31,9 @@ export default function LoginScreen() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      phoneNumber: formatPhoneNumberInput(testAccount.phoneNumber),
+      phoneNumber: env.useMockServices
+        ? formatPhoneNumberInput(testAccount.phoneNumber)
+        : "",
     },
   });
 
@@ -99,12 +102,14 @@ export default function LoginScreen() {
         loading={isSubmitting}
         onPress={onSubmit}
       />
-      <Button
-        label="Test hesabına kod gönder"
-        variant="ghost"
-        loading={isSubmitting}
-        onPress={() => void loginWithTestAccount()}
-      />
+      {env.useMockServices ? (
+        <Button
+          label="Test hesabına kod gönder"
+          variant="ghost"
+          loading={isSubmitting}
+          onPress={() => void loginWithTestAccount()}
+        />
+      ) : null}
       <SocialAuthButtons
         disabled={isSubmitting}
         onPress={(provider) => void onSocialLogin(provider)}

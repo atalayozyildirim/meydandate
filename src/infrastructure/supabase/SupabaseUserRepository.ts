@@ -7,11 +7,15 @@ import type { User, UserProfileUpdate } from "@/domain/entities/User";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 
+type PrivateProfile = Partial<User> & {
+  blockedUsers?: string[];
+  mutedUsers?: string[];
+};
+
 export class SupabaseUserRepository implements UserRepository {
   async getCurrentUser(userId: string): Promise<User> {
     const { data, error } = await supabase
-      .from("users")
-      .select("*")
+      .rpc("get_my_profile")
       .eq("id", userId)
       .single();
 
@@ -41,25 +45,23 @@ export class SupabaseUserRepository implements UserRepository {
     userId: string,
     update: UserProfileUpdate,
   ): Promise<User> {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("users")
       .update(update)
-      .eq("id", userId)
-      .select()
-      .single();
+      .eq("id", userId);
 
     if (error) {
       throw new Error("Profil güncellenemedi");
     }
 
-    return mapSupabaseUser(data);
+    return this.getCurrentUser(userId);
   }
 
   async completeOnboarding(
     userId: string,
     profile: OnboardingProfile,
   ): Promise<User> {
-    const { data, error } = await supabase
+    const { error } = await supabase
       .from("users")
       .update({
         name: profile.name,
@@ -71,22 +73,19 @@ export class SupabaseUserRepository implements UserRepository {
         interests: profile.interests,
         hasCompletedOnboarding: true,
       })
-      .eq("id", userId)
-      .select()
-      .single();
+      .eq("id", userId);
 
     if (error) {
       throw new Error("Onboarding tamamlanamadı");
     }
 
-    return mapSupabaseUser(data);
+    return this.getCurrentUser(userId);
   }
 
   async listDiscoverCandidates(userId: string): Promise<User[]> {
     // Get current user to check blocks/mutes
     const { data: currentUser, error: userError } = await supabase
-      .from("users")
-      .select("*")
+      .rpc("get_my_profile")
       .eq("id", userId)
       .single();
 
@@ -94,13 +93,14 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Kullanıcı bulunamadı");
     }
 
-    const blockedUserIds = currentUser.blockedUsers || [];
-    const mutedUserIds = currentUser.mutedUsers || [];
+    const privateProfile = currentUser as unknown as PrivateProfile;
+    const blockedUserIds = privateProfile.blockedUsers || [];
+    const mutedUserIds = privateProfile.mutedUsers || [];
 
     // Get all users except current user and blocked/muted users
     let query = supabase
       .from("users")
-      .select("*")
+      .select(publicUserColumns)
       .neq("id", userId)
       .eq("hasPassedEntryTest", true)
       .eq("hasCompletedOnboarding", true);
@@ -115,7 +115,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Adaylar yüklenemedi");
     }
 
-    return (data || []).map(mapSupabaseUser);
+    return (data || []).map((row) => mapSupabaseUser(row as unknown as Partial<User>));
   }
 
   async reportUser(userId: string, payload: ReportPayload): Promise<void> {
@@ -134,8 +134,7 @@ export class SupabaseUserRepository implements UserRepository {
   async blockUser(userId: string, blockedUserId: string): Promise<void> {
     // Add to blockedUsers array
     const { data: user, error: fetchError } = await supabase
-      .from("users")
-      .select("blockedUsers")
+      .rpc("get_my_profile")
       .eq("id", userId)
       .single();
 
@@ -143,7 +142,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Kullanıcı yüklenemedi");
     }
 
-    const blockedUsers = user?.blockedUsers || [];
+    const blockedUsers = (user as unknown as PrivateProfile | null)?.blockedUsers || [];
     if (!blockedUsers.includes(blockedUserId)) {
       blockedUsers.push(blockedUserId);
     }
@@ -161,8 +160,7 @@ export class SupabaseUserRepository implements UserRepository {
   async muteUser(userId: string, mutedUserId: string): Promise<void> {
     // Add to mutedUsers array
     const { data: user, error: fetchError } = await supabase
-      .from("users")
-      .select("mutedUsers")
+      .rpc("get_my_profile")
       .eq("id", userId)
       .single();
 
@@ -170,7 +168,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Kullanıcı yüklenemedi");
     }
 
-    const mutedUsers = user?.mutedUsers || [];
+    const mutedUsers = (user as unknown as PrivateProfile | null)?.mutedUsers || [];
     if (!mutedUsers.includes(mutedUserId)) {
       mutedUsers.push(mutedUserId);
     }

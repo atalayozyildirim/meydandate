@@ -209,7 +209,7 @@ export class SupabaseModerationRepository implements ModerationRepository {
     if (error) throw new Error("Kullanıcı yasaklanamadı");
 
     // Update user status
-    await supabase.from("users").update({ isActive: false }).eq("id", userId);
+    await supabase.rpc("set_user_active", { target_user_id: userId, active: false });
 
     // Log action
     await this.logAction({
@@ -232,7 +232,7 @@ export class SupabaseModerationRepository implements ModerationRepository {
     if (error) throw new Error("Yasaklama kaldırılamadı");
 
     // Update user status
-    await supabase.from("users").update({ isActive: true }).eq("id", userId);
+    await supabase.rpc("set_user_active", { target_user_id: userId, active: true });
 
     // Log action
     await this.logAction({
