@@ -26,6 +26,10 @@ export class MockUserRepository implements UserRepository {
     return findUser(userId);
   }
 
+  async getUserById(userId: string): Promise<User> {
+    return findUser(userId);
+  }
+
   async updateProfile(userId: string, update: UserProfileUpdate): Promise<User> {
     const currentUser = findUser(userId);
     const updatedUser = mergeUser(currentUser, update);

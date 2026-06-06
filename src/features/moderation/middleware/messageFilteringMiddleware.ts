@@ -1,5 +1,6 @@
 import { container } from "@/infrastructure/config/Container";
 import type { Conversation, Message } from "@/domain/entities/Message";
+import { sanitizePlainText } from "@/shared/utils/sanitize";
 
 /**
  * Middleware for filtering messages before sending to chat
@@ -15,12 +16,23 @@ export async function messageFilteringMiddleware(
   violations: any[];
   action?: "allow" | "warn" | "ban";
 }> {
+  const sanitizedBody = sanitizePlainText(messageBody);
+
+  if (!sanitizedBody.trim()) {
+    return {
+      filteredBody: "",
+      isBlocked: true,
+      violations: [],
+      action: "warn",
+    };
+  }
+
   try {
     // Check if user is banned
     const ban = await container.moderationRepository.checkIfBanned(senderId);
     if (ban) {
       return {
-        filteredBody: messageBody,
+        filteredBody: sanitizedBody,
         isBlocked: true,
         violations: [],
         action: "ban",
@@ -29,7 +41,7 @@ export async function messageFilteringMiddleware(
 
     // Filter content
     const filterResult =
-      container.contentModerationService.filterMessage(messageBody);
+      container.contentModerationService.filterMessage(sanitizedBody);
 
     // Log filtered message
     if (!filterResult.isClean) {
@@ -57,7 +69,7 @@ export async function messageFilteringMiddleware(
       );
 
       return {
-        filteredBody: messageBody,
+        filteredBody: sanitizedBody,
         isBlocked: true,
         violations: filterResult.violations,
         action: "ban",
@@ -90,7 +102,7 @@ export async function messageFilteringMiddleware(
     console.error("Message filtering middleware error:", error);
 
     return {
-      filteredBody: messageBody,
+      filteredBody: sanitizedBody,
       isBlocked: true,
       violations: [],
       action: "warn",

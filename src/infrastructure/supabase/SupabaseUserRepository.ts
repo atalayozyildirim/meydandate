@@ -5,6 +5,7 @@ import type {
 } from "@/domain/repositories/UserRepository";
 import type { User, UserProfileUpdate } from "@/domain/entities/User";
 import { supabase } from "./client";
+import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 
 export class SupabaseUserRepository implements UserRepository {
   async getCurrentUser(userId: string): Promise<User> {
@@ -18,7 +19,22 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Kullanıcı yüklenemedi");
     }
 
-    return data;
+    return mapSupabaseUser(data as unknown as Partial<User>);
+  }
+
+  async getUserById(userId: string): Promise<User> {
+    const { data, error } = await supabase
+      .from("users")
+      .select(publicUserColumns)
+      .eq("id", userId)
+      .eq("hasCompletedOnboarding", true)
+      .single();
+
+    if (error || !data) {
+      throw new Error("Kullanıcı bulunamadı");
+    }
+
+    return mapSupabaseUser(data as unknown as Partial<User>);
   }
 
   async updateProfile(
@@ -36,7 +52,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Profil güncellenemedi");
     }
 
-    return data;
+    return mapSupabaseUser(data);
   }
 
   async completeOnboarding(
@@ -63,7 +79,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Onboarding tamamlanamadı");
     }
 
-    return data;
+    return mapSupabaseUser(data);
   }
 
   async listDiscoverCandidates(userId: string): Promise<User[]> {
@@ -99,7 +115,7 @@ export class SupabaseUserRepository implements UserRepository {
       throw new Error("Adaylar yüklenemedi");
     }
 
-    return data || [];
+    return (data || []).map(mapSupabaseUser);
   }
 
   async reportUser(userId: string, payload: ReportPayload): Promise<void> {

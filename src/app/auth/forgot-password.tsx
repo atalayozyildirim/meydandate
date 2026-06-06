@@ -10,6 +10,7 @@ import {
 } from "@/features/auth/schemas/authSchemas";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
+import { formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
 export default function ForgotPasswordScreen() {
@@ -41,9 +42,13 @@ export default function ForgotPasswordScreen() {
           <Input
             label="Telefon numarasi"
             keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxLength={18}
+            placeholder="+90 555 111 22 33"
             value={field.value}
             onBlur={field.onBlur}
-            onChangeText={field.onChange}
+            onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}
             error={fieldState.error?.message}
           />
         )}

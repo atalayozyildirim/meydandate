@@ -5,6 +5,7 @@ export const queryKeys = {
   conversations: "conversations",
   conversation: "conversation",
   profile: "profile",
+  publicProfile: "publicProfile",
   subscription: "subscription",
   liveRoom: "liveRoom",
   feed: "feed"

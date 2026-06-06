@@ -16,6 +16,7 @@ import {
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
+import { formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
 export default function RegisterScreen() {
@@ -36,7 +37,7 @@ export default function RegisterScreen() {
   const onSubmit = form.handleSubmit(async (values: RegisterFormValues) => {
     try {
       await register(values as unknown as RegisterPayload);
-      router.replace("/approval-test");
+      router.push("/auth/otp");
     } catch (error) {
       Alert.alert(
         "Kayıt başarısız",
@@ -79,15 +80,19 @@ export default function RegisterScreen() {
           <Input
             label="Telefon numarası"
             keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxLength={18}
+            placeholder="+90 555 111 22 33"
             value={field.value}
             onBlur={field.onBlur}
-            onChangeText={field.onChange}
+            onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}
             error={fieldState.error?.message}
           />
         )}
       />
       <Button
-        label="Telefon ile kaydol"
+        label="Doğrulama kodu gönder"
         loading={isSubmitting}
         onPress={onSubmit}
       />

@@ -8,6 +8,7 @@ import type {
 } from "@/domain/repositories/FeedRepository";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { createId } from "@/shared/utils/id";
+import { sanitizePlainText } from "@/shared/utils/sanitize";
 
 const now = new Date().toISOString();
 
@@ -93,7 +94,7 @@ export class MockFeedRepository implements FeedRepository {
       id: createId("feed_post"),
       authorId: payload.authorId,
       author: getUser(payload.authorId),
-      body: payload.body,
+      body: sanitizePlainText(payload.body, 2000),
       tags: payload.tags,
       likedByUserIds: [],
       comments: [],
@@ -121,7 +122,7 @@ export class MockFeedRepository implements FeedRepository {
       postId: payload.postId,
       authorId: payload.authorId,
       author: getUser(payload.authorId),
-      body: payload.body,
+      body: sanitizePlainText(payload.body, 1000),
       likedByUserIds: [],
       replies: [],
       createdAt: timestamp,
@@ -147,7 +148,7 @@ export class MockFeedRepository implements FeedRepository {
       commentId: payload.commentId,
       authorId: payload.authorId,
       author: getUser(payload.authorId),
-      body: payload.body,
+      body: sanitizePlainText(payload.body, 1000),
       likedByUserIds: [],
       createdAt: timestamp,
     };

@@ -96,12 +96,40 @@ CREATE TABLE IF NOT EXISTS reports (
 
 Supabase Dashboard → Authentication → Providers
 
-- Email/Password yöntemi etkin olduğundan emin ol
-- SMTP konfigürasyonunu isteğe bağlı olarak ayarla
+- Phone provider'ı etkinleştir
+- Twilio, MessageBird, Vonage veya desteklenen başka bir SMS sağlayıcısını bağla
+- OTP süresi ve SMS rate limitlerini production ihtiyacına göre ayarla
+- Uygulama `signInWithOtp()` sonrasında 6 haneli kodu `verifyOtp({ type: "sms" })` ile doğrular;
+  doğrulama tamamlanmadan session oluşturmaz
 
-## 5. RLS Policies Ayarla (Opsiyonel)
+Mock servislerde doğrulama kodu `123456` olarak sabittir. Bu yalnızca yerel geliştirme içindir.
 
-Üretim için Row Level Security policies eklemelisin, ancak geliştirme sırasında disable edebilirsin.
+### Feed migration
+
+Feed postları, yorumlar, yanıtlar, beğeniler, raporlar, indexler, trigger'lar ve RLS
+politikaları şu migration içinde tutulur:
+
+```text
+supabase/migrations/20260606120000_create_feed.sql
+```
+
+Supabase CLI kullanıyorsan bağlı projeye migration'ı uygula:
+
+```bash
+supabase db push
+```
+
+CLI kullanmıyorsan migration dosyasının tamamını Supabase SQL Editor'de bir kez çalıştır.
+
+## 5. RLS Policies Ayarla
+
+RLS üretimde opsiyonel değildir. `public` şemasında istemciden erişilen tüm tablolarda RLS
+etkin olmalı ve yazma politikaları `auth.uid()` ile satır sahibini doğrulamalıdır. Feed
+migration'ı bunu feed tabloları için hazırlar.
+
+Feed sorgularındaki profil ilişkilerinin çalışması için `users` tablosunda oturum açmış
+kullanıcıların topluluk profillerini okuyabildiği bir SELECT politikası da bulunmalıdır.
+E-posta ve telefon gibi özel alanları topluluk profili sorgularına dahil etme.
 
 ## 6. Dependencies Yükle
 
@@ -143,6 +171,20 @@ Aşağıdaki dosyalar artık kullanılmıyor:
 
 - `.env.local` dosyasını kontrol et
 - `EXPO_PUBLIC_SUPABASE_URL` ve `EXPO_PUBLIC_SUPABASE_ANON_KEY` değerlerini doğru yaz
+
+### Feed içinde kullanıcı bilgileri boş geliyorsa
+
+- `users` tablosundaki SELECT RLS politikasını kontrol et
+- Feed migration'ının uygulandığını doğrula
+- Foreign key ilişkilerinin silinmediğini kontrol et
+
+## Resmi Supabase Kaynakları
+
+- [Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Securing your data](https://supabase.com/docs/guides/database/secure-data/)
+- [Querying joins and nested tables](https://supabase.com/docs/guides/database/joins-and-nesting)
+- [Phone Login](https://supabase.com/docs/guides/auth/phone-login)
+- [JavaScript verifyOtp](https://supabase.com/docs/reference/javascript/auth-verifyotp)
 
 ### Login başarısız oluyorsa
 

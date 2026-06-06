@@ -18,6 +18,7 @@ export interface ReportPayload {
 
 export interface UserRepository {
   getCurrentUser(userId: string): Promise<User>;
+  getUserById(userId: string): Promise<User>;
   updateProfile(userId: string, update: UserProfileUpdate): Promise<User>;
   completeOnboarding(userId: string, profile: OnboardingProfile): Promise<User>;
   listDiscoverCandidates(userId: string): Promise<User[]>;

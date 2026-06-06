@@ -9,6 +9,18 @@ export interface RegisterPayload extends LoginCredentials {
   name: string;
 }
 
+export type OtpPurpose = "login" | "register";
+
+export interface OtpChallenge {
+  phoneNumber: string;
+  purpose: OtpPurpose;
+  name?: string;
+}
+
+export interface VerifyOtpPayload extends OtpChallenge {
+  token: string;
+}
+
 export type SocialAuthProvider = "apple" | "google";
 
 export interface AuthSession {
@@ -17,8 +29,8 @@ export interface AuthSession {
 }
 
 export interface AuthRepository {
-  login(credentials: LoginCredentials): Promise<AuthSession>;
-  register(payload: RegisterPayload): Promise<AuthSession>;
+  requestOtp(challenge: OtpChallenge): Promise<void>;
+  verifyOtp(payload: VerifyOtpPayload): Promise<AuthSession>;
   signInWithProvider(provider: SocialAuthProvider): Promise<AuthSession>;
   restoreSession(token: string): Promise<AuthSession | null>;
   forgotPassword(email: string): Promise<void>;

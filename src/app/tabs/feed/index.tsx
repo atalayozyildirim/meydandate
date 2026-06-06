@@ -117,6 +117,7 @@ export default function FeedScreen() {
           <TextInput
             value={body}
             onChangeText={setBody}
+            maxLength={2000}
             placeholder="Topluluğa bir şey yaz..."
             placeholderTextColor={theme.colors.muted}
             style={styles.input}

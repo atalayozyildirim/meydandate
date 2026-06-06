@@ -2,9 +2,9 @@
 import type {
   AuthRepository,
   AuthSession,
-  LoginCredentials,
-  RegisterPayload,
+  OtpChallenge,
   SocialAuthProvider,
+  VerifyOtpPayload,
 } from "@/domain/repositories/AuthRepository";
 import type { User } from "@/domain/entities/User";
 import { createId } from "@/shared/utils/id";
@@ -48,50 +48,71 @@ const createSession = (user: User): AuthSession => {
 };
 
 export class MockAuthRepository implements AuthRepository {
-  async login(credentials: LoginCredentials): Promise<AuthSession> {
-    assertPhoneIsAllowed(credentials.phoneNumber);
+  private pendingChallenges = new Map<string, OtpChallenge>();
 
-    const user = findUserByPhone(credentials.phoneNumber) ?? mockDatabase.users[0];
+  async requestOtp(challenge: OtpChallenge): Promise<void> {
+    assertPhoneIsAllowed(challenge.phoneNumber);
+    const existingUser = findUserByPhone(challenge.phoneNumber);
 
-    if (!user) {
-      throw new Error("Demo kullanicisi bulunamadi.");
+    if (challenge.purpose === "login" && !existingUser) {
+      throw new Error("Bu telefon numarasıyla kayıtlı hesap bulunamadı.");
     }
 
-    return createSession(user);
+    if (challenge.purpose === "register" && existingUser) {
+      throw new Error("Bu telefon numarası zaten kayıtlı.");
+    }
+
+    this.pendingChallenges.set(challenge.phoneNumber, challenge);
   }
 
-  async register(payload: RegisterPayload): Promise<AuthSession> {
-    assertPhoneIsAllowed(payload.phoneNumber);
+  async verifyOtp(payload: VerifyOtpPayload): Promise<AuthSession> {
+    const challenge = this.pendingChallenges.get(payload.phoneNumber);
 
-    const timestamp = new Date().toISOString();
-    const email = `${payload.phoneNumber.replace(/\D/g, "")}@phone.ehlibyte.local`;
-
-    if (mockDatabase.bannedIdentifiers.emails.has(email.toLocaleLowerCase("tr-TR"))) {
-      throw new Error(banMessage);
+    if (!challenge || challenge.purpose !== payload.purpose) {
+      throw new Error("Doğrulama isteği bulunamadı. Yeni kod isteyin.");
     }
 
-    const user: User = {
-      id: createId("user"),
-      name: payload.name,
-      email,
-      phoneNumber: payload.phoneNumber,
-      age: 18,
-      city: "",
-      bio: "",
-      culturalIdentity: "prefer_not_to_say",
-      cultureImportance: "somewhat_important",
-      interests: [],
-      photos: [],
-      badges: ["community_member"],
-      isPremium: false,
-      hasPassedEntryTest: false,
-      hasCompletedOnboarding: false,
-      createdAt: timestamp,
-      updatedAt: timestamp
-    };
+    if (payload.token !== "123456") {
+      throw new Error("Doğrulama kodu hatalı.");
+    }
 
-    mockDatabase.users.push(user);
+    let user = findUserByPhone(payload.phoneNumber);
 
+    if (payload.purpose === "register") {
+      const timestamp = new Date().toISOString();
+      const email = `${payload.phoneNumber.replace(/\D/g, "")}@phone.ehlibyte.local`;
+
+      if (mockDatabase.bannedIdentifiers.emails.has(email.toLocaleLowerCase("tr-TR"))) {
+        throw new Error(banMessage);
+      }
+
+      user = {
+        id: createId("user"),
+        name: payload.name ?? "Yeni Üye",
+        email,
+        phoneNumber: payload.phoneNumber,
+        age: 18,
+        city: "",
+        bio: "",
+        culturalIdentity: "prefer_not_to_say",
+        cultureImportance: "somewhat_important",
+        interests: [],
+        photos: [],
+        badges: ["community_member"],
+        isPremium: false,
+        hasPassedEntryTest: false,
+        hasCompletedOnboarding: false,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      mockDatabase.users.push(user);
+    }
+
+    if (!user) {
+      throw new Error("Kullanıcı bulunamadı.");
+    }
+
+    this.pendingChallenges.delete(payload.phoneNumber);
     return createSession(user);
   }
 

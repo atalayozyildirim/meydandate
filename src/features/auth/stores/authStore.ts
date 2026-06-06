@@ -1,7 +1,12 @@
 // Session durumunu, token saklamayı ve auth aksiyonlarını Zustand ile yönetir.
 import { create } from "zustand";
 import type { User } from "@/domain/entities/User";
-import type { LoginCredentials, RegisterPayload, SocialAuthProvider } from "@/domain/repositories/AuthRepository";
+import type {
+  LoginCredentials,
+  OtpChallenge,
+  RegisterPayload,
+  SocialAuthProvider,
+} from "@/domain/repositories/AuthRepository";
 import { container } from "@/infrastructure/config/Container";
 import { env } from "@/infrastructure/config/env";
 
@@ -10,9 +15,13 @@ interface AuthState {
   currentUser: User | null;
   isHydrated: boolean;
   isSubmitting: boolean;
+  pendingOtp: OtpChallenge | null;
   initializeSession: () => Promise<void>;
   login: (credentials: LoginCredentials) => Promise<void>;
   register: (payload: RegisterPayload) => Promise<void>;
+  verifyOtp: (token: string) => Promise<void>;
+  resendOtp: () => Promise<void>;
+  clearPendingOtp: () => void;
   socialLogin: (provider: SocialAuthProvider) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -33,6 +42,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   currentUser: null,
   isHydrated: false,
   isSubmitting: false,
+  pendingOtp: null,
   initializeSession: async () => {
     const localBan = await container.tokenStorage.getItem(env.permanentBanKey);
 
@@ -64,9 +74,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       await assertDeviceIsAllowed();
-      const session = await container.authRepository.login(credentials);
-      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
-      set({ accessToken: session.accessToken, currentUser: session.user });
+      const challenge: OtpChallenge = { phoneNumber: credentials.phoneNumber, purpose: "login" };
+      await container.authRepository.requestOtp(challenge);
+      set({ pendingOtp: challenge });
     } finally {
       set({ isSubmitting: false });
     }
@@ -76,13 +86,50 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       await assertDeviceIsAllowed();
-      const session = await container.authRepository.register(payload);
-      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
-      set({ accessToken: session.accessToken, currentUser: session.user });
+      const challenge: OtpChallenge = {
+        phoneNumber: payload.phoneNumber,
+        purpose: "register",
+        name: payload.name,
+      };
+      await container.authRepository.requestOtp(challenge);
+      set({ pendingOtp: challenge });
     } finally {
       set({ isSubmitting: false });
     }
   },
+  verifyOtp: async (token) => {
+    const challenge = get().pendingOtp;
+
+    if (!challenge) {
+      throw new Error("Doğrulama isteği bulunamadı. Yeni kod isteyin.");
+    }
+
+    set({ isSubmitting: true });
+
+    try {
+      const session = await container.authRepository.verifyOtp({ ...challenge, token });
+      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
+      set({ accessToken: session.accessToken, currentUser: session.user, pendingOtp: null });
+    } finally {
+      set({ isSubmitting: false });
+    }
+  },
+  resendOtp: async () => {
+    const challenge = get().pendingOtp;
+
+    if (!challenge) {
+      throw new Error("Doğrulama isteği bulunamadı.");
+    }
+
+    set({ isSubmitting: true });
+
+    try {
+      await container.authRepository.requestOtp(challenge);
+    } finally {
+      set({ isSubmitting: false });
+    }
+  },
+  clearPendingOtp: () => set({ pendingOtp: null }),
   socialLogin: async (provider) => {
     set({ isSubmitting: true });
 

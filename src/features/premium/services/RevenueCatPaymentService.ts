@@ -36,11 +36,14 @@ interface RevenueCatCustomerInfo {
 }
 
 interface RevenueCatApi {
-  configure(config: { apiKey: string }): Promise<void> | void;
-  identify(userId: string): Promise<RevenueCatCustomerInfo>;
+  configure(config: { apiKey: string }): void;
+  logIn(userId: string): Promise<{ customerInfo: RevenueCatCustomerInfo }>;
   getCustomerInfo(): Promise<RevenueCatCustomerInfo>;
   getOfferings(): Promise<any>;
-  purchasePackage(pkg: RevenueCatPackage): Promise<RevenueCatCustomerInfo>;
+  purchasePackage(pkg: RevenueCatPackage): Promise<{
+    customerInfo: RevenueCatCustomerInfo;
+    productIdentifier: string;
+  }>;
 }
 
 export class RevenueCatPaymentService implements PaymentService {
@@ -65,7 +68,7 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     if (userId && this.currentUserId !== userId && this.Purchases) {
-      await this.Purchases.identify(userId);
+      await this.Purchases.logIn(userId);
       this.currentUserId = userId;
     }
   }
@@ -187,7 +190,7 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("RevenueCat paketleri yuklenemedi.");
     }
 
-    const customerInfo = await this.Purchases.purchasePackage(packageItem);
+    const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
     const subscription = this.mapCustomerInfoToSubscription(
       customerInfo,
       userId,
@@ -237,7 +240,7 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("RevenueCat rozet paketi bulunamadi.");
     }
 
-    const customerInfo = await this.Purchases.purchasePackage(packageItem);
+    const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
     const receiptId = customerInfo?.originalAppUserId ?? createId("badge_receipt");
     const user = mockDatabase.users.find(
       (candidate) => candidate.id === userId,

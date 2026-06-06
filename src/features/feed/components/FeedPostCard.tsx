@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import type { FeedPost } from "@/domain/entities/Feed";
 import type { User } from "@/domain/entities/User";
 import { Avatar } from "@/shared/components/Avatar";
@@ -9,6 +10,7 @@ import { Card } from "@/shared/components/Card";
 import { Button } from "@/shared/components/Button";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { formatDateTime } from "@/shared/utils/date";
+import { sanitizePlainText } from "@/shared/utils/sanitize";
 import { useTheme } from "@/shared/theme";
 
 interface FeedPostCardProps {
@@ -32,12 +34,16 @@ export const FeedPostCard = ({
   onPermanentBan,
   disabled = false,
 }: FeedPostCardProps) => {
+  const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
   const [isCommentsOpen, setIsCommentsOpen] = useState(post.comments.length > 0);
   const [commentText, setCommentText] = useState("");
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const liked = post.likedByUserIds.includes(currentUser.id);
+  const openProfile = (userId: string) => {
+    router.push({ pathname: "/tabs/profile/[userId]", params: { userId } });
+  };
 
   const submitComment = async () => {
     const body = commentText.trim();
@@ -98,25 +104,32 @@ export const FeedPostCard = ({
   return (
     <Card style={styles.card}>
       <View style={styles.header}>
-        <Avatar name={post.author.name} uri={post.author.photos[0]?.uri} size={46} />
-        <View style={styles.headerBody}>
-          <View style={styles.nameRow}>
-            <Text style={styles.name}>{post.author.name}</Text>
-            {post.isPinned ? (
-              <View style={styles.pinnedBadge}>
-                <Ionicons name="pin" size={12} color={theme.colors.primary} />
-                <Text style={styles.pinnedText}>Sabit</Text>
-              </View>
-            ) : null}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} profilini aç`}
+          onPress={() => openProfile(post.authorId)}
+          style={({ pressed }) => [styles.authorButton, pressed && styles.pressed]}
+        >
+          <Avatar name={post.author.name} uri={post.author.photos[0]?.uri} size={46} />
+          <View style={styles.headerBody}>
+            <View style={styles.nameRow}>
+              <Text style={styles.name}>{sanitizePlainText(post.author.name, 80)}</Text>
+              {post.isPinned ? (
+                <View style={styles.pinnedBadge}>
+                  <Ionicons name="pin" size={12} color={theme.colors.primary} />
+                  <Text style={styles.pinnedText}>Sabit</Text>
+                </View>
+              ) : null}
+            </View>
+            <Text style={styles.meta}>{formatDateTime(post.createdAt)}</Text>
           </View>
-          <Text style={styles.meta}>{formatDateTime(post.createdAt)}</Text>
-        </View>
+        </Pressable>
         <Pressable accessibilityRole="button" onPress={reportPost} style={styles.iconButton}>
           <Ionicons name="flag-outline" size={20} color={theme.colors.muted} />
         </Pressable>
       </View>
 
-      <Text style={styles.body}>{post.body}</Text>
+      <Text style={styles.body}>{sanitizePlainText(post.body, 2000)}</Text>
 
       <View style={styles.tagRow}>
         {post.tags.map((tag) => (
@@ -164,6 +177,7 @@ export const FeedPostCard = ({
             <TextInput
               value={commentText}
               onChangeText={setCommentText}
+              maxLength={1000}
               placeholder="Yorum yaz..."
               placeholderTextColor={theme.colors.muted}
               style={styles.commentInput}
@@ -179,21 +193,30 @@ export const FeedPostCard = ({
 
           {post.comments.map((comment) => (
             <View key={comment.id} style={styles.commentBlock}>
-              <View style={styles.commentHeader}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => openProfile(comment.authorId)}
+                style={({ pressed }) => [styles.commentHeader, pressed && styles.pressed]}
+              >
                 <Avatar name={comment.author.name} uri={comment.author.photos[0]?.uri} size={32} />
                 <View style={styles.commentBody}>
-                  <Text style={styles.commentName}>{comment.author.name}</Text>
-                  <Text style={styles.commentText}>{comment.body}</Text>
+                  <Text style={styles.commentName}>{sanitizePlainText(comment.author.name, 80)}</Text>
+                  <Text style={styles.commentText}>{sanitizePlainText(comment.body, 1000)}</Text>
                 </View>
-              </View>
+              </Pressable>
               {comment.replies.map((reply) => (
-                <View key={reply.id} style={styles.replyRow}>
+                <Pressable
+                  key={reply.id}
+                  accessibilityRole="button"
+                  onPress={() => openProfile(reply.authorId)}
+                  style={({ pressed }) => [styles.replyRow, pressed && styles.pressed]}
+                >
                   <Avatar name={reply.author.name} uri={reply.author.photos[0]?.uri} size={26} />
                   <View style={styles.replyBody}>
-                    <Text style={styles.replyName}>{reply.author.name}</Text>
-                    <Text style={styles.replyText}>{reply.body}</Text>
+                    <Text style={styles.replyName}>{sanitizePlainText(reply.author.name, 80)}</Text>
+                    <Text style={styles.replyText}>{sanitizePlainText(reply.body, 1000)}</Text>
                   </View>
-                </View>
+                </Pressable>
               ))}
               <View style={styles.replyComposer}>
                 <TextInput
@@ -201,6 +224,7 @@ export const FeedPostCard = ({
                   onChangeText={(value) =>
                     setReplyInputs((current) => ({ ...current, [comment.id]: value }))
                   }
+                  maxLength={1000}
                   placeholder="Yanıt yaz..."
                   placeholderTextColor={theme.colors.muted}
                   style={styles.replyInput}
@@ -236,6 +260,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     headerBody: {
       flex: 1,
       gap: theme.spacing.xxs,
+    },
+    authorButton: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
     },
     nameRow: {
       flexDirection: "row",

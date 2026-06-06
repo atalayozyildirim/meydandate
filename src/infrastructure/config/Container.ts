@@ -8,6 +8,7 @@ import { SupabaseMatchRepository } from "@/infrastructure/supabase/SupabaseMatch
 import { RevenueCatPaymentService } from "@/features/premium/services/RevenueCatPaymentService";
 import { SupabaseUserRepository } from "@/infrastructure/supabase/SupabaseUserRepository";
 import { SupabaseModerationRepository } from "@/infrastructure/supabase/SupabaseModerationRepository";
+import { SupabaseFeedRepository } from "@/infrastructure/supabase/SupabaseFeedRepository";
 import { ContentModerationService } from "@/features/moderation/services/ContentModerationService";
 import { MockModerationRepository } from "@/features/moderation/services/MockModerationRepository";
 import { MockAuthRepository } from "@/features/auth/services/MockAuthRepository";
@@ -42,7 +43,9 @@ const liveRoomRepository = env.useLiveApi
 const moderationRepository = env.useMockServices
   ? new MockModerationRepository()
   : new SupabaseModerationRepository();
-const feedRepository = new MockFeedRepository();
+const feedRepository = env.useMockServices
+  ? new MockFeedRepository()
+  : new SupabaseFeedRepository();
 
 export const container = {
   apiClient,

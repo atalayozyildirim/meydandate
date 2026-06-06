@@ -17,6 +17,7 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { testAccount } from "@/shared/constants/testAccount";
+import { formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
 export default function LoginScreen() {
@@ -29,14 +30,14 @@ export default function LoginScreen() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      phoneNumber: testAccount.phoneNumber,
+      phoneNumber: formatPhoneNumberInput(testAccount.phoneNumber),
     },
   });
 
   const onSubmit = form.handleSubmit(async (values: LoginFormValues) => {
     try {
       await login(values as unknown as LoginCredentials);
-      router.replace("/");
+      router.push("/auth/otp");
     } catch (error) {
       Alert.alert(
         "Giriş başarısız",
@@ -58,13 +59,13 @@ export default function LoginScreen() {
   };
 
   const loginWithTestAccount = async () => {
-    form.setValue("phoneNumber", testAccount.phoneNumber, {
+    form.setValue("phoneNumber", formatPhoneNumberInput(testAccount.phoneNumber), {
       shouldValidate: true,
     });
 
     try {
       await login({ phoneNumber: testAccount.phoneNumber });
-      router.replace("/");
+      router.push("/auth/otp");
     } catch (error) {
       Alert.alert(
         "Test hesabı açılamadı",
@@ -82,20 +83,24 @@ export default function LoginScreen() {
           <Input
             label="Telefon numarası"
             keyboardType="phone-pad"
+            textContentType="telephoneNumber"
+            autoComplete="tel"
+            maxLength={18}
+            placeholder="+90 555 111 22 33"
             value={field.value}
             onBlur={field.onBlur}
-            onChangeText={field.onChange}
+            onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}
             error={fieldState.error?.message}
           />
         )}
       />
       <Button
-        label="Telefon ile devam et"
+        label="Doğrulama kodu gönder"
         loading={isSubmitting}
         onPress={onSubmit}
       />
       <Button
-        label="Test hesabı ile gir"
+        label="Test hesabına kod gönder"
         variant="ghost"
         loading={isSubmitting}
         onPress={() => void loginWithTestAccount()}
