@@ -1,0 +1,129 @@
+// Kullanici giris ekranini ve session baslatma akisini yonetir.
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Link, useRouter } from "expo-router";
+import { Controller, useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { AuthScaffold } from "@/features/auth/components/AuthScaffold";
+import { SocialAuthButtons } from "@/features/auth/components/SocialAuthButtons";
+import type {
+  LoginCredentials,
+  SocialAuthProvider,
+} from "@/domain/repositories/AuthRepository";
+import {
+  loginSchema,
+  type LoginFormValues,
+} from "@/features/auth/schemas/authSchemas";
+import { useAuthStore } from "@/features/auth/stores/authStore";
+import { Button } from "@/shared/components/Button";
+import { Input } from "@/shared/components/Input";
+import { testAccount } from "@/shared/constants/testAccount";
+import { useTheme } from "@/shared/theme";
+
+export default function LoginScreen() {
+  const router = useRouter();
+  const theme = useTheme();
+  const styles = createStyles(theme);
+  const login = useAuthStore((state) => state.login);
+  const socialLogin = useAuthStore((state) => state.socialLogin);
+  const isSubmitting = useAuthStore((state) => state.isSubmitting);
+  const form = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      phoneNumber: testAccount.phoneNumber,
+    },
+  });
+
+  const onSubmit = form.handleSubmit(async (values: LoginFormValues) => {
+    try {
+      await login(values as unknown as LoginCredentials);
+      router.replace("/");
+    } catch (error) {
+      Alert.alert(
+        "Giris basarisiz",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  });
+
+  const onSocialLogin = async (provider: SocialAuthProvider) => {
+    try {
+      await socialLogin(provider);
+      router.replace("/");
+    } catch (error) {
+      Alert.alert(
+        "Giris basarisiz",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const loginWithTestAccount = async () => {
+    form.setValue("phoneNumber", testAccount.phoneNumber, {
+      shouldValidate: true,
+    });
+
+    try {
+      await login({ phoneNumber: testAccount.phoneNumber });
+      router.replace("/");
+    } catch (error) {
+      Alert.alert(
+        "Test hesabi acilamadi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  return (
+    <AuthScaffold title="Hoş geldin" subtitle="Hesabına giriş yap.">
+      <Controller
+        control={form.control}
+        name="phoneNumber"
+        render={({ field, fieldState }) => (
+          <Input
+            label="Telefon numarasi"
+            keyboardType="phone-pad"
+            value={field.value}
+            onBlur={field.onBlur}
+            onChangeText={field.onChange}
+            error={fieldState.error?.message}
+          />
+        )}
+      />
+      <Button
+        label="Telefon ile devam et"
+        loading={isSubmitting}
+        onPress={onSubmit}
+      />
+      <Button
+        label="Test hesabi ile gir"
+        variant="ghost"
+        loading={isSubmitting}
+        onPress={() => void loginWithTestAccount()}
+      />
+      <SocialAuthButtons
+        disabled={isSubmitting}
+        onPress={(provider) => void onSocialLogin(provider)}
+      />
+      <View style={styles.links}>
+        <Link href="/auth/register" asChild>
+          <Pressable>
+            <Text style={styles.link}>Hesap oluştur</Text>
+          </Pressable>
+        </Link>
+      </View>
+    </AuthScaffold>
+  );
+}
+
+const createStyles = (theme: ReturnType<typeof useTheme>) =>
+  StyleSheet.create({
+    links: {
+      flexDirection: "row",
+      justifyContent: "center",
+      gap: theme.spacing.sm,
+    },
+    link: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+    },
+  });

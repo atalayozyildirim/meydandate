@@ -1,0 +1,48 @@
+{
+  "expo": {
+    "name": "Ehlibyte",
+    "slug": "ehlibyte",
+    "version": "1.0.0",
+    "sdkVersion": "49.0.0",
+    "platforms": ["ios", "android", "web"],
+    "scheme": "ehlibyte",
+    "jsEngine": "hermes",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#FFF5F7"
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "unstable_src": "src/app"
+        }
+      ],
+      [
+        "react-native-google-mobile-ads",
+        {
+          "androidAppId": "ca-app-pub-3940256099942544~3347511713",
+          "iosAppId": "ca-app-pub-3940256099942544~1458002511",
+          "userTrackingUsageDescription": "Bu kimlik sana daha ilgili reklamlar sunmak icin kullanilabilir."
+        }
+      ]
+    ],
+    "ios": {
+      "bundleIdentifier": "com.ehlibyte.app",
+      "infoPlist": {
+        "NSPhotoLibraryUsageDescription": "Profil fotografi secmek icin fotoğraf kütüphanesine erişim gerekiyor.",
+        "NSCameraUsageDescription": "Profil fotografi çekmek icin kamera erişimine izin verin."
+      }
+    },
+    "android": {
+      "package": "com.ehlibyte.app",
+      "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FF4458"
+      }
+    }
+  }
+}
