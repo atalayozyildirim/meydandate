@@ -1,4 +1,4 @@
-// Form secenekleri ve UI etiketleri tek kaynakta tutulur.
+// Form seçenekleri ve UI etiketleri tek kaynakta tutulur.
 import type { Badge, CulturalIdentity, CultureImportance, Interest } from "@/domain/entities/User";
 import type { ReportCategory } from "@/domain/entities/Match";
 
@@ -9,60 +9,60 @@ export interface Option<TValue extends string> {
 
 export const culturalIdentityOptions: Option<CulturalIdentity>[] = [
   { label: "Alevi", value: "alevi" },
-  { label: "Alevi kulturune yakin hissediyorum", value: "close_to_alevi_culture" },
+  { label: "Alevi kültürüne yakın hissediyorum", value: "close_to_alevi_culture" },
   { label: "Belirtmek istemiyorum", value: "prefer_not_to_say" }
 ];
 
 export const cultureImportanceOptions: Option<CultureImportance>[] = [
-  { label: "Cok onemli", value: "very_important" },
-  { label: "Onemli", value: "important" },
-  { label: "Biraz onemli", value: "somewhat_important" },
-  { label: "Onemsiz", value: "not_important" }
+  { label: "Çok önemli", value: "very_important" },
+  { label: "Önemli", value: "important" },
+  { label: "Biraz önemli", value: "somewhat_important" },
+  { label: "Önemsiz", value: "not_important" }
 ];
 
 export const interestOptions: Option<Interest>[] = [
-  { label: "Baglama", value: "baglama" },
-  { label: "Turk Halk Muzigi", value: "turkish_folk_music" },
-  { label: "Halk Ozanlari", value: "folk_poets" },
-  { label: "Cem Kulturu", value: "cem_culture" },
-  { label: "Dayanisma", value: "solidarity" },
+  { label: "Bağlama", value: "baglama" },
+  { label: "Türk Halk Müziği", value: "turkish_folk_music" },
+  { label: "Halk Ozanları", value: "folk_poets" },
+  { label: "Cem Kültürü", value: "cem_culture" },
+  { label: "Dayanışma", value: "solidarity" },
   { label: "Sanat", value: "art" },
   { label: "Edebiyat", value: "literature" },
   { label: "Seyahat", value: "travel" },
   { label: "Spor", value: "sports" },
-  { label: "Doga", value: "nature" }
+  { label: "Doğa", value: "nature" }
 ];
 
 export const badgeLabels: Record<Badge, string> = {
-  community_member: "Topluluk Uyesi",
-  verified_profile: "Dogrulanmis Profil",
-  active_user: "Aktif Kullanici",
-  premium_member: "Premium Uye",
-  muharrem_follower: "Muharrem Takipcisi",
-  cem_room_supporter: "Cem Odasi Destekcisi",
-  culture_guardian: "Yol Erkani Destekcisi"
+  community_member: "Topluluk Üyesi",
+  verified_profile: "Doğrulanmış Profil",
+  active_user: "Aktif Kullanıcı",
+  premium_member: "Premium Üye",
+  muharrem_follower: "Muharrem Takipçisi",
+  cem_room_supporter: "Cem Odası Destekçisi",
+  culture_guardian: "Yol Erkânı Destekçisi"
 };
 
 export const reportCategoryOptions: Option<ReportCategory>[] = [
   { label: "Sahte Profil", value: "fake_profile" },
   { label: "Spam", value: "spam" },
   { label: "Taciz", value: "harassment" },
-  { label: "Uygunsuz Icerik", value: "inappropriate_content" },
-  { label: "Diger", value: "other" }
+  { label: "Uygunsuz İçerik", value: "inappropriate_content" },
+  { label: "Diğer", value: "other" }
 ];
 
 export const conversationStarters = [
-  "En sevdigin ozan kim?",
-  "En sevdigin turku hangisi?",
+  "En sevdiğin ozan kim?",
+  "En sevdiğin türkü hangisi?",
   "Memleketin neresi?",
-  "Hafta sonu planin ne?",
-  "Son dinledigin sarki neydi?"
+  "Hafta sonu planın ne?",
+  "Son dinlediğin şarkı neydi?"
 ] as const;
 
 export const premiumFeatures = [
-  "Kim beni begendi",
-  "Sinirsiz begeni",
+  "Kim beni beğendi",
+  "Sınırsız beğeni",
   "Super Like",
   "Boost",
-  "Oncelikli gorunurluk"
+  "Öncelikli görünürlük"
 ] as const;

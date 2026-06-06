@@ -1,4 +1,4 @@
-// Apple ve Google giris aksiyonlarini sade mobil butonlar olarak sunar.
+// Apple ve Google giriş aksiyonlarını sade mobil butonlar olarak sunar.
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { SocialAuthProvider } from "@/domain/repositories/AuthRepository";

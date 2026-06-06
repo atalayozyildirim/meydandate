@@ -1,4 +1,4 @@
-// Kayit sonrasi beyana dayali profil ve ilgi alani onboarding akisini yonetir.
+// Kayıt sonrası profil, ilgi alanı ve giriş uygunluğu onboarding akışını yönetir.
 import { useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -22,7 +22,7 @@ import { useTheme } from "@/shared/theme";
 const aleviKnowledgeQuestions = [
   {
     id: "cem",
-    question: "Cem erkaninda toplulugun temel ilkelerinden biri hangisidir?",
+    question: "Cem erkânında topluluğun temel ilkelerinden biri hangisidir?",
     options: [
       { id: "rizalik", label: "Rızalık ve saygı", correct: true },
       { id: "gosteris", label: "Gösteriş ve rekabet", correct: false },
@@ -31,28 +31,28 @@ const aleviKnowledgeQuestions = [
   },
   {
     id: "semah",
-    question: "Semah en dogru nasil tanimlanir?",
+    question: "Semah en doğru nasıl tanımlanır?",
     options: [
-      { id: "ibadet", label: "Cemlerde donulen rituel/ibadet dansi", correct: true },
-      { id: "oyun", label: "Sadece eglence oyunu", correct: false },
-      { id: "spor", label: "Spor yarismasi", correct: false },
+      { id: "ibadet", label: "Cemlerde dönülen ritüel/ibadet dansı", correct: true },
+      { id: "oyun", label: "Sadece eğlence oyunu", correct: false },
+      { id: "spor", label: "Spor yarışması", correct: false },
     ],
   },
   {
     id: "muharrem",
-    question: "Muharrem orucu hangi degerle iliskilidir?",
+    question: "Muharrem orucu hangi değerle ilişkilidir?",
     options: [
-      { id: "yas", label: "Yas, sabir ve arinma", correct: true },
-      { id: "tuketim", label: "Tuketim ve gosteris", correct: false },
-      { id: "zorunlu", label: "Herkesi zorla aynilastirma", correct: false },
+      { id: "yas", label: "Yas, sabır ve arınma", correct: true },
+      { id: "tuketim", label: "Tüketim ve gösteriş", correct: false },
+      { id: "zorunlu", label: "Herkesi zorla aynılaştırma", correct: false },
     ],
   },
   {
     id: "lokma",
-    question: "Lokma paylasiminin topluluk icindeki anlami nedir?",
+    question: "Lokma paylaşımının topluluk içindeki anlamı nedir?",
     options: [
-      { id: "paylasim", label: "Paylasim ve dayanisma", correct: true },
-      { id: "ticaret", label: "Ticari satis", correct: false },
+      { id: "paylasim", label: "Paylaşım ve dayanışma", correct: true },
+      { id: "ticaret", label: "Ticari satış", correct: false },
       { id: "ceza", label: "Ceza verme", correct: false },
     ],
   },
@@ -138,9 +138,9 @@ export default function OnboardingScreen() {
 
     try {
       await completeOnboarding(toProfilePayload(values));
-      router.replace("/tabs/discover");
+      router.replace("/tabs/feed");
     } catch (error) {
-      Alert.alert("Onboarding tamamlanamadi", error instanceof Error ? error.message : "Tekrar deneyin.");
+      Alert.alert("Onboarding tamamlanamadı", error instanceof Error ? error.message : "Tekrar deneyin.");
     }
   });
 
@@ -176,8 +176,8 @@ export default function OnboardingScreen() {
         <View style={styles.heroMark}>
           <Text style={styles.heroLetter}>e</Text>
         </View>
-        <Text style={styles.heroKicker}>Ehlibyte'e hos geldin</Text>
-        <Text style={styles.heroTitle}>Profilini kur, kartlarda gorun, eslesmeye basla.</Text>
+        <Text style={styles.heroKicker}>Ehlibyte'e hoş geldin</Text>
+        <Text style={styles.heroTitle}>Profilini kur, kartlarda görün, eşleşmeye başla.</Text>
         <View style={styles.heroSteps}>
           <View style={styles.heroStep}>
             <Ionicons name="person-circle" size={18} color="#FFFFFF" />
@@ -196,8 +196,8 @@ export default function OnboardingScreen() {
 
       <View style={styles.header}>
         <Text style={styles.kicker}>Onboarding</Text>
-        <Text style={styles.title}>Kartini hazirla</Text>
-        <Text style={styles.description}>Bu bilgiler profil kartinda ve eslesme onerilerinde kullanilir.</Text>
+        <Text style={styles.title}>Kartını hazırla</Text>
+        <Text style={styles.description}>Bu bilgiler profil kartında ve eşleşme önerilerinde kullanılır.</Text>
       </View>
 
       <View style={styles.quizCard}>
@@ -239,7 +239,7 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Kendinizi nasil tanimlarsiniz?</Text>
+        <Text style={styles.sectionTitle}>Kendinizi nasıl tanımlarsınız?</Text>
         <Controller
           control={form.control}
           name="culturalIdentity"
@@ -259,7 +259,7 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Alevi kulturu hayatinizda ne kadar onemli?</Text>
+        <Text style={styles.sectionTitle}>Alevi kültürü hayatınızda ne kadar önemli?</Text>
         <Controller
           control={form.control}
           name="cultureImportance"
@@ -279,7 +279,7 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ilgi alanlari</Text>
+        <Text style={styles.sectionTitle}>İlgi alanları</Text>
         <Controller
           control={form.control}
           name="interests"
@@ -320,7 +320,7 @@ export default function OnboardingScreen() {
             <View style={styles.photoRow}>
               {selectedPhotoUri ? <Image source={{ uri: selectedPhotoUri }} style={styles.previewPhoto} /> : null}
               <Button
-                label={selectedPhotoUri ? "Fotografi degistir" : "Fotograf yukle"}
+                label={selectedPhotoUri ? "Fotoğrafı değiştir" : "Fotoğraf yükle"}
                 variant="secondary"
                 loading={imagePicker.isPicking}
                 onPress={async () => {
@@ -338,7 +338,7 @@ export default function OnboardingScreen() {
           control={form.control}
           name="name"
           render={({ field, fieldState }) => (
-            <Input label="Isim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+            <Input label="İsim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
           )}
         />
         <Controller
@@ -346,7 +346,7 @@ export default function OnboardingScreen() {
           name="age"
           render={({ field, fieldState }) => (
             <Input
-              label="Yas"
+              label="Yaş"
               keyboardType="number-pad"
               value={String(field.value)}
               onChangeText={(value) => field.onChange(Number(value))}
@@ -358,7 +358,7 @@ export default function OnboardingScreen() {
           control={form.control}
           name="city"
           render={({ field, fieldState }) => (
-            <Input label="Sehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+            <Input label="Şehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
           )}
         />
         <Controller
@@ -387,7 +387,7 @@ export default function OnboardingScreen() {
         <Controller
           control={form.control}
           name="favoriteSong"
-          render={({ field }) => <Input label="Favori turku" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => <Input label="Favori türkü" value={field.value} onChangeText={field.onChange} />}
         />
         <Controller
           control={form.control}
@@ -396,7 +396,7 @@ export default function OnboardingScreen() {
         />
       </View>
 
-      <Button label="Onboardingi tamamla" loading={isCompleting} onPress={onSubmit} />
+      <Button label="Onboarding'i tamamla" loading={isCompleting} onPress={onSubmit} />
     </Screen>
   );
 }

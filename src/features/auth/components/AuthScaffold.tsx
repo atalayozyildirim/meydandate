@@ -1,4 +1,4 @@
-// Auth ekranlarinda sade Ehlibyte giris/kayit form duzenini sunar.
+// Auth ekranlarında sade Ehlibyte giriş/kayıt form düzenini sunar.
 import type { PropsWithChildren } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";

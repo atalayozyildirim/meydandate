@@ -1,4 +1,4 @@
-// Kullanici giris ekranini ve session baslatma akisini yonetir.
+// Kullanıcı giriş ekranını ve session başlatma akışını yönetir.
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
@@ -39,7 +39,7 @@ export default function LoginScreen() {
       router.replace("/");
     } catch (error) {
       Alert.alert(
-        "Giris basarisiz",
+        "Giriş başarısız",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -51,7 +51,7 @@ export default function LoginScreen() {
       router.replace("/");
     } catch (error) {
       Alert.alert(
-        "Giris basarisiz",
+        "Giriş başarısız",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -67,7 +67,7 @@ export default function LoginScreen() {
       router.replace("/");
     } catch (error) {
       Alert.alert(
-        "Test hesabi acilamadi",
+        "Test hesabı açılamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -80,7 +80,7 @@ export default function LoginScreen() {
         name="phoneNumber"
         render={({ field, fieldState }) => (
           <Input
-            label="Telefon numarasi"
+            label="Telefon numarası"
             keyboardType="phone-pad"
             value={field.value}
             onBlur={field.onBlur}
@@ -95,7 +95,7 @@ export default function LoginScreen() {
         onPress={onSubmit}
       />
       <Button
-        label="Test hesabi ile gir"
+        label="Test hesabı ile gir"
         variant="ghost"
         loading={isSubmitting}
         onPress={() => void loginWithTestAccount()}

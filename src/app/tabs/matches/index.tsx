@@ -1,4 +1,4 @@
-// Eslesmeleri listeleyen ve sohbet akisine gecis saglayan sekme.
+// Eşleşmeleri listeleyen ve sohbet akışına geçiş sağlayan sekme.
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/shared/components/Avatar";
@@ -19,17 +19,17 @@ export default function MatchesScreen() {
   const { matches, isLoading } = useMatches();
 
   if (isLoading) {
-    return <Loading label="Eslesmeler yukleniyor" />;
+    return <Loading label="Eşleşmeler yükleniyor" />;
   }
 
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.kicker}>Matches</Text>
-        <Text style={styles.title}>Eslesmeler</Text>
+        <Text style={styles.title}>Eşleşmeler</Text>
       </View>
       {matches.length === 0 ? (
-        <EmptyState title="Henuz eslesme yok" description="Discover'da karsilikli begeni oldugunda burada gorunecek." />
+        <EmptyState title="Henüz eşleşme yok" description="Keşfet'te karşılıklı beğeni olduğunda burada görünecek." />
       ) : (
         <View style={styles.list}>
           {matches.map((match) => {
@@ -41,8 +41,8 @@ export default function MatchesScreen() {
                   <Avatar name={partner.name} uri={partner.photos[0]?.uri} size={68} />
                   <View style={styles.matchBody}>
                     <Text style={styles.name}>{partner.name}</Text>
-                    <Text style={styles.preview}>{match.lastMessagePreview ?? "Yeni eslesme. Sohbete basla."}</Text>
-                    <Text style={styles.score}>{formatScore(match.compatibility.cultural)} Kulturel Uyum</Text>
+                    <Text style={styles.preview}>{match.lastMessagePreview ?? "Yeni eşleşme. Sohbete başla."}</Text>
+                    <Text style={styles.score}>{formatScore(match.compatibility.cultural)} Kültürel Uyum</Text>
                   </View>
                 </Card>
               </Pressable>

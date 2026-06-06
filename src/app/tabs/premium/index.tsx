@@ -1,4 +1,4 @@
-// Premium ozellikleri ve mock odeme planlarini sunar.
+// Premium özellikleri ve mock ödeme planlarını sunar.
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { SubscriptionPlan } from "@/domain/entities/Subscription";
@@ -17,19 +17,19 @@ export default function PremiumScreen() {
 
   const buyPlan = async (plan: SubscriptionPlan) => {
     const result = await purchase(plan);
-    Alert.alert("Premium aktif", `Mock odeme tamamlandi. Receipt: ${result.receiptId}`);
+    Alert.alert("Premium aktif", `Mock ödeme tamamlandı. Receipt: ${result.receiptId}`);
   };
 
   if (isLoading) {
-    return <Loading label="Premium yukleniyor" />;
+    return <Loading label="Premium yükleniyor" />;
   }
 
   return (
     <Screen>
       <View style={styles.header}>
         <Text style={styles.kicker}>Premium</Text>
-        <Text style={styles.title}>Daha guclu eslesme deneyimi</Text>
-        <Text style={styles.description}>Odeme mimarisi mock servisle hazir; gercek entegrasyon ayni kontrata baglanabilir.</Text>
+        <Text style={styles.title}>Daha güçlü eşleşme deneyimi</Text>
+        <Text style={styles.description}>Ödeme mimarisi mock servisle hazır; gerçek entegrasyon aynı kontrata bağlanabilir.</Text>
       </View>
 
       <Card style={styles.statusCard}>
@@ -38,7 +38,7 @@ export default function PremiumScreen() {
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Ozellikler</Text>
+        <Text style={styles.sectionTitle}>Özellikler</Text>
         {premiumFeatures.map((feature) => (
           <View key={feature} style={styles.featureRow}>
             <Ionicons name="checkmark-circle" size={20} color={theme.colors.success} />
@@ -49,14 +49,14 @@ export default function PremiumScreen() {
 
       <View style={styles.planGrid}>
         <Card style={styles.planCard}>
-          <Text style={styles.planTitle}>Aylik</Text>
+          <Text style={styles.planTitle}>Aylık</Text>
           <Text style={styles.price}>₺149</Text>
-          <Button label="Aylik baslat" loading={isPurchasing} onPress={() => void buyPlan("monthly")} />
+          <Button label="Aylık başlat" loading={isPurchasing} onPress={() => void buyPlan("monthly")} />
         </Card>
         <Card style={styles.planCard}>
-          <Text style={styles.planTitle}>Yillik</Text>
+          <Text style={styles.planTitle}>Yıllık</Text>
           <Text style={styles.price}>₺999</Text>
-          <Button label="Yillik baslat" variant="secondary" loading={isPurchasing} onPress={() => void buyPlan("yearly")} />
+          <Button label="Yıllık başlat" variant="secondary" loading={isPurchasing} onPress={() => void buyPlan("yearly")} />
         </Card>
       </View>
     </Screen>

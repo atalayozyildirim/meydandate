@@ -1,4 +1,4 @@
-// Session durumunu, token saklamayi ve auth aksiyonlarini Zustand ile yonetir.
+// Session durumunu, token saklamayı ve auth aksiyonlarını Zustand ile yönetir.
 import { create } from "zustand";
 import type { User } from "@/domain/entities/User";
 import type { LoginCredentials, RegisterPayload, SocialAuthProvider } from "@/domain/repositories/AuthRepository";
@@ -116,8 +116,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
   applyPermanentBan: async () => {
     const token = get().accessToken;
+    const user = get().currentUser;
 
     await container.tokenStorage.setItem(env.permanentBanKey, new Date().toISOString());
+
+    if (user) {
+      try {
+        await container.moderationRepository.banUser(
+          user.id,
+          "permanent",
+          "Giriş testi veya içerik güvenliği ihlali.",
+        );
+      } catch {
+        // Yerel cihaz kilidi ve logout yine çalışmalı; backend kaydı tekrar denenebilir.
+      }
+    }
 
     if (token) {
       await container.authRepository.logout(token);

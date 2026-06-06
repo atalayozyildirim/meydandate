@@ -1,4 +1,4 @@
-// Profil duzenleme ekraninda form, fotograf secimi ve ilgi alani guncellemesi yapilir.
+// Profil düzenleme ekranında form, fotoğraf seçimi ve ilgi alanı güncellemesi yapılır.
 import { useEffect } from "react";
 import { Alert, Image, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
@@ -97,7 +97,7 @@ export default function ProfileEditScreen() {
   }, [form, profile]);
 
   if (isLoading || !profile) {
-    return <Loading label="Profil formu hazirlaniyor" />;
+    return <Loading label="Profil formu hazırlanıyor" />;
   }
 
   const onSubmit = form.handleSubmit(async (values) => {
@@ -105,15 +105,15 @@ export default function ProfileEditScreen() {
       await updateProfile(toProfileUpdate(values));
       router.back();
     } catch (error) {
-      Alert.alert("Profil guncellenemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
+      Alert.alert("Profil güncellenemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
     }
   });
 
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.kicker}>Profile</Text>
-        <Text style={styles.title}>Profili duzenle</Text>
+        <Text style={styles.kicker}>Profil</Text>
+        <Text style={styles.title}>Profili düzenle</Text>
       </View>
       <Controller
         control={form.control}
@@ -122,7 +122,7 @@ export default function ProfileEditScreen() {
           <View style={styles.photoSection}>
             {selectedPhotoUri ? <Image source={{ uri: selectedPhotoUri }} style={styles.photo} /> : null}
             <Button
-              label="Fotografi degistir"
+              label="Fotoğrafı değiştir"
               variant="secondary"
               loading={imagePicker.isPicking}
               onPress={async () => {
@@ -140,7 +140,7 @@ export default function ProfileEditScreen() {
         control={form.control}
         name="name"
         render={({ field, fieldState }) => (
-          <Input label="Isim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+          <Input label="İsim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
         )}
       />
       <Controller
@@ -148,7 +148,7 @@ export default function ProfileEditScreen() {
         name="age"
         render={({ field, fieldState }) => (
           <Input
-            label="Yas"
+            label="Yaş"
             keyboardType="number-pad"
             value={String(field.value)}
             onChangeText={(value) => field.onChange(Number(value))}
@@ -160,7 +160,7 @@ export default function ProfileEditScreen() {
         control={form.control}
         name="city"
         render={({ field, fieldState }) => (
-          <Input label="Sehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+          <Input label="Şehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
         )}
       />
       <Controller
@@ -183,7 +183,7 @@ export default function ProfileEditScreen() {
       <Controller
         control={form.control}
         name="favoriteSong"
-        render={({ field }) => <Input label="Favori turku" value={field.value} onChangeText={field.onChange} />}
+        render={({ field }) => <Input label="Favori türkü" value={field.value} onChangeText={field.onChange} />}
       />
       <Controller
         control={form.control}
@@ -192,7 +192,7 @@ export default function ProfileEditScreen() {
       />
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Kulturel beyan</Text>
+        <Text style={styles.sectionTitle}>Kültürel beyan</Text>
         <Controller
           control={form.control}
           name="culturalIdentity"
@@ -228,7 +228,7 @@ export default function ProfileEditScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Ilgi alanlari</Text>
+        <Text style={styles.sectionTitle}>İlgi alanları</Text>
         <Controller
           control={form.control}
           name="interests"

@@ -1,4 +1,4 @@
-// Kullanici profilini, rozetleri ve duzenleme gecisini gosterir.
+// Kullanıcı profilini, rozetleri ve düzenleme geçişini gösterir.
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,7 +20,7 @@ export default function ProfileScreen() {
   const { purchaseBadge, isPurchasingBadge } = usePremium();
 
   if (isLoading || !profile) {
-    return <Loading label="Profil yukleniyor" />;
+    return <Loading label="Profil yükleniyor" />;
   }
 
   const primaryPhoto = profile.photos[0]?.uri;
@@ -31,7 +31,7 @@ export default function ProfileScreen() {
       Alert.alert("Rozet eklendi", `${badgeLabels[result.badge]} profiline eklendi.`);
     } catch (error) {
       Alert.alert(
-        "Rozet alinamadi",
+        "Rozet alınamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -40,7 +40,7 @@ export default function ProfileScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.kicker}>Profile</Text>
+        <Text style={styles.kicker}>Profil</Text>
         <Pressable onPress={() => router.push("/tabs/profile/edit")} style={styles.iconButton}>
           <Ionicons name="create-outline" size={22} color={theme.colors.text} />
         </Pressable>
@@ -64,7 +64,7 @@ export default function ProfileScreen() {
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Rozet magazasi</Text>
+        <Text style={styles.sectionTitle}>Rozet mağazası</Text>
         {paidBadgeProducts.map((product) => {
           const owned = profile.badges.includes(product.badge);
 
@@ -79,7 +79,7 @@ export default function ProfileScreen() {
                 <Text style={styles.storePrice}>{owned ? "Sende var" : product.priceLabel}</Text>
               </View>
               <Button
-                label={owned ? "Alindi" : "Al"}
+                label={owned ? "Alındı" : "Al"}
                 variant={owned ? "ghost" : "primary"}
                 disabled={owned}
                 loading={isPurchasingBadge}
@@ -92,7 +92,7 @@ export default function ProfileScreen() {
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Ilgi alanlari</Text>
+        <Text style={styles.sectionTitle}>İlgi alanları</Text>
         <View style={styles.chipWrap}>
           {profile.interests.map((interest) => (
             <View key={interest} style={styles.interest}>
@@ -105,13 +105,13 @@ export default function ProfileScreen() {
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Kulturel detaylar</Text>
+        <Text style={styles.sectionTitle}>Kültürel detaylar</Text>
         <Text style={styles.detail}>Memleket: {profile.hometown || "Belirtilmedi"}</Text>
-        <Text style={styles.detail}>Favori turku: {profile.favoriteSong || "Belirtilmedi"}</Text>
+        <Text style={styles.detail}>Favori türkü: {profile.favoriteSong || "Belirtilmedi"}</Text>
         <Text style={styles.detail}>Favori ozan: {profile.favoritePoet || "Belirtilmedi"}</Text>
       </Card>
 
-      <Button label="Profili duzenle" onPress={() => router.push("/tabs/profile/edit")} />
+      <Button label="Profili düzenle" onPress={() => router.push("/tabs/profile/edit")} />
     </Screen>
   );
 }

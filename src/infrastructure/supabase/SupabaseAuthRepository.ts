@@ -17,7 +17,7 @@ export class SupabaseAuthRepository implements AuthRepository {
       throw new Error(error.message);
     }
 
-    throw new Error("Telefon dogrulama kodu gonderildi. OTP dogrulama ekrani baglandiginda devam edilecek.");
+    throw new Error("Telefon doğrulama kodu gönderildi. OTP doğrulama ekranı bağlandığında devam edilecek.");
   }
 
   async register(payload: RegisterPayload): Promise<AuthSession> {
@@ -29,7 +29,7 @@ export class SupabaseAuthRepository implements AuthRepository {
       throw new Error(authError.message);
     }
 
-    throw new Error("Telefon dogrulama kodu gonderildi. OTP dogrulama ekrani baglandiginda kayit tamamlanacak.");
+    throw new Error("Telefon doğrulama kodu gönderildi. OTP doğrulama ekranı bağlandığında kayıt tamamlanacak.");
   }
 
   async signInWithProvider(provider: SocialAuthProvider): Promise<AuthSession> {

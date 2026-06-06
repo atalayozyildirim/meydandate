@@ -1,4 +1,4 @@
-// Uygulamaya giris onay testini gorunur bir kapı olarak sunar.
+// Uygulamaya giriş onay testini görünür bir kapı olarak sunar.
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -12,23 +12,23 @@ import { useTheme } from "@/shared/theme";
 const approvalItems = [
   {
     id: "age",
-    title: "18 yasindan buyugum",
-    description: "Ehlibyte yalnizca yetiskin kullanicilar icindir.",
+    title: "18 yaşından büyüğüm",
+    description: "Ehlibyte yalnızca yetişkin kullanıcılar içindir.",
   },
   {
     id: "real_profile",
     title: "Profil bilgilerim bana ait",
-    description: "Sahte profil, baskasina ait fotograf veya yaniltici bilgi kullanmayacagim.",
+    description: "Sahte profil, başkasına ait fotoğraf veya yanıltıcı bilgi kullanmayacağım.",
   },
   {
     id: "respect",
-    title: "Saygili iletisim kuracagim",
-    description: "Alevi kulturune, farkli inanclara ve kullanicilarin sinirlarina saygi gosterecegim.",
+    title: "Saygılı iletişim kuracağım",
+    description: "Alevi kültürüne, farklı inançlara ve kullanıcıların sınırlarına saygı göstereceğim.",
   },
   {
     id: "safety",
-    title: "Taciz ve nefret soylemi yok",
-    description: "Rahatsiz edici davranis, ayrimcilik veya israrli mesajlasma yapmayacagim.",
+    title: "Taciz ve nefret söylemi yok",
+    description: "Rahatsız edici davranış, ayrımcılık veya ısrarlı mesajlaşma yapmayacağım.",
   },
 ] as const;
 
@@ -47,7 +47,7 @@ export default function ApprovalTestScreen() {
 
   if (currentUser.hasPassedEntryTest) {
     return currentUser.hasCompletedOnboarding ? (
-      <Redirect href="/tabs/discover" />
+      <Redirect href="/tabs/feed" />
     ) : (
       <Redirect href="/onboarding" />
     );
@@ -62,13 +62,13 @@ export default function ApprovalTestScreen() {
 
   const onSubmit = async () => {
     if (!isComplete) {
-      Alert.alert("Onay testi eksik", "Devam etmek icin tum maddeleri onayla.");
+      Alert.alert("Onay testi eksik", "Devam etmek için tüm maddeleri onayla.");
       return;
     }
 
     try {
       await completeApprovalTest();
-      router.replace(currentUser.hasCompletedOnboarding ? "/tabs/discover" : "/onboarding");
+      router.replace(currentUser.hasCompletedOnboarding ? "/tabs/feed" : "/onboarding");
     } catch (error) {
       Alert.alert(
         "Onay kaydedilemedi",
@@ -84,9 +84,9 @@ export default function ApprovalTestScreen() {
           <Text style={styles.markText}>e</Text>
         </View>
         <Text style={styles.kicker}>Ehlibyte onay testi</Text>
-        <Text style={styles.title}>Topluluga girmeden once net kurallar.</Text>
+        <Text style={styles.title}>Topluluğa girmeden önce net kurallar.</Text>
         <Text style={styles.description}>
-          Bu testi gecmeyen kullanici Kesfet, eslesme ve mesaj ekranlarina giremez.
+          Bu testi geçmeyen kullanıcı Keşfet, eşleşme ve mesaj ekranlarına giremez.
         </Text>
       </View>
 

@@ -1,28 +1,28 @@
-// KVKK/GDPR uyumlu ekranlar icin ilk surum hukuki metin iskeletleri.
+// KVKK/GDPR uyumlu ekranlar için ilk sürüm hukuki metin iskeletleri.
 export const legalDocuments = {
   privacyPolicy: {
-    title: "Privacy Policy",
+    title: "Gizlilik Politikası",
     body:
-      "Ehlibyte, profil bilgilerinizi, tercihlerinizi ve iletisim verilerinizi yalnizca eslesme deneyimini saglamak, guvenligi korumak ve yasal talepleri yonetmek icin isler. Dini veya kulturel bilgi sinavi yapilmaz; kulturel alanlar kullanici beyanina dayanir."
+      "Ehlibyte, profil bilgilerinizi, tercihlerinizi ve iletişim verilerinizi yalnızca eşleşme deneyimini sağlamak, güvenliği korumak ve yasal talepleri yönetmek için işler. Giriş uygunluğu için Alevilik bilgi testi ve güvenlik kontrolleri uygulanır; bu kayıtlar topluluk güvenliği amacıyla sınırlı şekilde değerlendirilir."
   },
   termsOfService: {
-    title: "Terms Of Service",
+    title: "Kullanım Şartları",
     body:
-      "Uygulama kapsayici, saygili ve hukuka uygun kullanim icin tasarlanmistir. Taciz, nefret soylemi, sahte profil ve spam yasaktir. Eslesmeler ve mesajlasma kullanici tercihleri ile guvenlik kontrollerine tabidir."
+      "Uygulama kapsayıcı, saygılı ve hukuka uygun kullanım için tasarlanmıştır. Taciz, nefret söylemi, sahte profil, cinsel ima, ağır küfür ve spam yasaktır. Eşleşmeler, akış paylaşımları ve mesajlaşma kullanıcı tercihleri ile güvenlik kontrollerine tabidir."
   },
   accountDeletion: {
-    title: "Account Deletion",
+    title: "Hesap Silme",
     body:
-      "Hesap silme talebi sonrasinda profiliniz, eslesmeleriniz ve mesaj metaverileriniz yasal saklama sureleri disinda kalici olarak silinecek sekilde isaretlenir. Bu akisa backend entegrasyonunda denetlenebilir talep kaydi eklenecektir."
+      "Hesap silme talebi sonrasında profiliniz, eşleşmeleriniz ve mesaj metaverileriniz yasal saklama süreleri dışında kalıcı olarak silinecek şekilde işaretlenir. Bu akışa backend entegrasyonunda denetlenebilir talep kaydı eklenecektir."
   },
   dataExport: {
-    title: "Data Export Request",
+    title: "Veri Dışa Aktarma Talebi",
     body:
-      "Veri disari aktarma talebi ile profil, tercih, eslesme ve guvenlik kayitlarinizin okunabilir bir kopyasini isteyebilirsiniz. Talep sureci KVKK ve GDPR kapsaminda kimlik dogrulama adimi gerektirecek sekilde tasarlanmistir."
+      "Veri dışa aktarma talebi ile profil, tercih, eşleşme ve güvenlik kayıtlarınızın okunabilir bir kopyasını isteyebilirsiniz. Talep süreci KVKK ve GDPR kapsamında kimlik doğrulama adımı gerektirecek şekilde tasarlanmıştır."
   },
   consentManagement: {
-    title: "Consent Management",
+    title: "Rıza Yönetimi",
     body:
-      "Acik riza gerektiren bildirim, analiz ve pazarlama tercihleri ayri ayri yonetilir. Zorunlu guvenlik ve hesap islemleri icin gerekli veri isleme faaliyetleri ayrica kayit altina alinir."
+      "Açık rıza gerektiren bildirim, analiz ve pazarlama tercihleri ayrı ayrı yönetilir. Zorunlu güvenlik ve hesap işlemleri için gerekli veri işleme faaliyetleri ayrıca kayıt altına alınır."
   }
 } as const;

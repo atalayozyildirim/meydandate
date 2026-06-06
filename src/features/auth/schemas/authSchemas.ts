@@ -1,4 +1,4 @@
-// Auth formlarinin Zod dogrulama kurallarini tanimlar.
+// Auth formlarının Zod doğrulama kurallarını tanımlar.
 import { z } from "zod";
 
 const phoneRegex = /^\+?[1-9]\d{9,14}$/;
@@ -7,11 +7,11 @@ export const loginSchema = z.object({
   phoneNumber: z
     .string()
     .trim()
-    .regex(phoneRegex, "Telefonu ulke koduyla girin. Ornek: +905551112233")
+    .regex(phoneRegex, "Telefonu ülke koduyla girin. Örnek: +905551112233")
 });
 
 export const registerSchema = loginSchema.extend({
-  name: z.string().min(2, "Isim en az 2 karakter olmali.")
+  name: z.string().min(2, "İsim en az 2 karakter olmalı.")
 });
 
 export const forgotPasswordSchema = loginSchema;

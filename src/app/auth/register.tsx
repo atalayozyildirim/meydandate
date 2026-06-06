@@ -1,4 +1,4 @@
-// Yeni kullanici kaydini baslatir ve onay testi akisine yonlendirir.
+// Yeni kullanıcı kaydını başlatır ve onay testi akışına yönlendirir.
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
@@ -39,7 +39,7 @@ export default function RegisterScreen() {
       router.replace("/approval-test");
     } catch (error) {
       Alert.alert(
-        "Kayit basarisiz",
+        "Kayıt başarısız",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -58,13 +58,13 @@ export default function RegisterScreen() {
   };
 
   return (
-    <AuthScaffold title="Ehlibyte'e katil" subtitle="Yeni hesabını olustur.">
+    <AuthScaffold title="Ehlibyte'e katıl" subtitle="Yeni hesabını oluştur.">
       <Controller
         control={form.control}
         name="name"
         render={({ field, fieldState }) => (
           <Input
-            label="Isim"
+            label="İsim"
             value={field.value}
             onBlur={field.onBlur}
             onChangeText={field.onChange}
@@ -97,7 +97,7 @@ export default function RegisterScreen() {
       />
       <Link href="/auth/login" asChild>
         <Pressable>
-          <Text style={styles.link}>Zaten hesabim var</Text>
+          <Text style={styles.link}>Zaten hesabım var</Text>
         </Pressable>
       </Link>
     </AuthScaffold>
