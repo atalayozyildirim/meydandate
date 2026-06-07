@@ -63,6 +63,6 @@ export const premiumFeatures = [
   "Kim beni beğendi",
   "Sınırsız beğeni",
   "Super Like",
-  "Boost",
+  "24 saat profil boost",
   "Öncelikli görünürlük"
 ] as const;

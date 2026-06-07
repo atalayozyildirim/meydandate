@@ -12,7 +12,7 @@ export interface PaymentService {
   restorePurchases(userId: string): Promise<Subscription>;
 }
 
-const renewalByPlanDays: Record<SubscriptionPlan, number> = {
+const renewalByPlanDays: Record<Exclude<SubscriptionPlan, "lifetime">, number> = {
   monthly: 30,
   yearly: 365
 };
@@ -21,7 +21,8 @@ export class MockPaymentService implements PaymentService {
   async getPlanPrices(): Promise<Record<SubscriptionPlan, string>> {
     return {
       monthly: "₺149",
-      yearly: "₺999"
+      yearly: "₺999",
+      lifetime: "₺2.999"
     };
   }
 
@@ -39,7 +40,10 @@ export class MockPaymentService implements PaymentService {
   async purchase(userId: string, plan: SubscriptionPlan): Promise<PaymentResult> {
     const startedAt = new Date();
     const renewsAt = new Date(startedAt);
-    renewsAt.setDate(renewsAt.getDate() + renewalByPlanDays[plan]);
+
+    if (plan !== "lifetime") {
+      renewsAt.setDate(renewsAt.getDate() + renewalByPlanDays[plan]);
+    }
 
     const subscription: Subscription = {
       id: createId("subscription"),
@@ -47,7 +51,7 @@ export class MockPaymentService implements PaymentService {
       plan,
       status: "active",
       startedAt: startedAt.toISOString(),
-      renewsAt: renewsAt.toISOString()
+      ...(plan !== "lifetime" ? { renewsAt: renewsAt.toISOString() } : {})
     };
 
     const existingIndex = mockDatabase.subscriptions.findIndex((candidate) => candidate.userId === userId);

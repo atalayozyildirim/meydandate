@@ -4,7 +4,6 @@ import type { Conversation } from "@/domain/entities/Message";
 import type { Subscription } from "@/domain/entities/Subscription";
 import type { User } from "@/domain/entities/User";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
-import { testAccount } from "@/shared/constants/testAccount";
 
 interface MutedUser {
   userId: string;
@@ -30,14 +29,15 @@ export interface MockDatabase {
 }
 
 const now = new Date().toISOString();
+const activeBoostUntil = new Date(Date.now() + 1000 * 60 * 60 * 6).toISOString();
 
 const photo = (id: string, uri: string) => ({ id, uri, isPrimary: true });
 
 const currentUser: User = {
   id: "user-current",
-  name: testAccount.name,
+  name: "Deniz Kaya",
   email: "deniz@ehlibyte.app",
-  phoneNumber: testAccount.phoneNumber,
+  phoneNumber: "+905559990011",
   age: 30,
   city: "Istanbul",
   occupation: "Urun Tasarimcisi",
@@ -85,6 +85,7 @@ const candidates: User[] = [
     ],
     badges: ["verified_profile", "community_member"],
     isPremium: true,
+    boostedUntil: activeBoostUntil,
     hasPassedEntryTest: true,
     hasCompletedOnboarding: true,
     createdAt: now,

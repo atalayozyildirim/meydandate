@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Redirect, useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -8,8 +8,6 @@ import { otpSchema, type OtpFormValues } from "@/features/auth/schemas/authSchem
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
-import { testAccount } from "@/shared/constants/testAccount";
-import { env } from "@/infrastructure/config/env";
 import { formatOtpInput, formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
@@ -103,12 +101,6 @@ export default function OtpScreen() {
         )}
       />
 
-      {env.useMockServices ? (
-        <View style={styles.demoCode}>
-          <Text style={styles.demoCodeText}>Demo doğrulama kodu: {formatOtpInput(testAccount.otp)}</Text>
-        </View>
-      ) : null}
-
       <Button
         label="Telefonu doğrula"
         loading={isSubmitting}
@@ -130,16 +122,6 @@ export default function OtpScreen() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    demoCode: {
-      borderRadius: theme.radius.md,
-      padding: theme.spacing.sm,
-      backgroundColor: theme.colors.elevated,
-    },
-    demoCodeText: {
-      ...theme.typography.caption,
-      color: theme.colors.text,
-      textAlign: "center",
-    },
     backLink: {
       ...theme.typography.caption,
       color: theme.colors.primary,

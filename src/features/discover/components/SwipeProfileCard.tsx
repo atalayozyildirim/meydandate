@@ -6,6 +6,7 @@ import type { CulturalCompatibility } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { Card } from "@/shared/components/Card";
 import { formatScore } from "@/shared/utils/score";
+import { isProfileBoostActive } from "@/shared/utils/profileBoost";
 import { useTheme } from "@/shared/theme";
 
 interface SwipeProfileCardProps {
@@ -19,10 +20,25 @@ export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: 
   const theme = useTheme();
   const styles = createStyles(theme);
   const primaryPhoto = user.photos.find((photo) => photo.isPrimary)?.uri;
+  const hasActiveBoost = isProfileBoostActive(user.boostedUntil);
 
   return (
     <Card style={[styles.card, { height }]}>
       <ImageBackground source={{ uri: primaryPhoto }} style={styles.photo} imageStyle={styles.photoImage}>
+        <View pointerEvents="none" style={styles.topBadges}>
+          {hasActiveBoost ? (
+            <View style={[styles.statusPill, styles.boostPill]}>
+              <Ionicons name="flash" size={13} color="#FFFFFF" />
+              <Text style={styles.statusPillText}>Boost</Text>
+            </View>
+          ) : null}
+          {user.isPremium ? (
+            <View style={[styles.statusPill, styles.premiumPill]}>
+              <Ionicons name="star" size={13} color="#FFFFFF" />
+              <Text style={styles.statusPillText}>Premium</Text>
+            </View>
+          ) : null}
+        </View>
         <Pressable accessibilityRole="button" onPress={onOpenSafety} style={styles.safetyButton}>
           <Ionicons name="shield-outline" size={20} color="#FFFFFF" />
         </Pressable>
@@ -84,6 +100,36 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "rgba(0, 0, 0, 0.38)"
+    },
+    topBadges: {
+      position: "absolute",
+      top: theme.spacing.md,
+      left: theme.spacing.md,
+      right: 68,
+      zIndex: 2,
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs
+    },
+    statusPill: {
+      minHeight: 30,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.24)"
+    },
+    boostPill: {
+      backgroundColor: "rgba(245, 158, 11, 0.88)"
+    },
+    premiumPill: {
+      backgroundColor: "rgba(138, 35, 135, 0.88)"
+    },
+    statusPillText: {
+      ...theme.typography.caption,
+      color: "#FFFFFF"
     },
     name: {
       fontSize: 31,

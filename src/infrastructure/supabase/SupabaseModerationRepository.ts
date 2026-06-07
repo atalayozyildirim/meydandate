@@ -193,6 +193,20 @@ export class SupabaseModerationRepository implements ModerationRepository {
     reason: string,
     expiresAt?: string,
   ): Promise<Ban> {
+    const { data: authData } = await supabase.auth.getUser();
+
+    if (authData.user?.id === userId && banType === "permanent") {
+      const { data, error } = await supabase
+        .rpc("auto_ban_current_user", { reason_text: reason })
+        .single();
+
+      if (error || !data) {
+        throw new Error("Kullanıcı yasaklanamadı");
+      }
+
+      return data as Ban;
+    }
+
     const { data, error } = await supabase
       .from("banned_users")
       .insert({

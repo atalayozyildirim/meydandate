@@ -4,6 +4,7 @@ import { Link, useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AuthScaffold } from "@/features/auth/components/AuthScaffold";
+import { AuthLegalNotice } from "@/features/auth/components/AuthLegalNotice";
 import { SocialAuthButtons } from "@/features/auth/components/SocialAuthButtons";
 import type {
   LoginCredentials,
@@ -16,8 +17,6 @@ import {
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
-import { testAccount } from "@/shared/constants/testAccount";
-import { env } from "@/infrastructure/config/env";
 import { formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
@@ -31,9 +30,7 @@ export default function LoginScreen() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      phoneNumber: env.useMockServices
-        ? formatPhoneNumberInput(testAccount.phoneNumber)
-        : "",
+      phoneNumber: "",
     },
   });
 
@@ -61,22 +58,6 @@ export default function LoginScreen() {
     }
   };
 
-  const loginWithTestAccount = async () => {
-    form.setValue("phoneNumber", formatPhoneNumberInput(testAccount.phoneNumber), {
-      shouldValidate: true,
-    });
-
-    try {
-      await login({ phoneNumber: testAccount.phoneNumber });
-      router.push("/auth/otp");
-    } catch (error) {
-      Alert.alert(
-        "Test hesabı açılamadı",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
-  };
-
   return (
     <AuthScaffold title="Hoş geldin" subtitle="Hesabına giriş yap.">
       <Controller
@@ -89,7 +70,7 @@ export default function LoginScreen() {
             textContentType="telephoneNumber"
             autoComplete="tel"
             maxLength={18}
-            placeholder="+90 555 111 22 33"
+            placeholder="Telefon numaranı gir"
             value={field.value}
             onBlur={field.onBlur}
             onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}
@@ -102,18 +83,11 @@ export default function LoginScreen() {
         loading={isSubmitting}
         onPress={onSubmit}
       />
-      {env.useMockServices ? (
-        <Button
-          label="Test hesabına kod gönder"
-          variant="ghost"
-          loading={isSubmitting}
-          onPress={() => void loginWithTestAccount()}
-        />
-      ) : null}
       <SocialAuthButtons
         disabled={isSubmitting}
         onPress={(provider) => void onSocialLogin(provider)}
       />
+      <AuthLegalNotice />
       <View style={styles.links}>
         <Link href="/auth/register" asChild>
           <Pressable>

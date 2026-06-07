@@ -15,17 +15,31 @@ export class ContentModerationService {
   private initializeProfanityFilters() {
     const profanities = [
       "amına",
+      "amını",
+      "amcık",
+      "amcuk",
+      "amına koy",
+      "amına koyarım",
       "siktir",
       "sikerim",
+      "sikiyim",
+      "sikeyim",
       "kahpe",
       "orospu",
       "şerefsiz",
       "pezevenk",
       "gavat",
+      "göt",
+      "götveren",
+      "piç",
+      "puşt",
+      "ibne",
+      "yavşak",
       "yarrak",
       "yarak",
       "amk",
       "aq",
+      "oç",
     ];
 
     profanities.forEach((word) => {
@@ -36,10 +50,11 @@ export class ContentModerationService {
     });
 
     this.profanityPatterns = [
-      /\b(aq|amk|amina|aminak|aminag|orospu|kahpe|pezevenk|gavat|serefsiz|yarak)\w*\b/g,
+      /\b(aq|amk|oc|amina|amini|aminak|aminag|aminakoy|amcik|amcuk|orospu|kahpe|pezevenk|gavat|gotveren|serefsiz|yavsak|pic|pust|ibne|yarak|yarrak)\w*\b/g,
       /\bsik(?!ayet)\w*\b/g,
       /\bsokar\w*\b/g,
       /\bsokuc\w*\b/g,
+      /\bgot\w*\b/g,
     ];
   }
 
@@ -55,14 +70,30 @@ export class ContentModerationService {
       "vajina",
       "penis",
       "meme",
+      "göğüs",
+      "kalça",
       "sperm",
       "boşal",
       "sikis",
       "sikiş",
       "sikişmek",
+      "sikişelim",
+      "seviş",
+      "sevişmek",
+      "sevişelim",
+      "öpüş",
+      "öpüşelim",
       "tecavüz",
       "çıplak",
       "nude",
+      "nudes",
+      "ayak yalarım",
+      "ayak yalamak",
+      "ayağını yalarım",
+      "yalarım",
+      "yalayayım",
+      "bıttık",
+      "pıttık",
     ];
 
     sexualKeywords.forEach((word) => {
@@ -71,8 +102,16 @@ export class ContentModerationService {
     });
 
     this.sexualPatterns = [
-      /\b(seks|porno|cinsel|sikis|sikismek|tecavuz|oral|anal|vajina|penis|bosal|nude|ciplak)\w*\b/g,
+      /\b(seks|porno|cinsel|sikis|sikismek|sikiselim|sevis|sevismek|seviselim|opus|opuselim|tecavuz|oral|anal|vajina|penis|gogus|kalca|bosal|masturbasyon|nude|nudes|ciplak)\w*\b/g,
+      /\b(iliski|yatak|fantazi)\s*(yapalim|girelim|ister misin|mi|teklifi)?\b/g,
+      /\b(ayak|ayagini|parmak|dil)\s+(yala|yalarim|yalayim|yalayayim|yalayalim|yalamak)\w*\b/g,
+      /\b(ayak|ayagini)(yala|yalarim|yalayim|yalayayim|yalayalim|yalamak)\w*\b/g,
+      /\b(bitik|pitik|bittik|pittik)\w*\b/g,
     ];
+  }
+
+  private escapeRegExp(value: string): string {
+    return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   private normalizeText(text: string): string {
@@ -99,34 +138,68 @@ export class ContentModerationService {
   }
 
   private collectPatternMatches(text: string, patterns: RegExp[]): string[] {
-    const normalizedText = ` ${this.normalizeText(text)} `;
+    const normalized = this.normalizeText(text);
+    const normalizedText = ` ${normalized} `;
+    const compactText = ` ${normalized.replace(/\s+/g, "")} `;
+    const targets = [normalizedText, compactText];
     const matches = new Set<string>();
 
     patterns.forEach((pattern) => {
-      pattern.lastIndex = 0;
-      let match = pattern.exec(normalizedText);
+      targets.forEach((target) => {
+        pattern.lastIndex = 0;
+        let match = pattern.exec(target);
 
-      while (match) {
-        matches.add(match[0].trim());
-        match = pattern.exec(normalizedText);
-      }
+        while (match) {
+          matches.add(match[0].trim());
+          match = pattern.exec(target);
+        }
+      });
     });
 
     return Array.from(matches).filter(Boolean);
+  }
+
+  private collectKeywordMatches(text: string, words: Set<string>): string[] {
+    const normalizedText = ` ${this.normalizeText(text)} `;
+    const compactText = normalizedText.replace(/\s+/g, "");
+    const matches = new Set<string>();
+
+    for (const word of words) {
+      const normalizedWord = this.normalizeText(word);
+
+      if (!normalizedWord) {
+        continue;
+      }
+
+      const normalizedPattern = new RegExp(
+        `\\b${this.escapeRegExp(normalizedWord).replace(/\s+/g, "\\s+")}\\w*\\b`,
+        "i",
+      );
+      const compactPattern = new RegExp(
+        `\\b${this.escapeRegExp(normalizedWord.replace(/\s+/g, ""))}\\w*\\b`,
+        "i",
+      );
+
+      if (
+        normalizedPattern.test(normalizedText) ||
+        compactPattern.test(compactText)
+      ) {
+        matches.add(word);
+      }
+    }
+
+    return Array.from(matches);
   }
 
   /**
    * Check message for profanity
    */
   checkProfanity(text: string): ContentViolation | null {
-    const lowerText = text.toLowerCase();
     const matches = new Set<string>(this.collectPatternMatches(text, this.profanityPatterns));
 
-    for (const word of this.profanityWords) {
-      if (lowerText.includes(word.toLowerCase())) {
-        matches.add(word);
-      }
-    }
+    this.collectKeywordMatches(text, this.profanityWords).forEach((match) =>
+      matches.add(match),
+    );
 
     if (matches.size > 0) {
       return {
@@ -144,14 +217,11 @@ export class ContentModerationService {
    * Check message for sexual content
    */
   checkSexualContent(text: string): ContentViolation | null {
-    const lowerText = text.toLowerCase();
     const matches = new Set<string>(this.collectPatternMatches(text, this.sexualPatterns));
 
-    for (const word of this.sexualWords) {
-      if (lowerText.includes(word.toLowerCase())) {
-        matches.add(word);
-      }
-    }
+    this.collectKeywordMatches(text, this.sexualWords).forEach((match) =>
+      matches.add(match),
+    );
 
     if (matches.size > 0) {
       return {

@@ -10,12 +10,6 @@ const appEnv: AppEnvironment =
       ? "development"
       : "production";
 
-const explicitUseSupabase = readEnv(process.env.EXPO_PUBLIC_USE_SUPABASE);
-const useSupabase =
-  explicitUseSupabase === ""
-    ? appEnv === "production"
-    : explicitUseSupabase === "true";
-
 const supabaseUrl = readEnv(process.env.EXPO_PUBLIC_SUPABASE_URL);
 const supabasePublishableKey =
   readEnv(process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY) ||
@@ -25,6 +19,14 @@ const supabasePublishableKey =
 const isPlaceholder = (value: string, fragments: string[]) =>
   !value || fragments.some((fragment) => value.includes(fragment));
 const hasSafeIdentifierFormat = (value: string) => /^[A-Za-z0-9_.-]+$/.test(value);
+const hasSupabaseCredentials =
+  !isPlaceholder(supabaseUrl, ["your-project", "example", "localhost"]) &&
+  !isPlaceholder(supabasePublishableKey, ["your_key", "your-key", "placeholder"]);
+const explicitUseSupabase = readEnv(process.env.EXPO_PUBLIC_USE_SUPABASE);
+const useSupabase =
+  explicitUseSupabase === ""
+    ? appEnv === "production" || hasSupabaseCredentials
+    : explicitUseSupabase === "true";
 
 export const env = {
   appEnv,

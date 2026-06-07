@@ -120,8 +120,12 @@ export class RevenueCatPaymentService implements PaymentService {
 
   private getFallbackPlanPrices(): Record<SubscriptionPlan, string> {
     return __DEV__
-      ? { monthly: "₺149", yearly: "₺999" }
-      : { monthly: STORE_PRICE_LABEL, yearly: STORE_PRICE_LABEL };
+      ? { monthly: "₺149", yearly: "₺999", lifetime: "₺2.999" }
+      : {
+          monthly: STORE_PRICE_LABEL,
+          yearly: STORE_PRICE_LABEL,
+          lifetime: STORE_PRICE_LABEL,
+        };
   }
 
   private async getCurrentOffering(options?: {
@@ -157,7 +161,7 @@ export class RevenueCatPaymentService implements PaymentService {
         ? offering?.monthly
         : plan === "yearly"
           ? offering?.annual
-          : undefined;
+          : offering?.lifetime;
 
     return (
       packageForPlan ||
@@ -167,10 +171,13 @@ export class RevenueCatPaymentService implements PaymentService {
 
         return plan === "monthly"
           ? type.includes("monthly") || productId.includes("monthly")
-          : type.includes("annual") ||
+          : plan === "yearly"
+            ? type.includes("annual") ||
               type.includes("yearly") ||
               productId.includes("annual") ||
-              productId.includes("yearly");
+              productId.includes("yearly")
+            : type.includes("lifetime") ||
+              productId.includes("lifetime");
       })
     );
   }
@@ -187,9 +194,11 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     const productId = entitlement.productIdentifier ?? "monthly";
-    const plan: SubscriptionPlan = /year|annual/i.test(productId)
-      ? "yearly"
-      : "monthly";
+    const plan: SubscriptionPlan = /lifetime/i.test(productId)
+      ? "lifetime"
+      : /year|annual/i.test(productId)
+        ? "yearly"
+        : "monthly";
     const status = entitlement.isActive ? "active" : "inactive";
 
     return {
@@ -255,10 +264,12 @@ export class RevenueCatPaymentService implements PaymentService {
     const current = await this.getCurrentOffering();
     const monthly = this.pickPackageFromOffering(current, "monthly");
     const yearly = this.pickPackageFromOffering(current, "yearly");
+    const lifetime = this.pickPackageFromOffering(current, "lifetime");
 
     return {
       monthly: monthly?.product?.priceString ?? STORE_PRICE_LABEL,
       yearly: yearly?.product?.priceString ?? STORE_PRICE_LABEL,
+      lifetime: lifetime?.product?.priceString ?? STORE_PRICE_LABEL,
     };
   }
 

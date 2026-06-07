@@ -20,6 +20,10 @@ EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
 EXPO_PUBLIC_USE_SUPABASE=true
 ```
 
+`EXPO_PUBLIC_USE_SUPABASE` boş bırakılırsa, geçerli Supabase URL/key bulunduğunda
+development ortamında da Supabase servisleri kullanılır. Mock servisleri özellikle
+açmak için `EXPO_PUBLIC_USE_SUPABASE=false` ver.
+
 ## 3. Veritabanı Schema Oluştur
 
 Schema tek seferlik doküman SQL'i yerine sıralı migration dosyalarında tutulur:
@@ -67,6 +71,20 @@ Supabase Dashboard → Authentication → Providers
   doğrulama tamamlanmadan session oluşturmaz
 
 Mock servislerde doğrulama kodu `123456` olarak sabittir. Bu yalnızca yerel geliştirme içindir.
+
+### Test telefon hesabı
+
+Uygulama içi demo/test butonu yoktur; test hesabı normal telefon OTP login akışından girer.
+Test telefon numarası:
+
+```text
++905551112233
+```
+
+Hosted Supabase projesinde Dashboard → Authentication → Providers → Phone altında
+bu numarayı test OTP olarak tanımla ve kodu `123456` yap. Bu numara ile ilk login
+OTP doğrulandığında uygulama `public.users` profilini otomatik olarak `Test Hesabı`
+adıyla oluşturur. Mock servislerdeki seed kullanıcı bu numarayı kullanmaz.
 
 ## 5. RLS Policies Ayarla
 

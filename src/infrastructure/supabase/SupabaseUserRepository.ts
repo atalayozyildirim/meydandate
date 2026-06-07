@@ -6,6 +6,7 @@ import type {
 import type { User, UserProfileUpdate } from "@/domain/entities/User";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
+import { getProfileBoostExpiry, getProfileBoostRank } from "@/shared/utils/profileBoost";
 
 type PrivateProfile = Partial<User> & {
   blockedUsers?: string[];
@@ -82,6 +83,21 @@ export class SupabaseUserRepository implements UserRepository {
     return this.getCurrentUser(userId);
   }
 
+  async activatePremiumBoost(userId: string): Promise<User> {
+    const boostedUntil = getProfileBoostExpiry().toISOString();
+
+    const { error } = await supabase
+      .from("users")
+      .update({ boostedUntil })
+      .eq("id", userId);
+
+    if (error) {
+      throw new Error("Boost etkinleştirilemedi");
+    }
+
+    return this.getCurrentUser(userId);
+  }
+
   async listDiscoverCandidates(userId: string): Promise<User[]> {
     // Get current user to check blocks/mutes
     const { data: currentUser, error: userError } = await supabase
@@ -110,13 +126,36 @@ export class SupabaseUserRepository implements UserRepository {
       query = query.not("id", "in", `(${excludedUserIds.join(",")})`);
     }
 
-    const { data, error } = await query;
+    const { data, error } = await query
+      .order("boostedUntil", { ascending: false, nullsFirst: false })
+      .order("createdAt", { ascending: false });
 
     if (error) {
       throw new Error("Adaylar yüklenemedi");
     }
 
-    return (data || []).map((row) => mapSupabaseUser(row as unknown as Partial<User>));
+    const nowMs = Date.now();
+
+    return (data || [])
+      .map((row) => mapSupabaseUser(row as unknown as Partial<User>))
+      .sort((first, second) => {
+        const boostRank =
+          getProfileBoostRank(second.boostedUntil, nowMs) -
+          getProfileBoostRank(first.boostedUntil, nowMs);
+
+        if (boostRank !== 0) {
+          return boostRank;
+        }
+
+        if (first.isPremium !== second.isPremium) {
+          return second.isPremium ? 1 : -1;
+        }
+
+        return (
+          new Date(second.createdAt).getTime() -
+          new Date(first.createdAt).getTime()
+        );
+      });
   }
 
   async reportUser(userId: string, payload: ReportPayload): Promise<void> {

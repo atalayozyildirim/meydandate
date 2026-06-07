@@ -4,6 +4,7 @@ import type { User, UserProfileUpdate } from "@/domain/entities/User";
 import type { OnboardingProfile, ReportPayload, UserRepository } from "@/domain/repositories/UserRepository";
 import { createId } from "@/shared/utils/id";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
+import { getProfileBoostExpiry, getProfileBoostRank } from "@/shared/utils/profileBoost";
 
 const findUser = (userId: string) => {
   const user = mockDatabase.users.find((candidate) => candidate.id === userId);
@@ -15,7 +16,7 @@ const findUser = (userId: string) => {
   return user;
 };
 
-const mergeUser = (user: User, update: UserProfileUpdate): User => ({
+const mergeUser = (user: User, update: Partial<User>): User => ({
   ...user,
   ...update,
   updatedAt: new Date().toISOString()
@@ -81,6 +82,17 @@ export class MockUserRepository implements UserRepository {
     return updatedUser;
   }
 
+  async activatePremiumBoost(userId: string): Promise<User> {
+    const currentUser = findUser(userId);
+    const updatedUser = mergeUser(currentUser, {
+      boostedUntil: getProfileBoostExpiry().toISOString(),
+    });
+    const index = mockDatabase.users.findIndex((user) => user.id === userId);
+    mockDatabase.users[index] = updatedUser;
+
+    return updatedUser;
+  }
+
   async listDiscoverCandidates(userId: string): Promise<User[]> {
     const blockedIds = new Set(
       mockDatabase.blockedUsers
@@ -93,14 +105,35 @@ export class MockUserRepository implements UserRepository {
         .map((like) => like.toUserId)
     );
 
-    return mockDatabase.users.filter(
-      (user) =>
-        user.id !== userId &&
-        user.hasPassedEntryTest &&
-        user.hasCompletedOnboarding &&
-        !blockedIds.has(user.id) &&
-        !actedUserIds.has(user.id)
-    );
+    const nowMs = Date.now();
+
+    return mockDatabase.users
+      .filter(
+        (user) =>
+          user.id !== userId &&
+          user.hasPassedEntryTest &&
+          user.hasCompletedOnboarding &&
+          !blockedIds.has(user.id) &&
+          !actedUserIds.has(user.id),
+      )
+      .sort((first, second) => {
+        const boostRank =
+          getProfileBoostRank(second.boostedUntil, nowMs) -
+          getProfileBoostRank(first.boostedUntil, nowMs);
+
+        if (boostRank !== 0) {
+          return boostRank;
+        }
+
+        if (first.isPremium !== second.isPremium) {
+          return second.isPremium ? 1 : -1;
+        }
+
+        return (
+          new Date(second.createdAt).getTime() -
+          new Date(first.createdAt).getTime()
+        );
+      });
   }
 
   async reportUser(userId: string, payload: ReportPayload): Promise<void> {

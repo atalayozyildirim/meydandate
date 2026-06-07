@@ -1,9 +1,11 @@
 // Yeni kullanıcı kaydını başlatır ve onay testi akışına yönlendirir.
+import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Text } from "react-native";
 import { Link, useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { AuthScaffold } from "@/features/auth/components/AuthScaffold";
+import { AuthLegalNotice } from "@/features/auth/components/AuthLegalNotice";
 import { SocialAuthButtons } from "@/features/auth/components/SocialAuthButtons";
 import type {
   RegisterPayload,
@@ -26,6 +28,7 @@ export default function RegisterScreen() {
   const register = useAuthStore((state) => state.register);
   const socialLogin = useAuthStore((state) => state.socialLogin);
   const isSubmitting = useAuthStore((state) => state.isSubmitting);
+  const [acceptedLegal, setAcceptedLegal] = useState(false);
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(registerSchema),
     defaultValues: {
@@ -35,6 +38,11 @@ export default function RegisterScreen() {
   });
 
   const onSubmit = form.handleSubmit(async (values: RegisterFormValues) => {
+    if (!acceptedLegal) {
+      Alert.alert("Sözleşme onayı gerekli", "Devam etmek için hukuki belgeleri kabul etmelisin.");
+      return;
+    }
+
     try {
       await register(values as unknown as RegisterPayload);
       router.push("/auth/otp");
@@ -47,6 +55,11 @@ export default function RegisterScreen() {
   });
 
   const onSocialLogin = async (provider: SocialAuthProvider) => {
+    if (!acceptedLegal) {
+      Alert.alert("Sözleşme onayı gerekli", "Devam etmek için hukuki belgeleri kabul etmelisin.");
+      return;
+    }
+
     try {
       await socialLogin(provider);
       router.replace("/");
@@ -83,7 +96,7 @@ export default function RegisterScreen() {
             textContentType="telephoneNumber"
             autoComplete="tel"
             maxLength={18}
-            placeholder="+90 555 111 22 33"
+            placeholder="Telefon numaranı gir"
             value={field.value}
             onBlur={field.onBlur}
             onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}
@@ -99,6 +112,11 @@ export default function RegisterScreen() {
       <SocialAuthButtons
         disabled={isSubmitting}
         onPress={(provider) => void onSocialLogin(provider)}
+      />
+      <AuthLegalNotice
+        accepted={acceptedLegal}
+        requireAcceptance
+        onToggleAccepted={() => setAcceptedLegal((current) => !current)}
       />
       <Link href="/auth/login" asChild>
         <Pressable>

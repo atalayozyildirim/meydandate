@@ -2,6 +2,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { messageFilteringMiddleware } from "@/features/moderation/middleware/messageFilteringMiddleware";
+import { PermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
 
@@ -46,12 +48,31 @@ export const useLiveRoom = (roomId: string) => {
   });
 
   const sendMessageMutation = useMutation({
-    mutationFn: (body: string) => {
+    mutationFn: async (body: string) => {
       if (!currentUser) {
         throw new Error("Sohbet icin oturum gerekli.");
       }
 
-      return container.liveRoomRepository.sendMessage(roomId, currentUser.id, body, accessToken);
+      const moderation = await messageFilteringMiddleware(
+        `live:${roomId}`,
+        currentUser.id,
+        body,
+      );
+
+      if (moderation.isBlocked) {
+        if (moderation.action === "ban") {
+          throw new PermanentBanError("Bu canlı sohbet mesajı ağır güvenlik ihlali nedeniyle engellendi. Hesap kalıcı olarak banlandı.");
+        }
+
+        throw new Error("Mesaj güvenlik filtresinden geçemedi.");
+      }
+
+      return container.liveRoomRepository.sendMessage(
+        roomId,
+        currentUser.id,
+        moderation.filteredBody,
+        accessToken,
+      );
     },
     onSuccess: async (room) => {
       queryClient.setQueryData([queryKeys.liveRoom, roomId], room);

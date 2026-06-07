@@ -45,7 +45,7 @@ export default function ForgotPasswordScreen() {
             textContentType="telephoneNumber"
             autoComplete="tel"
             maxLength={18}
-            placeholder="+90 555 111 22 33"
+            placeholder="Telefon numaranı gir"
             value={field.value}
             onBlur={field.onBlur}
             onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}

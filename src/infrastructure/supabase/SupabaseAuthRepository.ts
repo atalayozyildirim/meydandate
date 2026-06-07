@@ -10,6 +10,7 @@ import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { supabase } from "./client";
 import { mapSupabaseUser } from "./userMapper";
+import { testAccount } from "@/shared/constants/testAccount";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -103,10 +104,14 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async requestOtp(challenge: OtpChallenge): Promise<void> {
+    const isTestAccountLogin =
+      challenge.purpose === "login" &&
+      challenge.phoneNumber === testAccount.phoneNumber;
+
     const { error } = await supabase.auth.signInWithOtp({
       phone: challenge.phoneNumber,
       options: {
-        shouldCreateUser: challenge.purpose === "register",
+        shouldCreateUser: challenge.purpose === "register" || isTestAccountLogin,
         ...(challenge.name ? { data: { name: challenge.name } } : {}),
       },
     });
@@ -133,10 +138,19 @@ export class SupabaseAuthRepository implements AuthRepository {
       return signOutAndThrow("Bu telefon numarası zaten kayıtlı.");
     }
 
-    if (!profile && payload.purpose === "register") {
+    const shouldCreateProfile =
+      payload.purpose === "register" ||
+      (payload.purpose === "login" && payload.phoneNumber === testAccount.phoneNumber);
+
+    if (!profile && shouldCreateProfile) {
       const newProfile = {
         id: data.user.id,
-        name: payload.name ?? data.user.user_metadata?.name ?? "Yeni Üye",
+        name:
+          payload.name ??
+          data.user.user_metadata?.name ??
+          (payload.phoneNumber === testAccount.phoneNumber
+            ? testAccount.name
+            : "Yeni Üye"),
         email: data.user.email ?? `${payload.phoneNumber.replace(/\D/g, "")}@phone.ehlibyte.local`,
         phoneNumber: data.user.phone ?? payload.phoneNumber,
         age: 18,

@@ -9,7 +9,7 @@ export const loginSchema = z.object({
   phoneNumber: z
     .string()
     .transform(normalizePhoneNumber)
-    .pipe(z.string().regex(phoneRegex, "Telefonu ülke koduyla girin. Örnek: +905551112233"))
+    .pipe(z.string().regex(phoneRegex, "Telefonu ülke koduyla girin."))
 });
 
 export const registerSchema = loginSchema.extend({

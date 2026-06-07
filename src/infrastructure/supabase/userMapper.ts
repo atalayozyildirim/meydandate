@@ -17,6 +17,7 @@ export const publicUserColumns = [
   "photos",
   "badges",
   "isPremium",
+  "boostedUntil",
   "hasPassedEntryTest",
   "hasCompletedOnboarding",
   "createdAt",
@@ -70,9 +71,9 @@ export const mapSupabaseUser = (row: Partial<User>): User => ({
   photos: normalizePhotos(row.photos),
   badges: row.badges ?? [],
   isPremium: row.isPremium ?? false,
+  ...(row.boostedUntil ? { boostedUntil: row.boostedUntil } : {}),
   hasPassedEntryTest: row.hasPassedEntryTest ?? false,
   hasCompletedOnboarding: row.hasCompletedOnboarding ?? false,
   createdAt: row.createdAt ?? new Date(0).toISOString(),
   updatedAt: row.updatedAt ?? new Date(0).toISOString(),
 });
-

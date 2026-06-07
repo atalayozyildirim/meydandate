@@ -5,6 +5,7 @@ import type { SubscriptionPlan } from "@/domain/entities/Subscription";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
+import { isProfileBoostActive } from "@/shared/utils/profileBoost";
 
 export const usePremium = () => {
   const queryClient = useQueryClient();
@@ -20,6 +21,9 @@ export const usePremium = () => {
     queryKey: [queryKeys.subscription, "plan-prices"],
     queryFn: () => container.paymentService.getPlanPrices()
   });
+  const isPremiumActive =
+    query.data?.status === "active" || Boolean(currentUser?.isPremium);
+  const isBoostActive = isProfileBoostActive(currentUser?.boostedUntil);
 
   const purchaseMutation = useMutation({
     mutationFn: (plan: SubscriptionPlan) => {
@@ -83,15 +87,46 @@ export const usePremium = () => {
     }
   });
 
+  const activateBoostMutation = useMutation({
+    mutationFn: () => {
+      if (!currentUser) {
+        throw new Error("Boost için oturum gerekli.");
+      }
+
+      if (!isPremiumActive) {
+        throw new Error("Boost sadece aktif Premium abonelikle kullanılabilir.");
+      }
+
+      if (isBoostActive) {
+        throw new Error("Boost zaten aktif.");
+      }
+
+      return container.userRepository.activatePremiumBoost(currentUser.id);
+    },
+    onSuccess: async (updatedUser) => {
+      setCurrentUser(updatedUser);
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+      ]);
+    }
+  });
+
   return {
     subscription: query.data,
     planPrices: planPricesQuery.data,
+    isPremiumActive,
+    isBoostActive,
+    boostExpiresAt: currentUser?.boostedUntil,
     isLoading: query.isLoading,
     purchase: purchaseMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,
     purchaseBadge: purchaseBadgeMutation.mutateAsync,
     isPurchasingBadge: purchaseBadgeMutation.isPending,
     restorePurchases: restoreMutation.mutateAsync,
-    isRestoring: restoreMutation.isPending
+    isRestoring: restoreMutation.isPending,
+    activateBoost: activateBoostMutation.mutateAsync,
+    isActivatingBoost: activateBoostMutation.isPending
   };
 };

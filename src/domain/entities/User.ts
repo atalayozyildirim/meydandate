@@ -64,6 +64,7 @@ export interface User {
   photos: ProfilePhoto[];
   badges: Badge[];
   isPremium: boolean;
+  boostedUntil?: string;
   hasPassedEntryTest: boolean;
   hasCompletedOnboarding: boolean;
   createdAt: string;

@@ -7,7 +7,9 @@ import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
+import { useAuthStore } from "@/features/auth/stores/authStore";
 import { useLiveRoom } from "@/features/live/hooks/useLiveRoom";
+import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 
 const roomId = "meydan-erkani";
@@ -33,6 +35,7 @@ const ceremonySteps = [
 export default function MeydanRoomScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const {
     room,
     isLoading,
@@ -142,6 +145,24 @@ export default function MeydanRoomScreen() {
       await sendMessage(body);
       setChatDraft("");
     } catch (error) {
+      if (isPermanentBanError(error)) {
+        Alert.alert(
+          "Kalıcı ban",
+          error instanceof Error
+            ? error.message
+            : "Ağır güvenlik ihlali nedeniyle hesap kalıcı olarak banlandı.",
+          [
+            {
+              text: "Tamam",
+              style: "destructive",
+              onPress: () => void applyPermanentBan(),
+            },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
+
       Alert.alert(
         "Mesaj gönderilemedi",
         error instanceof Error ? error.message : "Tekrar deneyin.",
