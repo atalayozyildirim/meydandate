@@ -25,6 +25,7 @@ export type SocialAuthProvider = "apple" | "google";
 
 export interface AuthSession {
   accessToken: string;
+  refreshToken?: string;
   user: User;
 }
 
@@ -32,7 +33,7 @@ export interface AuthRepository {
   requestOtp(challenge: OtpChallenge): Promise<void>;
   verifyOtp(payload: VerifyOtpPayload): Promise<AuthSession>;
   signInWithProvider(provider: SocialAuthProvider): Promise<AuthSession>;
-  restoreSession(token: string): Promise<AuthSession | null>;
+  restoreSession(token: string, refreshToken?: string): Promise<AuthSession | null>;
   forgotPassword(email: string): Promise<void>;
   logout(token: string): Promise<void>;
 }

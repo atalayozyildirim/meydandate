@@ -1,5 +1,5 @@
 // Kayıt sonrası profil, ilgi alanı ve giriş uygunluğu onboarding akışını yönetir.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,9 +8,10 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { OnboardingProfile } from "@/domain/repositories/UserRepository";
 import { useSession } from "@/features/auth/hooks/useSession";
-import { useAuthStore } from "@/features/auth/stores/authStore";
 import { useOnboarding } from "@/features/onboarding/hooks/useOnboarding";
 import { onboardingSchema, type OnboardingFormValues } from "@/features/onboarding/schemas/onboardingSchema";
+import { container } from "@/infrastructure/config/Container";
+import { env } from "@/infrastructure/config/env";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { OptionChip } from "@/shared/components/OptionChip";
@@ -18,6 +19,30 @@ import { Screen } from "@/shared/components/Screen";
 import { culturalIdentityOptions, cultureImportanceOptions, interestOptions } from "@/shared/constants/options";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
 import { useTheme } from "@/shared/theme";
+
+const MAX_KNOWLEDGE_TEST_ATTEMPTS = 2;
+const KNOWLEDGE_TEST_LOCK_DURATION_MS = 60 * 60 * 1000;
+
+interface KnowledgeTestAttemptState {
+  failedAttempts: number;
+  lockedUntil?: number;
+}
+
+const formatRemainingTime = (remainingMs: number) => {
+  const totalMinutes = Math.max(1, Math.ceil(remainingMs / 60_000));
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  return hours > 0 ? `${hours} saat ${minutes} dakika` : `${minutes} dakika`;
+};
+
+const clearKnowledgeTestAttemptState = () =>
+  container.tokenStorage.deleteItem(env.knowledgeTestAttemptKey).catch(() => undefined);
+
+const saveKnowledgeTestAttemptState = (state: KnowledgeTestAttemptState) =>
+  container.tokenStorage
+    .setItem(env.knowledgeTestAttemptKey, JSON.stringify(state))
+    .catch(() => undefined);
 
 const aleviKnowledgeQuestions = [
   {
@@ -97,10 +122,13 @@ export default function OnboardingScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const { currentUser } = useSession();
-  const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const { completeOnboarding, isCompleting } = useOnboarding();
   const imagePicker = useImagePicker();
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockedUntil, setLockedUntil] = useState<number | null>(null);
+  const [attemptStateLoaded, setAttemptStateLoaded] = useState(false);
+  const [now, setNow] = useState(Date.now());
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
@@ -122,12 +150,93 @@ export default function OnboardingScreen() {
   const hasPassedKnowledgeTest = aleviKnowledgeQuestions.every(
     (question) => Boolean(quizAnswers[question.id]),
   );
+  const isKnowledgeTestLocked = lockedUntil !== null && lockedUntil > now;
+  const remainingAttempts = Math.max(0, MAX_KNOWLEDGE_TEST_ATTEMPTS - failedAttempts);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadAttemptState = async () => {
+      try {
+        const storedState = await container.tokenStorage.getItem(env.knowledgeTestAttemptKey);
+
+        if (!storedState) {
+          return;
+        }
+
+        const parsedState = JSON.parse(storedState) as KnowledgeTestAttemptState;
+        const parsedLockedUntil =
+          typeof parsedState.lockedUntil === "number" ? parsedState.lockedUntil : null;
+
+        if (parsedLockedUntil && parsedLockedUntil > Date.now()) {
+          if (isMounted) {
+            setFailedAttempts(MAX_KNOWLEDGE_TEST_ATTEMPTS);
+            setLockedUntil(parsedLockedUntil);
+          }
+          return;
+        }
+
+        if (parsedLockedUntil) {
+          await clearKnowledgeTestAttemptState();
+          return;
+        }
+
+        if (isMounted) {
+          setFailedAttempts(
+            Math.max(
+              0,
+              Math.min(parsedState.failedAttempts || 0, MAX_KNOWLEDGE_TEST_ATTEMPTS - 1),
+            ),
+          );
+        }
+      } catch {
+        await clearKnowledgeTestAttemptState();
+      } finally {
+        if (isMounted) {
+          setAttemptStateLoaded(true);
+        }
+      }
+    };
+
+    void loadAttemptState();
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isKnowledgeTestLocked || lockedUntil === null) {
+      return;
+    }
+
+    const timer = setInterval(() => {
+      const currentTime = Date.now();
+      setNow(currentTime);
+
+      if (currentTime >= lockedUntil) {
+        setFailedAttempts(0);
+        setLockedUntil(null);
+        void clearKnowledgeTestAttemptState();
+      }
+    }, 1_000);
+
+    return () => clearInterval(timer);
+  }, [isKnowledgeTestLocked, lockedUntil]);
 
   if (!currentUser) {
     return <Redirect href="/auth/login" />;
   }
 
   const onSubmit = form.handleSubmit(async (values) => {
+    if (isKnowledgeTestLocked) {
+      Alert.alert(
+        "Test geçici olarak kilitli",
+        `${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`,
+      );
+      return;
+    }
+
     if (!hasPassedKnowledgeTest) {
       Alert.alert(
         "Test tamamlanmadı",
@@ -138,6 +247,7 @@ export default function OnboardingScreen() {
 
     try {
       await completeOnboarding(toProfilePayload(values));
+      void clearKnowledgeTestAttemptState();
       router.replace("/tabs/feed");
     } catch (error) {
       Alert.alert("Onboarding tamamlanamadı", error instanceof Error ? error.message : "Tekrar deneyin.");
@@ -148,18 +258,40 @@ export default function OnboardingScreen() {
     questionId: string,
     option: (typeof aleviKnowledgeQuestions)[number]["options"][number],
   ) => {
+    if (!attemptStateLoaded || isKnowledgeTestLocked) {
+      return;
+    }
+
     if (!option.correct) {
+      const nextFailedAttempts = failedAttempts + 1;
+      setQuizAnswers({});
+
+      if (nextFailedAttempts >= MAX_KNOWLEDGE_TEST_ATTEMPTS) {
+        const nextLockedUntil = Date.now() + KNOWLEDGE_TEST_LOCK_DURATION_MS;
+        const nextState: KnowledgeTestAttemptState = {
+          failedAttempts: nextFailedAttempts,
+          lockedUntil: nextLockedUntil,
+        };
+
+        setFailedAttempts(nextFailedAttempts);
+        setLockedUntil(nextLockedUntil);
+        setNow(Date.now());
+        await saveKnowledgeTestAttemptState(nextState);
+
+        Alert.alert(
+          "Test geçici olarak kilitlendi",
+          "İki deneme hakkını kullandın. 1 saat sonra tekrar deneyebilirsin.",
+        );
+        return;
+      }
+
+      const nextState: KnowledgeTestAttemptState = { failedAttempts: nextFailedAttempts };
+      setFailedAttempts(nextFailedAttempts);
+      await saveKnowledgeTestAttemptState(nextState);
+
       Alert.alert(
-        "Giriş engellendi",
-        "Bilgi testi geçilemedi. Güvenlik nedeniyle bu kayıt denemesi kapatıldı.",
-        [
-          {
-            text: "Tamam",
-            style: "destructive",
-            onPress: () => void applyPermanentBan(),
-          },
-        ],
-        { cancelable: false },
+        "Yanlış cevap",
+        `Test sıfırlandı. ${MAX_KNOWLEDGE_TEST_ATTEMPTS - nextFailedAttempts} deneme hakkın kaldı.`,
       );
       return;
     }
@@ -210,6 +342,11 @@ export default function OnboardingScreen() {
             <Text style={styles.scoreText}>{Object.keys(quizAnswers).length}/4</Text>
           </View>
         </View>
+        <Text style={[styles.quizStatus, isKnowledgeTestLocked && styles.quizStatusLocked]}>
+          {isKnowledgeTestLocked
+            ? `Test kilitli. ${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`
+            : `Kalan deneme hakkı: ${remainingAttempts}`}
+        </Text>
         {aleviKnowledgeQuestions.map((question) => (
           <View key={question.id} style={styles.quizQuestion}>
             <Text style={styles.quizQuestionText}>{question.question}</Text>
@@ -220,10 +357,12 @@ export default function OnboardingScreen() {
                 return (
                   <Pressable
                     key={option.id}
+                    disabled={!attemptStateLoaded || isKnowledgeTestLocked}
                     onPress={() => void answerKnowledgeQuestion(question.id, option)}
                     style={({ pressed }) => [
                       styles.quizOption,
                       selected && styles.quizOptionSelected,
+                      isKnowledgeTestLocked && styles.quizOptionDisabled,
                       pressed && styles.pressed,
                     ]}
                   >
@@ -396,7 +535,12 @@ export default function OnboardingScreen() {
         />
       </View>
 
-      <Button label="Onboarding'i tamamla" loading={isCompleting} onPress={onSubmit} />
+      <Button
+        label="Onboarding'i tamamla"
+        disabled={!attemptStateLoaded || isKnowledgeTestLocked}
+        loading={isCompleting}
+        onPress={onSubmit}
+      />
     </Screen>
   );
 }
@@ -510,6 +654,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.text
     },
+    quizStatus: {
+      ...theme.typography.caption,
+      color: theme.colors.muted
+    },
+    quizStatusLocked: {
+      color: theme.colors.danger,
+      fontWeight: "700"
+    },
     quizQuestion: {
       gap: theme.spacing.sm
     },
@@ -532,6 +684,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     quizOptionSelected: {
       borderColor: theme.colors.primary,
       backgroundColor: "#FFF0F3"
+    },
+    quizOptionDisabled: {
+      opacity: 0.5
     },
     quizOptionText: {
       ...theme.typography.body,

@@ -16,6 +16,10 @@ export const usePremium = () => {
     enabled: Boolean(currentUser),
     queryFn: () => container.paymentService.getSubscription(currentUser?.id ?? "")
   });
+  const planPricesQuery = useQuery({
+    queryKey: [queryKeys.subscription, "plan-prices"],
+    queryFn: () => container.paymentService.getPlanPrices()
+  });
 
   const purchaseMutation = useMutation({
     mutationFn: (plan: SubscriptionPlan) => {
@@ -58,12 +62,36 @@ export const usePremium = () => {
     }
   });
 
+  const restoreMutation = useMutation({
+    mutationFn: () => {
+      if (!currentUser) {
+        throw new Error("Satın alımları geri yüklemek için oturum gerekli.");
+      }
+
+      return container.paymentService.restorePurchases(currentUser.id);
+    },
+    onSuccess: async (subscription) => {
+      if (currentUser && subscription.status === "active") {
+        setCurrentUser({
+          ...currentUser,
+          isPremium: true,
+          badges: Array.from(new Set([...currentUser.badges, "premium_member"]))
+        });
+      }
+
+      await queryClient.invalidateQueries({ queryKey: [queryKeys.subscription] });
+    }
+  });
+
   return {
     subscription: query.data,
+    planPrices: planPricesQuery.data,
     isLoading: query.isLoading,
     purchase: purchaseMutation.mutateAsync,
     isPurchasing: purchaseMutation.isPending,
     purchaseBadge: purchaseBadgeMutation.mutateAsync,
-    isPurchasingBadge: purchaseBadgeMutation.isPending
+    isPurchasingBadge: purchaseBadgeMutation.isPending,
+    restorePurchases: restoreMutation.mutateAsync,
+    isRestoring: restoreMutation.isPending
   };
 };

@@ -1,0 +1,2 @@
+-- Remote MCP migration history marker.
+-- The effective feed RLS and grants are kept in 20260606120000_create_feed.sql.

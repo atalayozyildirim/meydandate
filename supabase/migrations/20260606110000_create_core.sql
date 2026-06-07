@@ -270,7 +270,11 @@ create index if not exists matches_user2_idx on public.matches ("user2Id", "matc
 create index if not exists conversations_participant1_idx on public.conversations ("participant1Id");
 create index if not exists conversations_participant2_idx on public.conversations ("participant2Id");
 create index if not exists messages_conversation_idx on public.messages ("conversationId", "createdAt");
+create index if not exists messages_sender_id_idx on public.messages ("senderId");
 create index if not exists reports_reported_user_idx on public.reports ("reportedUserId", "createdAt" desc);
+create index if not exists reports_reporter_id_idx on public.reports ("reporterId");
+create index if not exists reports_assigned_to_idx on public.reports ("assignedTo");
+create index if not exists reports_resolved_by_idx on public.reports ("resolvedBy");
 create index if not exists warnings_user_idx on public.warnings ("userId", "createdAt" desc);
 create index if not exists banned_users_user_idx on public.banned_users ("userId", "createdAt" desc);
 create index if not exists audit_logs_user_idx on public.audit_logs ("userId", "createdAt" desc);
@@ -292,14 +296,10 @@ using (id = (select auth.uid()) or ("hasCompletedOnboarding" and "isActive"));
 create policy "Users can create their own profile"
 on public.users for insert to authenticated
 with check (id = (select auth.uid()));
-create policy "Users can update their own profile"
+create policy "Users and moderators can update allowed user fields"
 on public.users for update to authenticated
-using (id = (select auth.uid()))
-with check (id = (select auth.uid()));
-create policy "Moderators can update user status"
-on public.users for update to authenticated
-using ((select public.is_moderator()))
-with check ((select public.is_moderator()));
+using (id = (select auth.uid()) or (select public.is_moderator()))
+with check (id = (select auth.uid()) or (select public.is_moderator()));
 
 create policy "Users can read relevant swipes"
 on public.swipes for select to authenticated
@@ -392,10 +392,16 @@ using ((select public.is_moderator()));
 create policy "Users can read their role"
 on public.user_roles for select to authenticated
 using ("userId" = (select auth.uid()) or (select public.is_moderator()));
-create policy "Admins can manage roles"
-on public.user_roles for all to authenticated
+create policy "Admins can create roles"
+on public.user_roles for insert to authenticated
+with check ((select public.is_admin()));
+create policy "Admins can update roles"
+on public.user_roles for update to authenticated
 using ((select public.is_admin()))
 with check ((select public.is_admin()));
+create policy "Admins can delete roles"
+on public.user_roles for delete to authenticated
+using ((select public.is_admin()));
 
 revoke all on public.users from anon, authenticated;
 revoke all on public.swipes from anon, authenticated;

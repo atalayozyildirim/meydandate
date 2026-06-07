@@ -1,7 +1,7 @@
 // Dependency injection container, ekranlarin somut veri kaynaklarina baglanma noktasidir.
 import { ApiClient } from "@/infrastructure/api/ApiClient";
 import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
-import { env } from "@/infrastructure/config/env";
+import { env, validateRuntimeConfig } from "@/infrastructure/config/env";
 import { SupabaseAuthRepository } from "@/infrastructure/supabase/SupabaseAuthRepository";
 import { SupabaseChatRepository } from "@/infrastructure/supabase/SupabaseChatRepository";
 import { SupabaseMatchRepository } from "@/infrastructure/supabase/SupabaseMatchRepository";
@@ -14,11 +14,12 @@ import { MockModerationRepository } from "@/features/moderation/services/MockMod
 import { MockAuthRepository } from "@/features/auth/services/MockAuthRepository";
 import { MockChatRepository } from "@/features/chat/services/MockChatRepository";
 import { MockMatchRepository } from "@/features/match/services/MockMatchRepository";
-import { MockPaymentService } from "@/features/premium/services/MockPaymentService";
 import { MockUserRepository } from "@/features/profile/services/MockUserRepository";
 import { MockFeedRepository } from "@/features/feed/services/MockFeedRepository";
 import { ApiLiveRoomRepository } from "@/features/live/services/ApiLiveRoomRepository";
 import { MockLiveRoomRepository } from "@/features/live/services/MockLiveRoomRepository";
+
+validateRuntimeConfig();
 
 const apiClient = new ApiClient(env.apiBaseUrl);
 
@@ -31,9 +32,7 @@ const chatRepository = env.useMockServices
 const matchRepository = env.useMockServices
   ? new MockMatchRepository()
   : new SupabaseMatchRepository();
-const paymentService = env.useMockServices
-  ? new MockPaymentService()
-  : new RevenueCatPaymentService();
+const paymentService = new RevenueCatPaymentService();
 const userRepository = env.useMockServices
   ? new MockUserRepository()
   : new SupabaseUserRepository();

@@ -82,6 +82,7 @@ export class SupabaseAuthRepository implements AuthRepository {
 
     return {
       accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
       user: mapSupabaseUser(profile),
     };
   }
@@ -101,10 +102,17 @@ export class SupabaseAuthRepository implements AuthRepository {
     throw new Error(`${provider === "apple" ? "Apple" : "Google"} girisi acildi. OAuth callback ekrani baglandiginda oturum tamamlanacak.`);
   }
 
-  async restoreSession(token: string): Promise<AuthSession | null> {
-    const { data, error } = await supabase.auth.getUser(token);
+  async restoreSession(token: string, refreshToken?: string): Promise<AuthSession | null> {
+    if (!refreshToken) {
+      return null;
+    }
 
-    if (error || !data.user) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: token,
+      refresh_token: refreshToken,
+    });
+
+    if (error || !data.session || !data.user) {
       return null;
     }
 
@@ -115,7 +123,8 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
 
     return {
-      accessToken: token,
+      accessToken: data.session.access_token,
+      refreshToken: data.session.refresh_token,
       user: mapSupabaseUser(userData),
     };
   }

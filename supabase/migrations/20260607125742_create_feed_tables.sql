@@ -1,0 +1,3 @@
+-- Remote MCP migration history marker.
+-- The effective feed table and trigger DDL is kept in
+-- 20260606120000_create_feed.sql.

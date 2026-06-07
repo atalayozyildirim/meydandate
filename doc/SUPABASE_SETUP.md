@@ -8,7 +8,7 @@ Bu proje Supabase ile entegre edilmiştir. Başlamak için aşağıdaki adımlar
 2. Yeni bir proje oluştur
 3. Proje ayarlarından kopyala:
    - **Proje URL** (EXPO_PUBLIC_SUPABASE_URL)
-   - **Anon Key** (EXPO_PUBLIC_SUPABASE_ANON_KEY)
+   - **Publishable Key** (EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
 
 ## 2. Environment Variables Ayarla
 
@@ -16,7 +16,8 @@ Bu proje Supabase ile entegre edilmiştir. Başlamak için aşağıdaki adımlar
 
 ```
 EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-EXPO_PUBLIC_SUPABASE_ANON_KEY=your-anon-key-here
+EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
+EXPO_PUBLIC_USE_SUPABASE=true
 ```
 
 ## 3. Veritabanı Schema Oluştur
@@ -37,6 +38,18 @@ Bağlı Supabase projesine ikisini sırasıyla uygula:
 ```bash
 supabase db push
 ```
+
+CLI ile uzak projeye migration göndermek için önce bağlantıyı yetkilendir:
+
+```bash
+npx supabase login
+npx supabase link --project-ref YOUR_PROJECT_REF
+npx supabase db push --dry-run
+npx supabase db push
+```
+
+`supabase login` için kişisel erişim token'ı, `supabase link` için veritabanı
+parolası gerekir. Bunları `EXPO_PUBLIC_*` değişkenlerine veya repoya ekleme.
 
 Supabase CLI yoksa dosyaları ad sırasıyla SQL Editor'de çalıştır. Mevcut bir projede
 eski dokümandan oluşturulmuş tırnaksız camelCase kolonlar varsa önce yedek alıp kolon
@@ -100,6 +113,13 @@ src/infrastructure/supabase/
 Mock repository'ler yerel geliştirme için korunur. `EXPO_PUBLIC_USE_SUPABASE=true`
 ayarlandığında container Supabase repository'lerini kullanır; aksi durumda mock servisler
 ve geliştirme OTP kodu `123456` kullanılır.
+
+Production build'lerde mock servisler kapalıdır. `EXPO_PUBLIC_APP_ENV=production` verildiğinde
+Supabase URL/key eksikse uygulama açılışta hata verir. Yayın öncesi kontrol için:
+
+```bash
+npm run validate:prod
+```
 
 ## Troubleshooting
 

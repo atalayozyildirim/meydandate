@@ -126,7 +126,7 @@ export class MockAuthRepository implements AuthRepository {
     return createSession(user);
   }
 
-  async restoreSession(token: string): Promise<AuthSession | null> {
+  async restoreSession(token: string, _refreshToken?: string): Promise<AuthSession | null> {
     const userId = mockDatabase.tokenToUserId.get(token);
     const user = mockDatabase.users.find((candidate) => candidate.id === userId);
 

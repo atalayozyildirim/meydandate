@@ -13,11 +13,36 @@ import type {
 import type { PaymentService } from "./MockPaymentService";
 import { MockPaymentService } from "./MockPaymentService";
 
-const isRevenueCatEnabled = Boolean(env.revenueCatApiKey);
+const getRevenueCatApiKey = () => {
+  if (__DEV__ && env.revenueCatTestApiKey.startsWith("test_")) {
+    return env.revenueCatTestApiKey;
+  }
+
+  if (Platform.OS === "ios" && env.revenueCatIosApiKey.startsWith("appl_")) {
+    return env.revenueCatIosApiKey;
+  }
+
+  if (Platform.OS === "android" && env.revenueCatAndroidApiKey.startsWith("goog_")) {
+    return env.revenueCatAndroidApiKey;
+  }
+
+  return "";
+};
+
+const STORE_PRICE_LABEL = "Mağaza fiyatı";
+const REVENUECAT_CONFIGURATION_ERROR =
+  "RevenueCat ürünleri mağazadan alınamadı. RevenueCat product identifier değerleri App Store Connect veya StoreKit Configuration ürünleriyle birebir aynı olmalı ve current offering içinde yalnızca mağazada mevcut ürünler bulunmalı.";
 
 interface RevenueCatPackage {
   packageType?: string;
-  product?: { identifier?: string };
+  product?: { identifier?: string; priceString?: string };
+}
+
+interface RevenueCatOffering {
+  monthly?: RevenueCatPackage;
+  annual?: RevenueCatPackage;
+  lifetime?: RevenueCatPackage;
+  availablePackages?: RevenueCatPackage[];
 }
 
 interface RevenueCatEntitlement {
@@ -39,7 +64,8 @@ interface RevenueCatApi {
   configure(config: { apiKey: string }): void;
   logIn(userId: string): Promise<{ customerInfo: RevenueCatCustomerInfo }>;
   getCustomerInfo(): Promise<RevenueCatCustomerInfo>;
-  getOfferings(): Promise<any>;
+  getOfferings(): Promise<{ current?: RevenueCatOffering | null }>;
+  restorePurchases(): Promise<RevenueCatCustomerInfo>;
   purchasePackage(pkg: RevenueCatPackage): Promise<{
     customerInfo: RevenueCatCustomerInfo;
     productIdentifier: string;
@@ -52,7 +78,9 @@ export class RevenueCatPaymentService implements PaymentService {
   private currentUserId: string | null = null;
 
   private async initialize(userId?: string) {
-    if (!isRevenueCatEnabled || Platform.OS === "web") {
+    const apiKey = getRevenueCatApiKey();
+
+    if (!apiKey || Platform.OS === "web") {
       return;
     }
 
@@ -63,7 +91,7 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     if (!this.isConfigured && this.Purchases) {
-      await this.Purchases.configure({ apiKey: env.revenueCatApiKey });
+      await this.Purchases.configure({ apiKey });
       this.isConfigured = true;
     }
 
@@ -80,6 +108,71 @@ export class RevenueCatPaymentService implements PaymentService {
       plan: "monthly",
       status: "inactive",
     };
+  }
+
+  private createStoreConfigurationError(error?: unknown) {
+    if (__DEV__ && error instanceof Error) {
+      return new Error(`${REVENUECAT_CONFIGURATION_ERROR} (${error.message})`);
+    }
+
+    return new Error(REVENUECAT_CONFIGURATION_ERROR);
+  }
+
+  private getFallbackPlanPrices(): Record<SubscriptionPlan, string> {
+    return __DEV__
+      ? { monthly: "₺149", yearly: "₺999" }
+      : { monthly: STORE_PRICE_LABEL, yearly: STORE_PRICE_LABEL };
+  }
+
+  private async getCurrentOffering(options?: {
+    required?: boolean;
+  }): Promise<RevenueCatOffering | null> {
+    if (!this.Purchases) {
+      throw new Error("RevenueCat modulu yuklenemedi.");
+    }
+
+    try {
+      const offerings = await this.Purchases.getOfferings();
+      return offerings?.current ?? null;
+    } catch (error) {
+      if (options?.required) {
+        throw this.createStoreConfigurationError(error);
+      }
+
+      if (__DEV__) {
+        console.warn(REVENUECAT_CONFIGURATION_ERROR, error);
+      }
+
+      return null;
+    }
+  }
+
+  private pickPackageFromOffering(
+    offering: RevenueCatOffering | null,
+    plan: SubscriptionPlan,
+  ): RevenueCatPackage | undefined {
+    const availablePackages = offering?.availablePackages ?? [];
+    const packageForPlan =
+      plan === "monthly"
+        ? offering?.monthly
+        : plan === "yearly"
+          ? offering?.annual
+          : undefined;
+
+    return (
+      packageForPlan ||
+      availablePackages.find((pkg) => {
+        const type = String(pkg?.packageType ?? "").toLowerCase();
+        const productId = String(pkg?.product?.identifier ?? "").toLowerCase();
+
+        return plan === "monthly"
+          ? type.includes("monthly") || productId.includes("monthly")
+          : type.includes("annual") ||
+              type.includes("yearly") ||
+              productId.includes("annual") ||
+              productId.includes("yearly");
+      })
+    );
   }
 
   private mapCustomerInfoToSubscription(
@@ -111,83 +204,90 @@ export class RevenueCatPaymentService implements PaymentService {
 
   private async selectPackage(
     plan: SubscriptionPlan,
-  ): Promise<RevenueCatPackage> {
-    if (!this.Purchases) {
-      throw new Error("RevenueCat modulu yuklenemedi.");
-    }
-
-    const offerings = await this.Purchases.getOfferings();
-    const current = offerings?.current;
-    const availablePackages: RevenueCatPackage[] =
-      current?.availablePackages ?? [];
-
-    const packageForPlan =
-      plan === "monthly"
-        ? current?.monthly
-        : plan === "yearly"
-          ? current?.annual
-          : undefined;
-
-    return (
-      packageForPlan ||
-      availablePackages.find((pkg) => {
-        const type = String(pkg?.packageType ?? "").toLowerCase();
-        return plan === "monthly"
-          ? type.includes("monthly")
-          : type.includes("annual") || type.includes("yearly");
-      }) ||
-      availablePackages[0]
-    );
+  ): Promise<RevenueCatPackage | undefined> {
+    const current = await this.getCurrentOffering({ required: true });
+    return this.pickPackageFromOffering(current, plan);
   }
 
   private async selectProductPackage(
     productId: string,
-  ): Promise<RevenueCatPackage> {
-    if (!this.Purchases) {
-      throw new Error("RevenueCat modulu yuklenemedi.");
-    }
-
-    const offerings = await this.Purchases.getOfferings();
-    const current = offerings?.current;
-    const availablePackages: RevenueCatPackage[] =
-      current?.availablePackages ?? [];
+  ): Promise<RevenueCatPackage | undefined> {
+    const current = await this.getCurrentOffering({ required: true });
+    const availablePackages = current?.availablePackages ?? [];
 
     return availablePackages.find((pkg) => pkg?.product?.identifier === productId);
   }
 
   async getSubscription(userId: string): Promise<Subscription> {
-    if (!isRevenueCatEnabled || Platform.OS === "web") {
-      return new MockPaymentService().getSubscription(userId);
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
+      return __DEV__
+        ? new MockPaymentService().getSubscription(userId)
+        : this.createInactiveSubscription(userId);
     }
 
     await this.initialize(userId);
 
     if (!this.Purchases) {
-      return new MockPaymentService().getSubscription(userId);
+      return __DEV__
+        ? new MockPaymentService().getSubscription(userId)
+        : this.createInactiveSubscription(userId);
     }
 
     const customerInfo = await this.Purchases.getCustomerInfo();
     return this.mapCustomerInfoToSubscription(customerInfo, userId);
   }
 
+  async getPlanPrices(): Promise<Record<SubscriptionPlan, string>> {
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
+      return __DEV__
+        ? new MockPaymentService().getPlanPrices()
+        : this.getFallbackPlanPrices();
+    }
+
+    await this.initialize();
+
+    if (!this.Purchases) {
+      return __DEV__
+        ? new MockPaymentService().getPlanPrices()
+        : this.getFallbackPlanPrices();
+    }
+
+    const current = await this.getCurrentOffering();
+    const monthly = this.pickPackageFromOffering(current, "monthly");
+    const yearly = this.pickPackageFromOffering(current, "yearly");
+
+    return {
+      monthly: monthly?.product?.priceString ?? STORE_PRICE_LABEL,
+      yearly: yearly?.product?.priceString ?? STORE_PRICE_LABEL,
+    };
+  }
+
   async purchase(
     userId: string,
     plan: SubscriptionPlan,
   ): Promise<PaymentResult> {
-    if (!isRevenueCatEnabled || Platform.OS === "web") {
-      return new MockPaymentService().purchase(userId, plan);
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
+      if (__DEV__) {
+        return new MockPaymentService().purchase(userId, plan);
+      }
+
+      throw new Error("Satın alma servisi yapılandırılmamış.");
     }
 
     await this.initialize(userId);
 
     if (!this.Purchases) {
-      return new MockPaymentService().purchase(userId, plan);
+      if (__DEV__) {
+        return new MockPaymentService().purchase(userId, plan);
+      }
+
+      throw new Error("Satın alma modülü yüklenemedi.");
     }
 
     const packageItem = await this.selectPackage(plan);
 
     if (!packageItem) {
-      throw new Error("RevenueCat paketleri yuklenemedi.");
+      throw new Error("RevenueCat paketleri yüklenemedi. Current offering içinde aylık ve yıllık paketleri kontrol edin.");
     }
 
     const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
@@ -218,14 +318,22 @@ export class RevenueCatPaymentService implements PaymentService {
   }
 
   async purchaseBadge(userId: string, badge: Badge): Promise<BadgePurchaseResult> {
-    if (!isRevenueCatEnabled || Platform.OS === "web") {
-      return new MockPaymentService().purchaseBadge(userId, badge);
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
+      if (__DEV__) {
+        return new MockPaymentService().purchaseBadge(userId, badge);
+      }
+
+      throw new Error("Satın alma servisi yapılandırılmamış.");
     }
 
     await this.initialize(userId);
 
     if (!this.Purchases) {
-      return new MockPaymentService().purchaseBadge(userId, badge);
+      if (__DEV__) {
+        return new MockPaymentService().purchaseBadge(userId, badge);
+      }
+
+      throw new Error("Satın alma modülü yüklenemedi.");
     }
 
     const product = paidBadgeProductByBadge[badge];
@@ -237,7 +345,7 @@ export class RevenueCatPaymentService implements PaymentService {
     const packageItem = await this.selectProductPackage(product.revenueCatProductId);
 
     if (!packageItem) {
-      throw new Error("RevenueCat rozet paketi bulunamadi.");
+      throw new Error("RevenueCat rozet paketi bulunamadı. Rozet ürününü current offering içine ekleyin.");
     }
 
     const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
@@ -251,5 +359,24 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     return { badge, receiptId };
+  }
+
+  async restorePurchases(userId: string): Promise<Subscription> {
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
+      return __DEV__
+        ? new MockPaymentService().restorePurchases(userId)
+        : this.createInactiveSubscription(userId);
+    }
+
+    await this.initialize(userId);
+
+    if (!this.Purchases) {
+      return __DEV__
+        ? new MockPaymentService().restorePurchases(userId)
+        : this.createInactiveSubscription(userId);
+    }
+
+    const customerInfo = await this.Purchases.restorePurchases();
+    return this.mapCustomerInfoToSubscription(customerInfo, userId);
   }
 }

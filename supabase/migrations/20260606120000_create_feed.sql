@@ -132,10 +132,22 @@ create index if not exists feed_posts_author_id_idx on public.feed_posts (author
 create index if not exists feed_posts_tags_idx on public.feed_posts using gin (tags);
 create index if not exists feed_comments_post_id_idx
   on public.feed_comments (post_id, created_at);
+create index if not exists feed_comments_author_id_idx
+  on public.feed_comments (author_id);
 create index if not exists feed_replies_comment_id_idx
   on public.feed_replies (comment_id, created_at);
+create index if not exists feed_replies_author_id_idx
+  on public.feed_replies (author_id);
 create index if not exists feed_post_reports_post_id_idx
   on public.feed_post_reports (post_id);
+create index if not exists feed_post_reports_reporter_id_idx
+  on public.feed_post_reports (reporter_id);
+create index if not exists feed_post_likes_user_id_idx
+  on public.feed_post_likes (user_id);
+create index if not exists feed_comment_likes_user_id_idx
+  on public.feed_comment_likes (user_id);
+create index if not exists feed_reply_likes_user_id_idx
+  on public.feed_reply_likes (user_id);
 
 drop trigger if exists set_feed_posts_updated_at on public.feed_posts;
 create trigger set_feed_posts_updated_at
@@ -238,6 +250,10 @@ drop trigger if exists increment_feed_post_report_count on public.feed_post_repo
 create trigger increment_feed_post_report_count
 after insert on public.feed_post_reports
 for each row execute function public.increment_feed_post_report_count();
+
+revoke all on function public.touch_feed_post_from_comment() from public, anon, authenticated;
+revoke all on function public.touch_feed_post_from_reply() from public, anon, authenticated;
+revoke all on function public.increment_feed_post_report_count() from public, anon, authenticated;
 
 alter table public.feed_posts enable row level security;
 alter table public.feed_comments enable row level security;

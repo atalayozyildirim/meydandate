@@ -101,9 +101,9 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
-        name="cem/index"
+        name="meydan/index"
         options={{
-          title: "Cem",
+          title: "Meydan",
           tabBarIcon: createTabIcon("radio-outline"),
         }}
       />

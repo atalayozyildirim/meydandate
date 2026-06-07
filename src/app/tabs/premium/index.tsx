@@ -13,11 +13,43 @@ import { useTheme } from "@/shared/theme";
 export default function PremiumScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const { subscription, isLoading, purchase, isPurchasing } = usePremium();
+  const {
+    subscription,
+    planPrices,
+    isLoading,
+    purchase,
+    isPurchasing,
+    restorePurchases,
+    isRestoring,
+  } = usePremium();
 
   const buyPlan = async (plan: SubscriptionPlan) => {
-    const result = await purchase(plan);
-    Alert.alert("Premium aktif", `Mock ödeme tamamlandı. Receipt: ${result.receiptId}`);
+    try {
+      await purchase(plan);
+      Alert.alert("Premium aktif", "Satın alım tamamlandı.");
+    } catch (error) {
+      Alert.alert(
+        "Satın alım tamamlanamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const restore = async () => {
+    try {
+      const restoredSubscription = await restorePurchases();
+      Alert.alert(
+        restoredSubscription.status === "active" ? "Premium geri yüklendi" : "Satın alım bulunamadı",
+        restoredSubscription.status === "active"
+          ? "Aktif aboneliğin bu cihaza geri yüklendi."
+          : "Bu mağaza hesabında aktif Premium aboneliği bulunamadı.",
+      );
+    } catch (error) {
+      Alert.alert(
+        "Geri yükleme tamamlanamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
   };
 
   if (isLoading) {
@@ -29,7 +61,9 @@ export default function PremiumScreen() {
       <View style={styles.header}>
         <Text style={styles.kicker}>Premium</Text>
         <Text style={styles.title}>Daha güçlü eşleşme deneyimi</Text>
-        <Text style={styles.description}>Ödeme mimarisi mock servisle hazır; gerçek entegrasyon aynı kontrata bağlanabilir.</Text>
+        <Text style={styles.description}>
+          Premium ile daha fazla kişiye ulaş, reklamları kaldır ve eşleşme araçlarını aç.
+        </Text>
       </View>
 
       <Card style={styles.statusCard}>
@@ -50,15 +84,21 @@ export default function PremiumScreen() {
       <View style={styles.planGrid}>
         <Card style={styles.planCard}>
           <Text style={styles.planTitle}>Aylık</Text>
-          <Text style={styles.price}>₺149</Text>
+          <Text style={styles.price}>{planPrices?.monthly ?? "Yükleniyor..."}</Text>
           <Button label="Aylık başlat" loading={isPurchasing} onPress={() => void buyPlan("monthly")} />
         </Card>
         <Card style={styles.planCard}>
           <Text style={styles.planTitle}>Yıllık</Text>
-          <Text style={styles.price}>₺999</Text>
+          <Text style={styles.price}>{planPrices?.yearly ?? "Yükleniyor..."}</Text>
           <Button label="Yıllık başlat" variant="secondary" loading={isPurchasing} onPress={() => void buyPlan("yearly")} />
         </Card>
       </View>
+      <Button
+        label="Satın alımları geri yükle"
+        variant="ghost"
+        loading={isRestoring}
+        onPress={() => void restore()}
+      />
     </Screen>
   );
 }

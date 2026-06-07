@@ -63,6 +63,25 @@ export default function ProfileScreen() {
         </View>
       </Card>
 
+      <Card style={styles.premiumCard}>
+        <View style={styles.premiumIcon}>
+          <Ionicons name="star-outline" size={22} color="#FFFFFF" />
+        </View>
+        <View style={styles.storeText}>
+          <Text style={styles.sectionTitle}>Ehlibyte Premium</Text>
+          <Text style={styles.storeDescription}>
+            Reklamları kaldır, sınırsız beğeni ve öncelikli görünürlük kazan.
+          </Text>
+        </View>
+        <Button
+          label={profile.isPremium ? "Aktif" : "İncele"}
+          variant={profile.isPremium ? "ghost" : "primary"}
+          disabled={profile.isPremium}
+          style={styles.storeButton}
+          onPress={() => router.push("/tabs/premium")}
+        />
+      </Card>
+
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Rozet mağazası</Text>
         {paidBadgeProducts.map((product) => {
@@ -161,6 +180,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     section: {
       gap: theme.spacing.sm,
       marginBottom: theme.spacing.md
+    },
+    premiumCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md
+    },
+    premiumIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary
     },
     sectionTitle: {
       ...theme.typography.subheading,

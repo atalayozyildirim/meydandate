@@ -1,0 +1,4 @@
+-- Applied directly to the linked Supabase project via MCP to replace an empty
+-- legacy schema whose unquoted camelCase columns had been folded to lowercase.
+-- Fresh environments are created by the earlier base migrations, so this marker
+-- intentionally has no DDL.

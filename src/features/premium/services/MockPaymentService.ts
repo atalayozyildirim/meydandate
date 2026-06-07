@@ -6,8 +6,10 @@ import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 
 export interface PaymentService {
   getSubscription(userId: string): Promise<Subscription>;
+  getPlanPrices(): Promise<Record<SubscriptionPlan, string>>;
   purchase(userId: string, plan: SubscriptionPlan): Promise<PaymentResult>;
   purchaseBadge(userId: string, badge: Badge): Promise<BadgePurchaseResult>;
+  restorePurchases(userId: string): Promise<Subscription>;
 }
 
 const renewalByPlanDays: Record<SubscriptionPlan, number> = {
@@ -16,6 +18,13 @@ const renewalByPlanDays: Record<SubscriptionPlan, number> = {
 };
 
 export class MockPaymentService implements PaymentService {
+  async getPlanPrices(): Promise<Record<SubscriptionPlan, string>> {
+    return {
+      monthly: "₺149",
+      yearly: "₺999"
+    };
+  }
+
   async getSubscription(userId: string): Promise<Subscription> {
     return (
       mockDatabase.subscriptions.find((subscription) => subscription.userId === userId) ?? {
@@ -73,5 +82,9 @@ export class MockPaymentService implements PaymentService {
       badge,
       receiptId: createId("badge_receipt")
     };
+  }
+
+  async restorePurchases(userId: string): Promise<Subscription> {
+    return this.getSubscription(userId);
   }
 }

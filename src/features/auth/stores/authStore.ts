@@ -48,23 +48,31 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     if (localBan) {
       await container.tokenStorage.deleteItem(env.secureTokenKey);
+      await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
       set({ accessToken: null, currentUser: null, isHydrated: true });
       return;
     }
 
     const token = await container.tokenStorage.getItem(env.secureTokenKey);
+    const refreshToken = await container.tokenStorage.getItem(env.secureRefreshTokenKey);
 
     if (!token) {
       set({ isHydrated: true });
       return;
     }
 
-    const session = await container.authRepository.restoreSession(token);
+    const session = await container.authRepository.restoreSession(token, refreshToken ?? undefined);
 
     if (!session) {
       await container.tokenStorage.deleteItem(env.secureTokenKey);
+      await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
       set({ accessToken: null, currentUser: null, isHydrated: true });
       return;
+    }
+
+    await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
+    if (session.refreshToken) {
+      await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
     }
 
     set({ accessToken: session.accessToken, currentUser: session.user, isHydrated: true });
@@ -109,6 +117,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       const session = await container.authRepository.verifyOtp({ ...challenge, token });
       await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
+      if (session.refreshToken) {
+        await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
+      }
       set({ accessToken: session.accessToken, currentUser: session.user, pendingOtp: null });
     } finally {
       set({ isSubmitting: false });
@@ -137,6 +148,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await assertDeviceIsAllowed();
       const session = await container.authRepository.signInWithProvider(provider);
       await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
+      if (session.refreshToken) {
+        await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
+      }
       set({ accessToken: session.accessToken, currentUser: session.user });
     } finally {
       set({ isSubmitting: false });
@@ -159,6 +173,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     await container.tokenStorage.deleteItem(env.secureTokenKey);
+    await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
     set({ accessToken: null, currentUser: null });
   },
   applyPermanentBan: async () => {
@@ -184,6 +199,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
 
     await container.tokenStorage.deleteItem(env.secureTokenKey);
+    await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
     set({ accessToken: null, currentUser: null });
   },
   setCurrentUser: (user) => set({ currentUser: user })

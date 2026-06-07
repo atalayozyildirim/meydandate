@@ -16,14 +16,14 @@ export class SupabaseUserRepository implements UserRepository {
   async getCurrentUser(userId: string): Promise<User> {
     const { data, error } = await supabase
       .rpc("get_my_profile")
-      .eq("id", userId)
-      .single();
+      .maybeSingle();
+    const profile = data as Partial<User> | null;
 
-    if (error) {
+    if (error || !profile || profile.id !== userId) {
       throw new Error("Kullanıcı yüklenemedi");
     }
 
-    return mapSupabaseUser(data as unknown as Partial<User>);
+    return mapSupabaseUser(profile);
   }
 
   async getUserById(userId: string): Promise<User> {
@@ -86,16 +86,15 @@ export class SupabaseUserRepository implements UserRepository {
     // Get current user to check blocks/mutes
     const { data: currentUser, error: userError } = await supabase
       .rpc("get_my_profile")
-      .eq("id", userId)
-      .single();
+      .maybeSingle();
+    const currentProfile = currentUser as (PrivateProfile & { id?: string }) | null;
 
-    if (userError || !currentUser) {
+    if (userError || !currentProfile || currentProfile.id !== userId) {
       throw new Error("Kullanıcı bulunamadı");
     }
 
-    const privateProfile = currentUser as unknown as PrivateProfile;
-    const blockedUserIds = privateProfile.blockedUsers || [];
-    const mutedUserIds = privateProfile.mutedUsers || [];
+    const blockedUserIds = currentProfile.blockedUsers || [];
+    const mutedUserIds = currentProfile.mutedUsers || [];
 
     // Get all users except current user and blocked/muted users
     let query = supabase
@@ -105,8 +104,10 @@ export class SupabaseUserRepository implements UserRepository {
       .eq("hasPassedEntryTest", true)
       .eq("hasCompletedOnboarding", true);
 
-    if (blockedUserIds.length > 0) {
-      query = query.not("id", "in", `(${blockedUserIds.join(",")})`);
+    const excludedUserIds = Array.from(new Set([...blockedUserIds, ...mutedUserIds]));
+
+    if (excludedUserIds.length > 0) {
+      query = query.not("id", "in", `(${excludedUserIds.join(",")})`);
     }
 
     const { data, error } = await query;
@@ -135,14 +136,14 @@ export class SupabaseUserRepository implements UserRepository {
     // Add to blockedUsers array
     const { data: user, error: fetchError } = await supabase
       .rpc("get_my_profile")
-      .eq("id", userId)
-      .single();
+      .maybeSingle();
+    const profile = user as (PrivateProfile & { id?: string }) | null;
 
-    if (fetchError) {
+    if (fetchError || !profile || profile.id !== userId) {
       throw new Error("Kullanıcı yüklenemedi");
     }
 
-    const blockedUsers = (user as unknown as PrivateProfile | null)?.blockedUsers || [];
+    const blockedUsers = profile.blockedUsers || [];
     if (!blockedUsers.includes(blockedUserId)) {
       blockedUsers.push(blockedUserId);
     }
@@ -161,14 +162,14 @@ export class SupabaseUserRepository implements UserRepository {
     // Add to mutedUsers array
     const { data: user, error: fetchError } = await supabase
       .rpc("get_my_profile")
-      .eq("id", userId)
-      .single();
+      .maybeSingle();
+    const profile = user as (PrivateProfile & { id?: string }) | null;
 
-    if (fetchError) {
+    if (fetchError || !profile || profile.id !== userId) {
       throw new Error("Kullanıcı yüklenemedi");
     }
 
-    const mutedUsers = (user as unknown as PrivateProfile | null)?.mutedUsers || [];
+    const mutedUsers = profile.mutedUsers || [];
     if (!mutedUsers.includes(mutedUserId)) {
       mutedUsers.push(mutedUserId);
     }

@@ -8,26 +8,31 @@ import { Screen } from "@/shared/components/Screen";
 import { useLiveRoom } from "@/features/live/hooks/useLiveRoom";
 import { useTheme } from "@/shared/theme";
 
-const roomId = "cem-erkani";
+const roomId = "meydan-erkani";
 
 const ceremonySteps = [
-  { title: "Duyuru", description: "Yönetici canlı erkân, sohbet veya deyiş etkinliğini takvime alır." },
-  { title: "Canlı yayın", description: "streamUrl geldiğinde video açılır; katılan canlar listede görünür." },
-  { title: "Saygılı katılım", description: "Oda sadece izleme ve topluluk katılımı içindir; uygunsuz mesaj/sohbet banlanır." },
+  {
+    title: "Duyuru",
+    description:
+      "Yönetici canlı erkân, sohbet veya deyiş etkinliğini takvime alır.",
+  },
+  {
+    title: "Canlı yayın",
+    description:
+      "streamUrl geldiğinde video açılır; katılan canlar listede görünür.",
+  },
+  {
+    title: "Saygılı katılım",
+    description:
+      "Oda sadece izleme ve topluluk katılımı içindir; uygunsuz mesaj/sohbet banlanır.",
+  },
 ];
 
-export default function CemRoomScreen() {
+export default function MeydanRoomScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const {
-    room,
-    isLoading,
-    isError,
-    isJoined,
-    joinRoom,
-    leaveRoom,
-    isJoining,
-  } = useLiveRoom(roomId);
+  const { room, isLoading, isError, isJoined, joinRoom, leaveRoom, isJoining } =
+    useLiveRoom(roomId);
   const participants = room?.participants ?? [];
   const participantCount = room?.participantCount ?? participants.length;
   const isLive = room?.status === "live";
@@ -50,7 +55,7 @@ export default function CemRoomScreen() {
   };
 
   if (isLoading) {
-    return <Loading label="Cem odası yükleniyor" />;
+    return <Loading label="Meydan yükleniyor" />;
   }
 
   return (
@@ -63,14 +68,17 @@ export default function CemRoomScreen() {
         <Text style={styles.kicker}>Ehlibyte</Text>
         <Text style={styles.title}>{room?.title ?? "Sanal Cem odası"}</Text>
         <Text style={styles.description}>
-          {room?.description ?? "Canlı erkân, deyiş ve topluluk sohbetleri için planlı yayın odası."}
+          {room?.description ??
+            "Canlı erkân, deyiş ve topluluk sohbetleri için planlı yayın odası."}
         </Text>
       </View>
 
       <View style={styles.purposePanel}>
         <Text style={styles.sectionTitle}>Bu odanın amacı</Text>
         <Text style={styles.purposeText}>
-          Ehlibyte içinde planlı Alevi kültür etkinliklerini canlı izletmek: erkân yayını, deyiş/nefes, soru-cevap ve topluluk buluşması. Odaya katılanlar görünür; yayın açıldığında video burada oynar.
+          Ehlibyte içinde planlı Alevi kültür etkinliklerini canlı izletmek:
+          erkân yayını, deyiş/nefes, soru-cevap ve topluluk buluşması. Odaya
+          katılanlar görünür; yayın açıldığında video burada oynar.
         </Text>
       </View>
 
@@ -86,22 +94,33 @@ export default function CemRoomScreen() {
         ) : (
           <View style={styles.emptyStage}>
             <Ionicons name="radio-outline" size={32} color="#FFFFFF" />
-            <Text style={styles.stageTitle}>{isLive ? "Canlı yayın bekleniyor" : "Yayın hazır değil"}</Text>
+            <Text style={styles.stageTitle}>
+              {isLive ? "Canlı yayın bekleniyor" : "Yayın hazır değil"}
+            </Text>
             <Text style={styles.stageDescription}>
-              Backend `streamUrl` döndürdüğünde bu alan gerçek canlı video oynatır.
+              Backend `streamUrl` döndürdüğünde bu alan gerçek canlı video
+              oynatır.
             </Text>
           </View>
         )}
         <View style={styles.stageMeta}>
           <Text style={styles.stageMetaText}>{participantCount} katılımcı</Text>
-          <Text style={styles.stageMetaText}>{isJoined ? "Odasındasın" : "Dışarıdasın"}</Text>
+          <Text style={styles.stageMetaText}>
+            {isJoined ? "Odasındasın" : "Dışarıdasın"}
+          </Text>
         </View>
       </View>
 
       {isError ? (
         <View style={styles.errorBox}>
-          <Ionicons name="warning-outline" size={20} color={theme.colors.warning} />
-          <Text style={styles.errorText}>Canlı endpoint'e bağlanılamadı. API açılınca oda otomatik yenilenir.</Text>
+          <Ionicons
+            name="warning-outline"
+            size={20}
+            color={theme.colors.warning}
+          />
+          <Text style={styles.errorText}>
+            Canlı endpoint'e bağlanılamadı. API açılınca oda otomatik yenilenir.
+          </Text>
         </View>
       ) : null}
 
@@ -118,7 +137,9 @@ export default function CemRoomScreen() {
           {participants.map((participant) => (
             <Pressable key={participant.id} style={styles.participant}>
               <View style={styles.avatar}>
-                <Text style={styles.avatarText}>{participant.name.slice(0, 1)}</Text>
+                <Text style={styles.avatarText}>
+                  {participant.name.slice(0, 1)}
+                </Text>
               </View>
               <Text numberOfLines={1} style={styles.participantName}>
                 {participant.name}

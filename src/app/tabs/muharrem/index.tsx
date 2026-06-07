@@ -34,7 +34,7 @@ const muharremDays = Array.from({ length: fastingDayCount }, (_, index) => {
     day,
     hicriLabel: `${day} Muharrem`,
     gregorianDate: addDays(muharremStart, index),
-    note: day === 1 ? "Hicri yilbasi" : day === ashuraDay ? "Asure gunu" : "Oruç gunu",
+    note: day === 1 ? "Hicri yılbaşı" : day === ashuraDay ? "Aşure günü" : "Oruç günü",
   };
 });
 
@@ -78,16 +78,16 @@ export default function MuharremTrackerScreen() {
     [progress],
   );
   const statusText = isUpcoming
-    ? `Baslamasina ${daysUntilStart} gun var`
+    ? `Başlamasına ${daysUntilStart} gün var`
     : isFinished
-      ? "Bu yilki takip tamamlandi"
-      : `Bugun ${currentMuharremDay}. gun`;
+      ? "Bu yılki takip tamamlandı"
+      : `Bugün ${currentMuharremDay}. gün`;
   const nextReminderDay =
     muharremDays.find((item) => getReminderDate(item.gregorianDate).getTime() > Date.now()) ??
     null;
   const reminderStatusText = nextReminderDay
     ? `${formatDate(nextReminderDay.gregorianDate)} 07:30`
-    : "2026 takvimi tamamlandi";
+    : "2026 takvimi tamamlandı";
 
   const toggleDay = (day: number) => {
     setCompletedDays((current) =>
@@ -102,7 +102,7 @@ export default function MuharremTrackerScreen() {
       const notifications = await loadNotifications();
 
       if (!notifications) {
-        Alert.alert("Bildirim modulu yok", "Hatirlatici icin uygulamayi yeni native build ile tekrar kur.");
+        Alert.alert("Bildirim modülü yok", "Hatırlatıcı için uygulamayı yeni native build ile tekrar kur.");
         setReminderEnabled(false);
         return;
       }
@@ -125,7 +125,7 @@ export default function MuharremTrackerScreen() {
       }
 
       if (status !== "granted") {
-        Alert.alert("Bildirim izni yok", "Muharrem hatirlaticisi icin bildirim izni gerekli.");
+        Alert.alert("Bildirim izni yok", "Muharrem hatırlatıcısı için bildirim izni gerekli.");
         return;
       }
 
@@ -136,7 +136,7 @@ export default function MuharremTrackerScreen() {
       });
 
       if (upcomingDays.length === 0) {
-        Alert.alert("Takvim bitti", "2026 Muharrem orucu gunleri geride kalmis.");
+        Alert.alert("Takvim bitti", "2026 Muharrem orucu günleri geride kalmış.");
         return;
       }
 
@@ -146,8 +146,8 @@ export default function MuharremTrackerScreen() {
 
           return notifications.scheduleNotificationAsync({
             content: {
-              title: `${item.hicriLabel} hatirlatmasi`,
-              body: `${formatDate(item.gregorianDate)} - ${item.note}. Bugunku gunu isaretlemeyi unutma.`,
+              title: `${item.hicriLabel} hatırlatması`,
+              body: `${formatDate(item.gregorianDate)} - ${item.note}. Bugünkü günü işaretlemeyi unutma.`,
               sound: true,
             },
             trigger: reminderDate as any,
@@ -157,10 +157,10 @@ export default function MuharremTrackerScreen() {
 
       setNotificationIds(ids);
       setReminderEnabled(true);
-      Alert.alert("Hatirlatici acildi", `${ids.length} Muharrem gunu icin 07:30 hatirlaticisi kuruldu.`);
+      Alert.alert("Hatırlatıcı açıldı", `${ids.length} Muharrem günü için 07:30 hatırlatıcısı kuruldu.`);
     } catch (error) {
       Alert.alert(
-        "Hatirlatici kurulamadi",
+        "Hatırlatıcı kurulamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -175,20 +175,22 @@ export default function MuharremTrackerScreen() {
         <Text style={styles.kicker}>Muharrem {muharremYear}</Text>
         <Text style={styles.title}>Oruç takvimi</Text>
         <Text style={styles.description}>
-          1 Muharrem 1448, 16 Haziran 2026 Sali gunu baslar. 10 Muharrem/Asure gunu 25 Haziran 2026.
+          1 Muharrem 1448, 16 Haziran 2026 Salı günü başlar. 10 Muharrem/Aşure günü 25 Haziran 2026.
         </Text>
       </View>
 
       <View style={styles.streakPanel}>
         <View style={styles.streakLeft}>
           <Ionicons name="flame" size={32} color="#FFFFFF" />
-          <View>
-            <Text style={styles.streakLabel}>Gercek tarih durumu</Text>
+          <View style={styles.streakCopy}>
+            <View style={styles.streakMeta}>
+              <Text style={styles.streakLabel}>Gerçek tarih durumu</Text>
+              <View style={styles.targetPill}>
+                <Text style={styles.targetText}>{progress}/12</Text>
+              </View>
+            </View>
             <Text style={styles.streakValue}>{statusText}</Text>
           </View>
-        </View>
-        <View style={styles.targetPill}>
-          <Text style={styles.targetText}>{progress}/12</Text>
         </View>
       </View>
 
@@ -226,8 +228,8 @@ export default function MuharremTrackerScreen() {
 
       <View style={styles.calendarPanel}>
         <View style={styles.calendarHeader}>
-          <Text style={styles.sectionTitle}>12 gunluk takvim</Text>
-          <Text style={styles.calendarHint}>Bugun: {formatDate(today)}</Text>
+          <Text style={styles.sectionTitle}>12 günlük takvim</Text>
+          <Text style={styles.calendarHint}>Bugün: {formatDate(today)}</Text>
         </View>
         <View style={styles.daysGrid}>
           {muharremDays.map((item) => {
@@ -251,7 +253,14 @@ export default function MuharremTrackerScreen() {
                   pressed && styles.pressed,
                 ]}
               >
-                <View style={[styles.dayOrb, completed && styles.dayOrbCompleted]}>
+                <View
+                  style={[
+                    styles.dayOrb,
+                    active && styles.dayOrbActive,
+                    isAshura && styles.dayOrbAshura,
+                    completed && styles.dayOrbCompleted,
+                  ]}
+                >
                   <Ionicons
                     name={completed ? "checkmark" : isAshura ? "star" : active ? "flame" : "ellipse-outline"}
                     size={completed ? 22 : 20}
@@ -272,13 +281,13 @@ export default function MuharremTrackerScreen() {
       <View style={styles.notePanel}>
         <View style={styles.noteTitleRow}>
           <Ionicons name="create-outline" size={20} color={theme.colors.primary} />
-          <Text style={styles.sectionTitle}>Bugunun notu</Text>
+          <Text style={styles.sectionTitle}>Bugünün notu</Text>
         </View>
         <TextInput
           value={note}
           onChangeText={setNote}
           multiline
-          placeholder="Niyet, duygu veya hatirlamak istedigin kisa bir not..."
+          placeholder="Niyet, duygu veya hatırlamak istediğin kısa bir not..."
           placeholderTextColor={theme.colors.muted}
           style={styles.noteInput}
         />
@@ -342,6 +351,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
+      minWidth: 0,
+    },
+    streakCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    streakMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.xs,
     },
     streakLabel: {
       ...theme.typography.caption,
@@ -350,6 +370,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     streakValue: {
       ...theme.typography.heading,
       color: "#FFFFFF",
+      flexShrink: 1,
     },
     targetPill: {
       borderRadius: theme.radius.pill,
@@ -395,6 +416,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
     },
     sectionTitle: {
       ...theme.typography.subheading,
@@ -445,7 +468,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+    },
+    dayOrbActive: {
       backgroundColor: theme.colors.primary,
+    },
+    dayOrbAshura: {
+      backgroundColor: theme.colors.secondary,
     },
     dayOrbCompleted: {
       backgroundColor: theme.colors.success,

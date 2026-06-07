@@ -1,0 +1,2 @@
+-- Remote MCP migration history marker.
+-- The effective core table DDL is kept in 20260606110000_create_core.sql.

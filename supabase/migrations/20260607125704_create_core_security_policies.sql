@@ -1,0 +1,3 @@
+-- Remote MCP migration history marker.
+-- The effective core RLS, grants, indexes, and RPC function DDL are kept in
+-- 20260606110000_create_core.sql.

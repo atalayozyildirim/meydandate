@@ -1,0 +1,3 @@
+-- Remote MCP migration history marker.
+-- The hardening changes from this remote migration have been folded into the
+-- two base migrations so fresh environments receive the final schema directly.
