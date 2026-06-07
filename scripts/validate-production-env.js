@@ -68,16 +68,29 @@ if (isPlaceholder(supabaseKey) || !/^(sb_publishable_|eyJ)/.test(supabaseKey)) {
   errors.push("Supabase public key eksik veya placeholder.");
 }
 
-if (!value("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY").startsWith("appl_")) {
+if (
+  isPlaceholder(value("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY")) ||
+  !value("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY").startsWith("appl_")
+) {
   errors.push("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY appl_ public key olmalı.");
 }
 
-if (!value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY").startsWith("goog_")) {
+if (
+  isPlaceholder(value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY")) ||
+  !value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY").startsWith("goog_")
+) {
   warnings.push("Android yayını için EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY goog_ public key olmalı.");
 }
 
 if (!value("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID")) {
   errors.push("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID eksik.");
+}
+
+if (
+  value("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID") &&
+  !/^[A-Za-z0-9_.-]+$/.test(value("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID"))
+) {
+  errors.push("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID boşluksuz lookup key olmalı. Örn: premium");
 }
 
 for (const key of [

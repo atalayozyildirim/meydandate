@@ -16,6 +16,7 @@ export const getSupabaseClient = () => {
         autoRefreshToken: true,
         persistSession: false,
         detectSessionInUrl: false,
+        flowType: "pkce",
       },
     });
   }

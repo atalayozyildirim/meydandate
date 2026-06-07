@@ -33,6 +33,7 @@ export interface AuthRepository {
   requestOtp(challenge: OtpChallenge): Promise<void>;
   verifyOtp(payload: VerifyOtpPayload): Promise<AuthSession>;
   signInWithProvider(provider: SocialAuthProvider): Promise<AuthSession>;
+  completeOAuthCallback(callbackUrl: string): Promise<AuthSession>;
   restoreSession(token: string, refreshToken?: string): Promise<AuthSession | null>;
   forgotPassword(email: string): Promise<void>;
   logout(token: string): Promise<void>;

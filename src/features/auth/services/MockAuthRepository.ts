@@ -126,6 +126,16 @@ export class MockAuthRepository implements AuthRepository {
     return createSession(user);
   }
 
+  async completeOAuthCallback(_callbackUrl: string): Promise<AuthSession> {
+    const user = mockDatabase.users[0];
+
+    if (!user) {
+      throw new Error("Sosyal giriş demo kullanıcısı bulunamadı.");
+    }
+
+    return createSession(user);
+  }
+
   async restoreSession(token: string, _refreshToken?: string): Promise<AuthSession | null> {
     const userId = mockDatabase.tokenToUserId.get(token);
     const user = mockDatabase.users.find((candidate) => candidate.id === userId);

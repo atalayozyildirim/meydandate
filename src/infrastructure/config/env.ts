@@ -24,6 +24,7 @@ const supabasePublishableKey =
 
 const isPlaceholder = (value: string, fragments: string[]) =>
   !value || fragments.some((fragment) => value.includes(fragment));
+const hasSafeIdentifierFormat = (value: string) => /^[A-Za-z0-9_.-]+$/.test(value);
 
 export const env = {
   appEnv,
@@ -78,12 +79,22 @@ export const getRuntimeConfigIssues = () => {
   }
 
   if (env.isProduction) {
-    if (!env.revenueCatIosApiKey.startsWith("appl_")) {
+    if (
+      isPlaceholder(env.revenueCatIosApiKey, ["your_key", "your-key", "placeholder"]) ||
+      !env.revenueCatIosApiKey.startsWith("appl_")
+    ) {
       errors.push("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY appl_ ile başlayan public key olmalı.");
     }
 
-    if (!env.revenueCatAndroidApiKey.startsWith("goog_")) {
+    if (
+      isPlaceholder(env.revenueCatAndroidApiKey, ["your_key", "your-key", "placeholder"]) ||
+      !env.revenueCatAndroidApiKey.startsWith("goog_")
+    ) {
       warnings.push("Android yayını için EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY goog_ public key olmalı.");
+    }
+
+    if (!hasSafeIdentifierFormat(env.revenueCatEntitlementId)) {
+      errors.push("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID boşluksuz lookup key olmalı. Örn: premium");
     }
 
     if (!env.adMobIosAppId || !env.adMobAndroidAppId) {

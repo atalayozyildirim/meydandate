@@ -23,6 +23,7 @@ interface AuthState {
   resendOtp: () => Promise<void>;
   clearPendingOtp: () => void;
   socialLogin: (provider: SocialAuthProvider) => Promise<void>;
+  completeSocialLoginCallback: (callbackUrl: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
   applyPermanentBan: () => Promise<void>;
@@ -147,6 +148,21 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await assertDeviceIsAllowed();
       const session = await container.authRepository.signInWithProvider(provider);
+      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
+      if (session.refreshToken) {
+        await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
+      }
+      set({ accessToken: session.accessToken, currentUser: session.user });
+    } finally {
+      set({ isSubmitting: false });
+    }
+  },
+  completeSocialLoginCallback: async (callbackUrl) => {
+    set({ isSubmitting: true });
+
+    try {
+      await assertDeviceIsAllowed();
+      const session = await container.authRepository.completeOAuthCallback(callbackUrl);
       await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
       if (session.refreshToken) {
         await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);

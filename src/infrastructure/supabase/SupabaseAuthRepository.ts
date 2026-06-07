@@ -5,12 +5,26 @@ import type {
   SocialAuthProvider,
   VerifyOtpPayload,
 } from "@/domain/repositories/AuthRepository";
+import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
+import * as Linking from "expo-linking";
+import * as WebBrowser from "expo-web-browser";
 import { supabase } from "./client";
 import { mapSupabaseUser } from "./userMapper";
+
+WebBrowser.maybeCompleteAuthSession();
 
 const signOutAndThrow = async (message: string): Promise<never> => {
   await supabase.auth.signOut();
   throw new Error(message);
+};
+
+const authRedirectUrl = Linking.createURL("auth/callback");
+
+const readCallbackParam = (callbackUrl: string, key: string) => {
+  const url = new URL(callbackUrl);
+  const hashParams = new URLSearchParams(url.hash.replace(/^#/, ""));
+
+  return url.searchParams.get(key) ?? hashParams.get(key);
 };
 
 export class SupabaseAuthRepository implements AuthRepository {
@@ -18,6 +32,74 @@ export class SupabaseAuthRepository implements AuthRepository {
     const { data, error } = await supabase.rpc("get_my_profile").maybeSingle();
 
     return error ? null : data;
+  }
+
+  private getSocialProfileName(user: SupabaseAuthUser) {
+    const metadata = user.user_metadata ?? {};
+    const fullName = metadata.full_name || metadata.name || metadata.display_name;
+
+    if (typeof fullName === "string" && fullName.trim()) {
+      return fullName.trim().slice(0, 80);
+    }
+
+    const emailPrefix = user.email?.split("@")[0]?.replace(/[._-]+/g, " ");
+
+    return emailPrefix?.trim() || "Yeni Üye";
+  }
+
+  private getSocialProfilePhotos(user: SupabaseAuthUser) {
+    const metadata = user.user_metadata ?? {};
+    const avatarUrl = metadata.avatar_url || metadata.picture;
+
+    if (typeof avatarUrl !== "string" || !avatarUrl.startsWith("https://")) {
+      return [];
+    }
+
+    return [{ id: "oauth-avatar", uri: avatarUrl, isPrimary: true }];
+  }
+
+  private async ensureSocialProfile(user: SupabaseAuthUser) {
+    let profile = await this.getMyProfile();
+
+    if (profile) {
+      return profile;
+    }
+
+    const { error } = await supabase.from("users").insert({
+      id: user.id,
+      email: user.email ?? `${user.id}@oauth.ehlibyte.local`,
+      ...(user.phone ? { phoneNumber: user.phone } : {}),
+      name: this.getSocialProfileName(user),
+      age: 18,
+      city: "",
+      bio: "",
+      culturalIdentity: "prefer_not_to_say",
+      cultureImportance: "somewhat_important",
+      interests: [],
+      photos: this.getSocialProfilePhotos(user),
+    });
+
+    if (error) {
+      return signOutAndThrow("Sosyal giriş tamamlandı ancak profil oluşturulamadı.");
+    }
+
+    profile = await this.getMyProfile();
+
+    if (!profile) {
+      return signOutAndThrow("Sosyal giriş profili yüklenemedi.");
+    }
+
+    return profile;
+  }
+
+  private async buildAuthSession(session: Session): Promise<AuthSession> {
+    const profile = await this.ensureSocialProfile(session.user);
+
+    return {
+      accessToken: session.access_token,
+      refreshToken: session.refresh_token,
+      user: mapSupabaseUser(profile),
+    };
   }
 
   async requestOtp(challenge: OtpChallenge): Promise<void> {
@@ -88,18 +170,64 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async signInWithProvider(provider: SocialAuthProvider): Promise<AuthSession> {
-    const { error } = await supabase.auth.signInWithOAuth({
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: "ehlibyte://auth/callback",
+        redirectTo: authRedirectUrl,
+        skipBrowserRedirect: true,
       },
     });
 
-    if (error) {
-      throw new Error(error.message);
+    if (error || !data.url) {
+      throw new Error(error?.message ?? "Sosyal giriş URL'i oluşturulamadı.");
     }
 
-    throw new Error(`${provider === "apple" ? "Apple" : "Google"} girisi acildi. OAuth callback ekrani baglandiginda oturum tamamlanacak.`);
+    const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectUrl);
+
+    if (result.type !== "success" || !("url" in result)) {
+      throw new Error(`${provider === "apple" ? "Apple" : "Google"} girişi iptal edildi.`);
+    }
+
+    return this.completeOAuthCallback(result.url);
+  }
+
+  async completeOAuthCallback(callbackUrl: string): Promise<AuthSession> {
+    const errorDescription = readCallbackParam(callbackUrl, "error_description");
+    const oauthError = readCallbackParam(callbackUrl, "error");
+
+    if (errorDescription || oauthError) {
+      throw new Error(errorDescription ?? oauthError ?? "Sosyal giriş tamamlanamadı.");
+    }
+
+    const code = readCallbackParam(callbackUrl, "code");
+
+    if (code) {
+      const { data, error } = await supabase.auth.exchangeCodeForSession(code);
+
+      if (error || !data.session) {
+        throw new Error(error?.message ?? "Sosyal giriş oturumu alınamadı.");
+      }
+
+      return this.buildAuthSession(data.session);
+    }
+
+    const accessToken = readCallbackParam(callbackUrl, "access_token");
+    const refreshToken = readCallbackParam(callbackUrl, "refresh_token");
+
+    if (accessToken && refreshToken) {
+      const { data, error } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken,
+      });
+
+      if (error || !data.session) {
+        throw new Error(error?.message ?? "Sosyal giriş oturumu kaydedilemedi.");
+      }
+
+      return this.buildAuthSession(data.session);
+    }
+
+    throw new Error("Sosyal giriş callback kodu bulunamadı.");
   }
 
   async restoreSession(token: string, refreshToken?: string): Promise<AuthSession | null> {
