@@ -35,6 +35,16 @@ export interface Match {
   lastMessagePreview?: string;
 }
 
+export type SpecialMatchInviteStatus = "pending" | "accepted" | "declined" | "cancelled";
+
+export interface SpecialMatchInvite {
+  id: string;
+  inviter: User;
+  targetName: string;
+  status: SpecialMatchInviteStatus;
+  createdAt: string;
+}
+
 export interface Report {
   id: string;
   reporterId: string;

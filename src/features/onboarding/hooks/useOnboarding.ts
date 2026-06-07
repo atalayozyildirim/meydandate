@@ -14,7 +14,15 @@ export const useOnboarding = () => {
         throw new Error("Onboarding icin oturum gerekli.");
       }
 
-      return container.userRepository.completeOnboarding(currentUser.id, profile);
+      const updatedUser = await container.userRepository.completeOnboarding(currentUser.id, profile);
+
+      try {
+        await container.matchRepository.claimSpecialInvite(updatedUser.id);
+      } catch {
+        // Davet kontrolü yardımcı bir akıştır; onboarding sonucunu bloke etmez.
+      }
+
+      return updatedUser;
     },
     onSuccess: (updatedUser) => setCurrentUser(updatedUser)
   });

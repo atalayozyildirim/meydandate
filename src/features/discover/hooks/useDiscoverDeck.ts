@@ -17,6 +17,22 @@ export const useDiscoverDeck = () => {
     queryFn: () => container.userRepository.listDiscoverCandidates(currentUser?.id ?? "")
   });
 
+  const specialInviteQuery = useQuery({
+    queryKey: [queryKeys.specialInvite, currentUser?.id],
+    enabled: Boolean(currentUser),
+    queryFn: async () => {
+      const userId = currentUser?.id ?? "";
+
+      try {
+        await container.matchRepository.claimSpecialInvite(userId);
+      } catch {
+        // Davet claim'i yardimci kontrol; Discover akisini bloke etmez.
+      }
+
+      return container.matchRepository.getPendingSpecialInvite(userId);
+    }
+  });
+
   const swipeMutation = useMutation({
     mutationFn: ({ targetUserId, action }: { targetUserId: string; action: LikeAction }) => {
       if (!currentUser) {
@@ -34,8 +50,46 @@ export const useDiscoverDeck = () => {
     }
   });
 
+  const acceptSpecialInviteMutation = useMutation({
+    mutationFn: (inviteId: string) => {
+      if (!currentUser) {
+        throw new Error("Davet icin oturum gerekli.");
+      }
+
+      return container.matchRepository.acceptSpecialInvite(currentUser.id, inviteId);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.specialInvite] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.matches] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.conversations] })
+      ]);
+    }
+  });
+
+  const declineSpecialInviteMutation = useMutation({
+    mutationFn: (inviteId: string) => {
+      if (!currentUser) {
+        throw new Error("Davet icin oturum gerekli.");
+      }
+
+      return container.matchRepository.declineSpecialInvite(currentUser.id, inviteId);
+    },
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.specialInvite] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] })
+      ]);
+    }
+  });
+
   const deck = useMemo(() => {
     if (!currentUser) {
+      return [];
+    }
+
+    if (specialInviteQuery.data) {
       return [];
     }
 
@@ -43,7 +97,7 @@ export const useDiscoverDeck = () => {
       user: candidate,
       compatibility: calculateCulturalMatchScore(currentUser, candidate)
     }));
-  }, [candidatesQuery.data, currentUser]);
+  }, [candidatesQuery.data, currentUser, specialInviteQuery.data]);
 
   const swipe = async (targetUserId: string, action: LikeAction): Promise<Match | null> => {
     const result = await swipeMutation.mutateAsync({ targetUserId, action });
@@ -52,8 +106,12 @@ export const useDiscoverDeck = () => {
 
   return {
     deck,
-    isLoading: candidatesQuery.isLoading,
+    specialInvite: specialInviteQuery.data ?? null,
+    isLoading: candidatesQuery.isLoading || specialInviteQuery.isLoading,
     isSwiping: swipeMutation.isPending,
-    swipe
+    isHandlingSpecialInvite: acceptSpecialInviteMutation.isPending || declineSpecialInviteMutation.isPending,
+    swipe,
+    acceptSpecialInvite: acceptSpecialInviteMutation.mutateAsync,
+    declineSpecialInvite: declineSpecialInviteMutation.mutateAsync
   };
 };

@@ -1,6 +1,6 @@
 // Discover sekmesi swipe kartlarini, animasyonlari ve match modalini calistirir.
 import { useEffect, useState } from "react";
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
@@ -17,6 +17,8 @@ import { useDiscoverDeck } from "@/features/discover/hooks/useDiscoverDeck";
 import { AdMobBanner } from "@/features/ads";
 import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
+import { Avatar } from "@/shared/components/Avatar";
+import { Button } from "@/shared/components/Button";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
@@ -31,7 +33,15 @@ export default function DiscoverScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const { height } = useWindowDimensions();
-  const { deck, isLoading, swipe } = useDiscoverDeck();
+  const {
+    deck,
+    specialInvite,
+    isLoading,
+    isHandlingSpecialInvite,
+    swipe,
+    acceptSpecialInvite,
+    declineSpecialInvite,
+  } = useDiscoverDeck();
   const [activeSafetyUser, setActiveSafetyUser] = useState<User | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [isMatchVisible, setIsMatchVisible] = useState(false);
@@ -59,6 +69,38 @@ export default function DiscoverScreen() {
 
     translateX.value = 0;
     translateY.value = 0;
+  };
+
+  const handleAcceptSpecialInvite = async () => {
+    if (!specialInvite) {
+      return;
+    }
+
+    try {
+      const createdMatch = await acceptSpecialInvite(specialInvite.id);
+      setMatch(createdMatch);
+      setIsMatchVisible(true);
+    } catch (error) {
+      Alert.alert(
+        "Davet hatası",
+        error instanceof Error ? error.message : "Davet kabul edilemedi.",
+      );
+    }
+  };
+
+  const handleDeclineSpecialInvite = async () => {
+    if (!specialInvite) {
+      return;
+    }
+
+    try {
+      await declineSpecialInvite(specialInvite.id);
+    } catch (error) {
+      Alert.alert(
+        "Davet hatası",
+        error instanceof Error ? error.message : "Davet geçilemedi.",
+      );
+    }
   };
 
   const gesture = Gesture.Pan()
@@ -119,7 +161,41 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      {activeCard ? (
+      {specialInvite ? (
+        <View style={styles.specialInvitePanel}>
+          <View style={styles.specialInviteHeader}>
+            <Avatar
+              name={specialInvite.inviter.name}
+              uri={specialInvite.inviter.photos[0]?.uri}
+              size={72}
+            />
+            <View style={styles.specialInviteText}>
+              <Text style={styles.specialInviteTitle}>
+                {specialInvite.inviter.name} seni tanımak istiyor
+              </Text>
+              <Text style={styles.specialInviteDescription}>
+                Kabul edersen karşılıklı eşleşme oluşur ve sohbet açılır.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.specialInviteActions}>
+            <Button
+              label="Geç"
+              variant="ghost"
+              disabled={isHandlingSpecialInvite}
+              style={styles.specialInviteButton}
+              onPress={() => void handleDeclineSpecialInvite()}
+            />
+            <Button
+              label="Kabul et"
+              loading={isHandlingSpecialInvite}
+              style={styles.specialInviteButton}
+              icon={<Ionicons name="heart" size={18} color="#FFFFFF" />}
+              onPress={() => void handleAcceptSpecialInvite()}
+            />
+          </View>
+        </View>
+      ) : activeCard ? (
         <>
           <View style={[styles.deckArea, { height: cardHeight }]}>
             <GestureDetector gesture={gesture}>
@@ -215,6 +291,43 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     adBanner: {
       marginHorizontal: theme.spacing.sm
+    },
+    specialInvitePanel: {
+      gap: theme.spacing.md,
+      borderRadius: 22,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.16)",
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      shadowColor: theme.colors.shadow,
+      shadowOpacity: 1,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
+      elevation: 4
+    },
+    specialInviteHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md
+    },
+    specialInviteText: {
+      flex: 1,
+      gap: theme.spacing.xxs
+    },
+    specialInviteTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text
+    },
+    specialInviteDescription: {
+      ...theme.typography.body,
+      color: theme.colors.muted
+    },
+    specialInviteActions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    specialInviteButton: {
+      flex: 1
     },
     roundAction: {
       width: 58,

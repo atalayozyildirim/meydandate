@@ -9,6 +9,7 @@ import { RevenueCatPaymentService } from "@/features/premium/services/RevenueCat
 import { SupabaseUserRepository } from "@/infrastructure/supabase/SupabaseUserRepository";
 import { SupabaseModerationRepository } from "@/infrastructure/supabase/SupabaseModerationRepository";
 import { SupabaseFeedRepository } from "@/infrastructure/supabase/SupabaseFeedRepository";
+import { SupabaseLiveRoomRepository } from "@/infrastructure/supabase/SupabaseLiveRoomRepository";
 import { ContentModerationService } from "@/features/moderation/services/ContentModerationService";
 import { MockModerationRepository } from "@/features/moderation/services/MockModerationRepository";
 import { MockAuthRepository } from "@/features/auth/services/MockAuthRepository";
@@ -38,7 +39,9 @@ const userRepository = env.useMockServices
   : new SupabaseUserRepository();
 const liveRoomRepository = env.useLiveApi
   ? new ApiLiveRoomRepository(apiClient)
-  : new MockLiveRoomRepository();
+  : env.useMockServices
+    ? new MockLiveRoomRepository()
+    : new SupabaseLiveRoomRepository();
 const moderationRepository = env.useMockServices
   ? new MockModerationRepository()
   : new SupabaseModerationRepository();

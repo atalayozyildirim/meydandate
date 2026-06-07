@@ -2,10 +2,71 @@ import type {
   MatchRepository,
   SwipeResult,
 } from "@/domain/repositories/MatchRepository";
-import type { Match, LikeAction } from "@/domain/entities/Match";
+import type { Match, LikeAction, SpecialMatchInvite } from "@/domain/entities/Match";
+import type { User } from "@/domain/entities/User";
+import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 import { supabase } from "./client";
+import { mapSupabaseUser, publicUserColumns } from "./userMapper";
+
+type SupabaseMatchRow = {
+  id: string;
+  user1Id: string;
+  user2Id: string;
+  matchedAt: string;
+};
+
+type PendingSpecialInviteRow = {
+  id: string;
+  inviter_id: string;
+  inviter_name: string;
+  inviter_city: string | null;
+  inviter_photo_uri: string | null;
+  target_name: string;
+  status: SpecialMatchInvite["status"];
+  created_at: string;
+};
 
 export class SupabaseMatchRepository implements MatchRepository {
+  private async buildMatch(row: SupabaseMatchRow): Promise<Match> {
+    const { data, error } = await supabase
+      .from("users")
+      .select(publicUserColumns)
+      .in("id", [row.user1Id, row.user2Id]);
+
+    if (error || !data || data.length < 2) {
+      throw new Error("Eşleşme kullanıcıları yüklenemedi");
+    }
+
+    const users = data.map((userRow) => mapSupabaseUser(userRow as unknown as Partial<User>));
+    const user1 = users.find((user) => user.id === row.user1Id) ?? users[0];
+    const user2 = users.find((user) => user.id === row.user2Id) ?? users[1];
+
+    if (!user1 || !user2) {
+      throw new Error("Eşleşme kullanıcıları eksik");
+    }
+
+    return {
+      id: row.id,
+      users: [user1, user2],
+      compatibility: calculateCulturalMatchScore(user1, user2),
+      createdAt: row.matchedAt,
+    };
+  }
+
+  private async getMatchById(matchId: string): Promise<Match> {
+    const { data, error } = await supabase
+      .from("matches")
+      .select("id,user1Id,user2Id,matchedAt")
+      .eq("id", matchId)
+      .single();
+
+    if (error || !data) {
+      throw new Error("Eşleşme yüklenemedi");
+    }
+
+    return this.buildMatch(data as unknown as SupabaseMatchRow);
+  }
+
   async swipe(
     userId: string,
     targetUserId: string,
@@ -57,7 +118,7 @@ export class SupabaseMatchRepository implements MatchRepository {
 
         return {
           action,
-          match,
+          match: await this.buildMatch(match as unknown as SupabaseMatchRow),
         };
       }
     }
@@ -68,7 +129,7 @@ export class SupabaseMatchRepository implements MatchRepository {
   async listMatches(userId: string): Promise<Match[]> {
     const { data, error } = await supabase
       .from("matches")
-      .select("*")
+      .select("id,user1Id,user2Id,matchedAt")
       .or(`user1Id.eq.${userId},user2Id.eq.${userId}`)
       .order("matchedAt", { ascending: false });
 
@@ -76,6 +137,70 @@ export class SupabaseMatchRepository implements MatchRepository {
       throw new Error("Eşleşmeler yüklenemedi");
     }
 
-    return data || [];
+    return Promise.all((data || []).map((match) => this.buildMatch(match as unknown as SupabaseMatchRow)));
+  }
+
+  async claimSpecialInvite(_userId: string): Promise<void> {
+    const { error } = await supabase.rpc("claim_zeynep_cisem_invite");
+
+    if (error) {
+      throw new Error("Özel davet kontrol edilemedi");
+    }
+  }
+
+  async getPendingSpecialInvite(_userId: string): Promise<SpecialMatchInvite | null> {
+    const { data, error } = await supabase
+      .rpc("get_pending_special_match_invite")
+      .maybeSingle();
+
+    if (error) {
+      throw new Error("Özel davet yüklenemedi");
+    }
+
+    if (!data) {
+      return null;
+    }
+
+    const invite = data as PendingSpecialInviteRow;
+    const inviter = mapSupabaseUser({
+      id: invite.inviter_id,
+      name: invite.inviter_name,
+      city: invite.inviter_city ?? "",
+      photos: invite.inviter_photo_uri
+        ? [{ id: `special-invite-${invite.inviter_id}`, uri: invite.inviter_photo_uri, isPrimary: true }]
+        : [],
+      hasCompletedOnboarding: true,
+      hasPassedEntryTest: true,
+    });
+
+    return {
+      id: invite.id,
+      inviter,
+      targetName: invite.target_name,
+      status: invite.status,
+      createdAt: invite.created_at,
+    };
+  }
+
+  async acceptSpecialInvite(_userId: string, inviteId: string): Promise<Match> {
+    const { data, error } = await supabase.rpc("accept_special_match_invite", {
+      invite_id: inviteId,
+    });
+
+    if (error || !data) {
+      throw new Error("Özel davet kabul edilemedi");
+    }
+
+    return this.getMatchById(data as string);
+  }
+
+  async declineSpecialInvite(_userId: string, inviteId: string): Promise<void> {
+    const { error } = await supabase.rpc("decline_special_match_invite", {
+      invite_id: inviteId,
+    });
+
+    if (error) {
+      throw new Error("Özel davet reddedilemedi");
+    }
   }
 }

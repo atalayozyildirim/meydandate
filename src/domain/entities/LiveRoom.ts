@@ -8,6 +8,16 @@ export interface LiveParticipant {
   isCurrentUser?: boolean;
 }
 
+export interface LiveChatMessage {
+  id: string;
+  roomId: string;
+  senderId: string;
+  senderName: string;
+  body: string;
+  createdAt: string;
+  isCurrentUser?: boolean;
+}
+
 export interface LiveRoom {
   id: string;
   title: string;
@@ -16,5 +26,7 @@ export interface LiveRoom {
   streamUrl?: string;
   participantCount: number;
   participants: LiveParticipant[];
+  messages: LiveChatMessage[];
+  canManage?: boolean;
   startedAt?: string;
 }

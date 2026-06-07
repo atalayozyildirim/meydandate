@@ -1,8 +1,10 @@
 // Sanal Cem odası için backend destekli live katılım ekranını sunar.
-import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useState } from "react";
 import { ResizeMode, Video } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { Button } from "@/shared/components/Button";
+import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
 import { useLiveRoom } from "@/features/live/hooks/useLiveRoom";
@@ -31,12 +33,47 @@ const ceremonySteps = [
 export default function MeydanRoomScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const { room, isLoading, isError, isJoined, joinRoom, leaveRoom, isJoining } =
-    useLiveRoom(roomId);
+  const {
+    room,
+    isLoading,
+    isError,
+    isJoined,
+    joinRoom,
+    leaveRoom,
+    sendMessage,
+    startRoom,
+    stopRoom,
+    isJoining,
+    isSendingMessage,
+    isManagingRoom,
+  } = useLiveRoom(roomId);
+  const [adminTitle, setAdminTitle] = useState("");
+  const [adminDescription, setAdminDescription] = useState("");
+  const [streamUrl, setStreamUrl] = useState("");
+  const [chatDraft, setChatDraft] = useState("");
   const participants = room?.participants ?? [];
   const participantCount = room?.participantCount ?? participants.length;
+  const messages = room?.messages ?? [];
   const isLive = room?.status === "live";
   const hasStream = Boolean(room?.streamUrl);
+  const canManageRoom = Boolean(room?.canManage);
+  const syncedPositionMillis = useMemo(() => {
+    if (!room?.startedAt) {
+      return 0;
+    }
+
+    return Math.max(0, Date.now() - new Date(room.startedAt).getTime());
+  }, [room?.startedAt]);
+
+  useEffect(() => {
+    if (!room) {
+      return;
+    }
+
+    setAdminTitle((current) => current || room.title);
+    setAdminDescription((current) => current || room.description);
+    setStreamUrl((current) => current || room.streamUrl || "");
+  }, [room]);
 
   const toggleRoom = async () => {
     try {
@@ -49,6 +86,64 @@ export default function MeydanRoomScreen() {
     } catch (error) {
       Alert.alert(
         "Canlı oda hatası",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const handleStartRoom = async () => {
+    const nextStreamUrl = streamUrl.trim();
+
+    if (!nextStreamUrl) {
+      Alert.alert("Yayın URL'i gerekli", "Canlı yayını başlatmak için HTTPS stream URL gir.");
+      return;
+    }
+
+    try {
+      await startRoom({
+        title: adminTitle.trim() || "Meydan",
+        description:
+          adminDescription.trim() ||
+          "Admin yayını açtığında herkes aynı canlı akışı ve sohbeti burada görür.",
+        streamUrl: nextStreamUrl,
+      });
+    } catch (error) {
+      Alert.alert(
+        "Yayın başlatılamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const handleStopRoom = async () => {
+    try {
+      await stopRoom();
+    } catch (error) {
+      Alert.alert(
+        "Yayın durdurulamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const handleSendMessage = async () => {
+    const body = chatDraft.trim();
+
+    if (!body) {
+      return;
+    }
+
+    if (!isJoined) {
+      Alert.alert("Odaya katıl", "Sohbete yazmak için önce odaya katıl.");
+      return;
+    }
+
+    try {
+      await sendMessage(body);
+      setChatDraft("");
+    } catch (error) {
+      Alert.alert(
+        "Mesaj gönderilemedi",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -85,10 +180,15 @@ export default function MeydanRoomScreen() {
       <View style={styles.stage}>
         {hasStream && room?.streamUrl ? (
           <Video
+            key={`${room?.id}-${room?.startedAt ?? "idle"}`}
             source={{ uri: room.streamUrl }}
             style={styles.video}
             resizeMode={ResizeMode.COVER}
             shouldPlay={isLive}
+            status={{
+              shouldPlay: isLive,
+              positionMillis: syncedPositionMillis,
+            }}
             useNativeControls
           />
         ) : (
@@ -124,12 +224,109 @@ export default function MeydanRoomScreen() {
         </View>
       ) : null}
 
+      {canManageRoom ? (
+        <View style={styles.adminPanel}>
+          <View style={styles.adminPanelHeader}>
+            <Ionicons name="shield-checkmark" size={19} color={theme.colors.primary} />
+            <Text style={styles.sectionTitle}>Admin yayını</Text>
+          </View>
+          <Input
+            label="Başlık"
+            value={adminTitle}
+            onChangeText={setAdminTitle}
+            placeholder="Meydan"
+          />
+          <Input
+            label="HTTPS stream URL"
+            value={streamUrl}
+            onChangeText={setStreamUrl}
+            autoCapitalize="none"
+            autoCorrect={false}
+            keyboardType="url"
+            placeholder="https://..."
+          />
+          <TextInput
+            value={adminDescription}
+            onChangeText={setAdminDescription}
+            placeholder="Yayın açıklaması"
+            placeholderTextColor={theme.colors.muted}
+            multiline
+            style={styles.adminDescriptionInput}
+            selectionColor={theme.colors.primary}
+          />
+          <View style={styles.adminActions}>
+            <Button
+              label="Yayını bitir"
+              variant="ghost"
+              disabled={!isLive || isManagingRoom}
+              style={styles.adminActionButton}
+              onPress={() => void handleStopRoom()}
+            />
+            <Button
+              label={isLive ? "Yayını güncelle" : "Yayını başlat"}
+              loading={isManagingRoom}
+              style={styles.adminActionButton}
+              icon={<Ionicons name="radio" size={18} color="#FFFFFF" />}
+              onPress={() => void handleStartRoom()}
+            />
+          </View>
+        </View>
+      ) : null}
+
       <Button
         label={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
         variant={isJoined ? "ghost" : "primary"}
         loading={isJoining}
         onPress={() => void toggleRoom()}
       />
+
+      <View style={styles.section}>
+        <View style={styles.chatHeader}>
+          <Text style={styles.sectionTitle}>Sohbet</Text>
+          <Text style={styles.chatCount}>{messages.length}</Text>
+        </View>
+        <View style={styles.chatList}>
+          {messages.length === 0 ? (
+            <Text style={styles.emptyChatText}>İlk mesajı oda açıldığında yazabilirsin.</Text>
+          ) : (
+            messages.map((message) => (
+              <View
+                key={message.id}
+                style={[
+                  styles.chatBubble,
+                  message.isCurrentUser && styles.chatBubbleCurrent,
+                ]}
+              >
+                <Text style={styles.chatSender}>{message.senderName}</Text>
+                <Text style={styles.chatBody}>{message.body}</Text>
+              </View>
+            ))
+          )}
+        </View>
+        <View style={styles.chatComposer}>
+          <TextInput
+            value={chatDraft}
+            onChangeText={setChatDraft}
+            placeholder="Mesaj yaz"
+            placeholderTextColor={theme.colors.muted}
+            style={styles.chatInput}
+            selectionColor={theme.colors.primary}
+            multiline
+          />
+          <Pressable
+            accessibilityRole="button"
+            disabled={isSendingMessage}
+            onPress={() => void handleSendMessage()}
+            style={({ pressed }) => [
+              styles.sendButton,
+              pressed && styles.sendButtonPressed,
+              isSendingMessage && styles.sendButtonDisabled,
+            ]}
+          >
+            <Ionicons name="send" size={19} color="#FFFFFF" />
+          </Pressable>
+        </View>
+      </View>
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Katılanlar</Text>
@@ -289,6 +486,38 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.text,
     },
+    adminPanel: {
+      gap: theme.spacing.sm,
+      borderRadius: 22,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.16)",
+    },
+    adminPanelHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    adminDescriptionInput: {
+      minHeight: 84,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.background,
+      borderRadius: 18,
+      color: theme.colors.text,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      textAlignVertical: "top",
+      ...theme.typography.body,
+    },
+    adminActions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+    },
+    adminActionButton: {
+      flex: 1,
+    },
     section: {
       gap: theme.spacing.sm,
     },
@@ -336,6 +565,90 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "600",
       color: theme.colors.muted,
       textAlign: "center",
+    },
+    chatHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    chatCount: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xxs,
+      backgroundColor: "#FFF0F3",
+    },
+    chatList: {
+      gap: theme.spacing.xs,
+      minHeight: 96,
+      borderRadius: 22,
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    emptyChatText: {
+      ...theme.typography.body,
+      color: theme.colors.muted,
+      padding: theme.spacing.sm,
+    },
+    chatBubble: {
+      alignSelf: "flex-start",
+      maxWidth: "88%",
+      gap: theme.spacing.xxs,
+      borderRadius: 18,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      backgroundColor: theme.colors.background,
+    },
+    chatBubbleCurrent: {
+      alignSelf: "flex-end",
+      backgroundColor: "#FFF0F3",
+    },
+    chatSender: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "700",
+      color: theme.colors.primary,
+    },
+    chatBody: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+    },
+    chatComposer: {
+      minHeight: 54,
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: theme.spacing.xs,
+    },
+    chatInput: {
+      flex: 1,
+      minHeight: 54,
+      maxHeight: 112,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+      borderRadius: 18,
+      color: theme.colors.text,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      textAlignVertical: "top",
+      ...theme.typography.body,
+    },
+    sendButton: {
+      width: 54,
+      height: 54,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+    },
+    sendButtonPressed: {
+      opacity: 0.82,
+    },
+    sendButtonDisabled: {
+      opacity: 0.6,
     },
     stepRow: {
       flexDirection: "row",
