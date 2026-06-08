@@ -5,6 +5,8 @@ import { useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileUpdate } from "@/domain/entities/User";
+import { useAuthStore } from "@/features/auth/stores/authStore";
+import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { profileSchema, type ProfileFormValues } from "@/features/profile/schemas/profileSchema";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { Button } from "@/shared/components/Button";
@@ -56,6 +58,7 @@ export default function ProfileEditScreen() {
   const styles = createStyles(theme);
   const imagePicker = useImagePicker();
   const { profile, isLoading, updateProfile, isUpdating } = useProfile();
+  const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
@@ -105,6 +108,24 @@ export default function ProfileEditScreen() {
       await updateProfile(toProfileUpdate(values));
       router.back();
     } catch (error) {
+      if (isPermanentBanError(error)) {
+        Alert.alert(
+          "Kalıcı ban",
+          error instanceof Error
+            ? error.message
+            : "Ağır güvenlik ihlali nedeniyle hesap kalıcı olarak banlandı.",
+          [
+            {
+              text: "Tamam",
+              style: "destructive",
+              onPress: () => void applyPermanentBan(),
+            },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
+
       Alert.alert("Profil güncellenemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
     }
   });

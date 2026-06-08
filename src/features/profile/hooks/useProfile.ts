@@ -2,8 +2,19 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { UserProfileUpdate } from "@/domain/entities/User";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { moderateStrictTextFields } from "@/features/moderation/utils/strictTextModeration";
 import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
+
+const profileTextFields = [
+  { key: "name", label: "Profil adı" },
+  { key: "city", label: "Şehir" },
+  { key: "occupation", label: "Meslek" },
+  { key: "bio", label: "Bio" },
+  { key: "hometown", label: "Memleket" },
+  { key: "favoriteSong", label: "Favori türkü" },
+  { key: "favoritePoet", label: "Favori ozan" },
+] satisfies Array<{ key: keyof UserProfileUpdate; label: string }>;
 
 export const useProfile = () => {
   const queryClient = useQueryClient();
@@ -17,12 +28,19 @@ export const useProfile = () => {
   });
 
   const updateMutation = useMutation({
-    mutationFn: (update: UserProfileUpdate) => {
+    mutationFn: async (update: UserProfileUpdate) => {
       if (!currentUser) {
         throw new Error("Profil guncellemek icin oturum gerekli.");
       }
 
-      return container.userRepository.updateProfile(currentUser.id, update);
+      const moderatedUpdate = await moderateStrictTextFields({
+        scope: "profile",
+        userId: currentUser.id,
+        payload: update,
+        fields: profileTextFields,
+      });
+
+      return container.userRepository.updateProfile(currentUser.id, moderatedUpdate);
     },
     onSuccess: async (updatedUser) => {
       setCurrentUser(updatedUser);

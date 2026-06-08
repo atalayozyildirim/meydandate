@@ -1,6 +1,15 @@
 // Sistem temasini, manuel tema tercihini ve ortak tokenlari React context uzerinden sunar.
-import { createContext, type PropsWithChildren, useContext, useMemo, useState } from "react";
+import {
+  createContext,
+  type PropsWithChildren,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { useColorScheme } from "react-native";
+import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 import { darkColors, lightColors, type ThemeColors } from "./colors";
 import { radius, spacing } from "./spacing";
 import { typography } from "./typography";
@@ -18,11 +27,41 @@ export interface AppTheme {
 }
 
 const ThemeContext = createContext<AppTheme | null>(null);
+const themeStorage = new SecureStorageService();
+const themePreferenceKey = "ehlibyte-theme-preference";
+
+const isThemePreference = (value: string | null): value is ThemePreference =>
+  value === "system" || value === "light" || value === "dark";
 
 export const ThemeProvider = ({ children }: PropsWithChildren) => {
   const systemScheme = useColorScheme();
-  const [preference, setPreference] = useState<ThemePreference>("light");
+  const [preference, setPreferenceState] = useState<ThemePreference>("system");
   const isDark = preference === "system" ? systemScheme === "dark" : preference === "dark";
+
+  useEffect(() => {
+    let mounted = true;
+
+    const loadPreference = async () => {
+      const storedPreference = await themeStorage
+        .getItem(themePreferenceKey)
+        .catch(() => null);
+
+      if (mounted && isThemePreference(storedPreference)) {
+        setPreferenceState(storedPreference);
+      }
+    };
+
+    void loadPreference();
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  const setPreference = useCallback((nextPreference: ThemePreference) => {
+    setPreferenceState(nextPreference);
+    void themeStorage.setItem(themePreferenceKey, nextPreference).catch(() => undefined);
+  }, []);
 
   const value = useMemo<AppTheme>(
     () => ({
@@ -34,7 +73,7 @@ export const ThemeProvider = ({ children }: PropsWithChildren) => {
       typography,
       setPreference
     }),
-    [isDark, preference]
+    [isDark, preference, setPreference]
   );
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;

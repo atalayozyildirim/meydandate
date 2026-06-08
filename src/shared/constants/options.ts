@@ -60,9 +60,9 @@ export const conversationStarters = [
 ] as const;
 
 export const premiumFeatures = [
-  "Kim beni beğendi",
-  "Sınırsız beğeni",
+  "Reklamları kaldır",
   "Super Like",
   "24 saat profil boost",
-  "Öncelikli görünürlük"
+  "Öncelikli görünürlük",
+  "Premium üye rozeti"
 ] as const;

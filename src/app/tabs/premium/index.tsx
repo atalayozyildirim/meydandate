@@ -8,12 +8,14 @@ import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
 import { premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
+import { env } from "@/infrastructure/config/env";
 import { useTheme } from "@/shared/theme";
 import { formatProfileBoostExpiry } from "@/shared/utils/profileBoost";
 
 export default function PremiumScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const isMockPaymentMode = !env.useRevenueCatPayments;
   const {
     subscription,
     planPrices,
@@ -32,7 +34,12 @@ export default function PremiumScreen() {
   const buyPlan = async (plan: SubscriptionPlan) => {
     try {
       await purchase(plan);
-      Alert.alert("Premium aktif", "Satın alım tamamlandı.");
+      Alert.alert(
+        isMockPaymentMode ? "Demo Premium aktif" : "Premium aktif",
+        isMockPaymentMode
+          ? "Gerçek ödeme alınmadan demo Premium etkinleştirildi."
+          : "Satın alım tamamlandı.",
+      );
     } catch (error) {
       Alert.alert(
         "Satın alım tamamlanamadı",
@@ -80,7 +87,7 @@ export default function PremiumScreen() {
         <Text style={styles.kicker}>Premium</Text>
         <Text style={styles.title}>Daha güçlü eşleşme deneyimi</Text>
         <Text style={styles.description}>
-          Premium ile daha fazla kişiye ulaş, reklamları kaldır ve eşleşme araçlarını aç.
+          Premium ile daha fazla kişiye ulaş, reklamları kaldır ve özel eşleşme araçlarını aç.
         </Text>
       </View>
 
@@ -88,6 +95,15 @@ export default function PremiumScreen() {
         <Text style={styles.statusLabel}>Abonelik durumu</Text>
         <Text style={styles.statusValue}>{subscription?.status === "active" ? "Aktif" : "Pasif"}</Text>
       </Card>
+
+      {isMockPaymentMode ? (
+        <Card style={styles.noticeCard}>
+          <Ionicons name="information-circle-outline" size={20} color={theme.colors.warning} />
+          <Text style={styles.noticeText}>
+            Geliştirme modunda gerçek ödeme alınmaz. Satın alma butonları demo olarak Premium'u aktif eder.
+          </Text>
+        </Card>
+      ) : null}
 
       <Card style={styles.boostCard}>
         <View style={styles.boostHeader}>
@@ -182,6 +198,18 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     statusCard: {
       gap: theme.spacing.xs,
       marginBottom: theme.spacing.md
+    },
+    noticeCard: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.md,
+      backgroundColor: "#FFF8E6"
+    },
+    noticeText: {
+      ...theme.typography.caption,
+      flex: 1,
+      color: theme.colors.text
     },
     statusLabel: {
       ...theme.typography.caption,

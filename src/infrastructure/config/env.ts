@@ -27,6 +27,11 @@ const useSupabase =
   explicitUseSupabase === ""
     ? appEnv === "production" || hasSupabaseCredentials
     : explicitUseSupabase === "true";
+const explicitUseRevenueCat = readEnv(process.env.EXPO_PUBLIC_USE_REVENUECAT);
+const useRevenueCatPayments =
+  explicitUseRevenueCat === ""
+    ? appEnv === "production"
+    : explicitUseRevenueCat === "true";
 
 export const env = {
   appEnv,
@@ -46,6 +51,7 @@ export const env = {
   revenueCatTestApiKey: readEnv(process.env.EXPO_PUBLIC_REVENUECAT_TEST_API_KEY),
   revenueCatEntitlementId:
     readEnv(process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID) || "premium",
+  useRevenueCatPayments,
   adMobIosAppId: readEnv(process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID),
   adMobAndroidAppId: readEnv(process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID),
   adMobBannerUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID),

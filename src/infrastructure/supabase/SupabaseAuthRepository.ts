@@ -28,6 +28,14 @@ const readCallbackParam = (callbackUrl: string, key: string) => {
   return url.searchParams.get(key) ?? hashParams.get(key);
 };
 
+const dismissAuthSession = () => {
+  try {
+    WebBrowser.dismissAuthSession();
+  } catch {
+    // Some platforms close the auth session themselves after cancel/redirect.
+  }
+};
+
 export class SupabaseAuthRepository implements AuthRepository {
   private async getMyProfile() {
     const { data, error } = await supabase.rpc("get_my_profile").maybeSingle();
@@ -196,21 +204,30 @@ export class SupabaseAuthRepository implements AuthRepository {
       throw new Error(error?.message ?? "Sosyal giriş URL'i oluşturulamadı.");
     }
 
-    const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectUrl);
+    try {
+      const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectUrl);
 
-    if (result.type !== "success" || !("url" in result)) {
-      throw new Error(`${provider === "apple" ? "Apple" : "Google"} girişi iptal edildi.`);
+      if (result.type !== "success" || !("url" in result)) {
+        throw new Error(`${provider === "apple" ? "Apple" : "Google"} girişi iptal edildi.`);
+      }
+
+      return this.completeOAuthCallback(result.url);
+    } finally {
+      dismissAuthSession();
     }
-
-    return this.completeOAuthCallback(result.url);
   }
 
   async completeOAuthCallback(callbackUrl: string): Promise<AuthSession> {
     const errorDescription = readCallbackParam(callbackUrl, "error_description");
     const oauthError = readCallbackParam(callbackUrl, "error");
+    const errorCode = readCallbackParam(callbackUrl, "error_code");
 
     if (errorDescription || oauthError) {
-      throw new Error(errorDescription ?? oauthError ?? "Sosyal giriş tamamlanamadı.");
+      throw new Error(
+        [errorCode, errorDescription ?? oauthError ?? "Sosyal giriş tamamlanamadı."]
+          .filter(Boolean)
+          .join(": "),
+      );
     }
 
     const code = readCallbackParam(callbackUrl, "code");

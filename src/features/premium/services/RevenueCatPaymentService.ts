@@ -14,6 +14,10 @@ import type { PaymentService } from "./MockPaymentService";
 import { MockPaymentService } from "./MockPaymentService";
 
 const getRevenueCatApiKey = () => {
+  if (!env.useRevenueCatPayments) {
+    return "";
+  }
+
   if (__DEV__ && env.revenueCatTestApiKey.startsWith("test_")) {
     return env.revenueCatTestApiKey;
   }

@@ -9,6 +9,7 @@ import { Screen } from "@/shared/components/Screen";
 import { badgeLabels, interestOptions } from "@/shared/constants/options";
 import { paidBadgeProducts } from "@/shared/constants/badges";
 import { usePremium } from "@/features/premium/hooks/usePremium";
+import { env } from "@/infrastructure/config/env";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { useTheme } from "@/shared/theme";
 
@@ -18,6 +19,7 @@ export default function ProfileScreen() {
   const styles = createStyles(theme);
   const { profile, isLoading } = useProfile();
   const { purchaseBadge, isPurchasingBadge } = usePremium();
+  const isMockPaymentMode = !env.useRevenueCatPayments;
 
   if (isLoading || !profile) {
     return <Loading label="Profil yükleniyor" />;
@@ -28,7 +30,12 @@ export default function ProfileScreen() {
   const buyBadge = async (badge: (typeof paidBadgeProducts)[number]["badge"]) => {
     try {
       const result = await purchaseBadge(badge);
-      Alert.alert("Rozet eklendi", `${badgeLabels[result.badge]} profiline eklendi.`);
+      Alert.alert(
+        isMockPaymentMode ? "Demo rozet eklendi" : "Rozet eklendi",
+        isMockPaymentMode
+          ? `${badgeLabels[result.badge]} gerçek ödeme alınmadan demo olarak profiline eklendi.`
+          : `${badgeLabels[result.badge]} profiline eklendi.`,
+      );
     } catch (error) {
       Alert.alert(
         "Rozet alınamadı",
@@ -41,9 +48,14 @@ export default function ProfileScreen() {
     <Screen>
       <View style={styles.header}>
         <Text style={styles.kicker}>Profil</Text>
-        <Pressable onPress={() => router.push("/tabs/profile/edit")} style={styles.iconButton}>
-          <Ionicons name="create-outline" size={22} color={theme.colors.text} />
-        </Pressable>
+        <View style={styles.headerActions}>
+          <Pressable onPress={() => router.push("/tabs/settings")} style={styles.iconButton}>
+            <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
+          </Pressable>
+          <Pressable onPress={() => router.push("/tabs/profile/edit")} style={styles.iconButton}>
+            <Ionicons name="create-outline" size={22} color={theme.colors.text} />
+          </Pressable>
+        </View>
       </View>
       {primaryPhoto ? <Image source={{ uri: primaryPhoto }} style={styles.photo} /> : null}
       <Text style={styles.name}>
@@ -70,7 +82,7 @@ export default function ProfileScreen() {
         <View style={styles.storeText}>
           <Text style={styles.sectionTitle}>Ehlibyte Premium</Text>
           <Text style={styles.storeDescription}>
-            Reklamları kaldır, sınırsız beğeni ve öncelikli görünürlük kazan.
+            Reklamları kaldır, Super Like ve öncelikli görünürlük kazan.
           </Text>
         </View>
         <Button
@@ -84,6 +96,11 @@ export default function ProfileScreen() {
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Rozet mağazası</Text>
+        {isMockPaymentMode ? (
+          <Text style={styles.storeNotice}>
+            Geliştirme modunda rozetler gerçek ödeme almadan demo olarak eklenir.
+          </Text>
+        ) : null}
         {paidBadgeProducts.map((product) => {
           const owned = profile.badges.includes(product.badge);
 
@@ -142,6 +159,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "space-between",
       alignItems: "center",
       marginBottom: theme.spacing.md
+    },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs
     },
     kicker: {
       ...theme.typography.caption,
@@ -248,6 +270,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     storePrice: {
       ...theme.typography.caption,
       color: theme.colors.primary
+    },
+    storeNotice: {
+      ...theme.typography.caption,
+      color: theme.colors.warning
     },
     storeButton: {
       minHeight: 42,

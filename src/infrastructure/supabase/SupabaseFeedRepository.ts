@@ -4,13 +4,30 @@ import type {
   CreateFeedCommentPayload,
   CreateFeedPostPayload,
   CreateFeedReplyPayload,
+  FeedCommentsPage,
+  FeedPage,
+  FeedPageOptions,
   FeedRepository,
 } from "@/domain/repositories/FeedRepository";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 
-const feedSelect = `
+const activeFeedTagSet = new Set<FeedTag>(["muharrem", "deyis", "soru", "gundem"]);
+const DEFAULT_FEED_PAGE_SIZE = 8;
+const DEFAULT_COMMENT_PAGE_SIZE = 4;
+
+const normalizeFeedTags = (tags: unknown): FeedTag[] => {
+  if (!Array.isArray(tags)) {
+    return ["gundem"];
+  }
+
+  const activeTags = tags.filter((tag): tag is FeedTag => activeFeedTagSet.has(tag as FeedTag));
+
+  return activeTags.length > 0 ? activeTags : ["gundem"];
+};
+
+const postSelect = `
   id,
   author_id,
   body,
@@ -20,24 +37,25 @@ const feedSelect = `
   created_at,
   updated_at,
   author:users!feed_posts_author_id_fkey(${publicUserColumns}),
-  likes:feed_post_likes(user_id),
-  comments:feed_comments(
+  likes:feed_post_likes(user_id)
+`;
+
+const commentSelect = `
+  id,
+  post_id,
+  author_id,
+  body,
+  created_at,
+  author:users!feed_comments_author_id_fkey(${publicUserColumns}),
+  likes:feed_comment_likes(user_id),
+  replies:feed_replies(
     id,
-    post_id,
+    comment_id,
     author_id,
     body,
     created_at,
-    author:users!feed_comments_author_id_fkey(${publicUserColumns}),
-    likes:feed_comment_likes(user_id),
-    replies:feed_replies(
-      id,
-      comment_id,
-      author_id,
-      body,
-      created_at,
-      author:users!feed_replies_author_id_fkey(${publicUserColumns}),
-      likes:feed_reply_likes(user_id)
-    )
+    author:users!feed_replies_author_id_fkey(${publicUserColumns}),
+    likes:feed_reply_likes(user_id)
   )
 `;
 
@@ -107,11 +125,9 @@ const mapPost = (row: PostRow): FeedPost => ({
   authorId: row.author_id,
   author: mapSupabaseUser(row.author),
   body: sanitizePlainText(row.body, 2000),
-  tags: row.tags,
+  tags: normalizeFeedTags(row.tags),
   likedByUserIds: (row.likes ?? []).map((like) => like.user_id),
-  comments: (row.comments ?? [])
-    .map(mapComment)
-    .sort((first, second) => first.createdAt.localeCompare(second.createdAt)),
+  comments: [],
   reportCount: row.report_count,
   isPinned: row.is_pinned,
   createdAt: row.created_at,
@@ -122,7 +138,7 @@ export class SupabaseFeedRepository implements FeedRepository {
   private async getPost(postId: string): Promise<FeedPost> {
     const { data, error } = await supabase
       .from("feed_posts")
-      .select(feedSelect)
+      .select(postSelect)
       .eq("id", postId)
       .single();
 
@@ -133,12 +149,20 @@ export class SupabaseFeedRepository implements FeedRepository {
     return mapPost(data as unknown as PostRow);
   }
 
-  async listFeed(_userId: string, tag: FeedTag | "all" = "all"): Promise<FeedPost[]> {
+  async listFeed(
+    _userId: string,
+    tag: FeedTag | "all" = "all",
+    options: FeedPageOptions = {},
+  ): Promise<FeedPage> {
+    const offset = options.offset ?? 0;
+    const limit = options.limit ?? DEFAULT_FEED_PAGE_SIZE;
     let query = supabase
       .from("feed_posts")
-      .select(feedSelect)
+      .select(postSelect)
       .order("is_pinned", { ascending: false })
-      .order("updated_at", { ascending: false });
+      .order("updated_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(offset, offset + limit);
 
     if (tag !== "all") {
       query = query.contains("tags", [tag]);
@@ -150,7 +174,39 @@ export class SupabaseFeedRepository implements FeedRepository {
       throw new Error("Akış yüklenemedi.");
     }
 
-    return (data ?? []).map((row) => mapPost(row as unknown as PostRow));
+    const rows = (data ?? []).slice(0, limit);
+
+    return {
+      posts: rows.map((row) => mapPost(row as unknown as PostRow)),
+      nextOffset: offset + rows.length,
+      hasMore: (data ?? []).length > limit,
+    };
+  }
+
+  async listComments(
+    postId: string,
+    options: FeedPageOptions = {},
+  ): Promise<FeedCommentsPage> {
+    const offset = options.offset ?? 0;
+    const limit = options.limit ?? DEFAULT_COMMENT_PAGE_SIZE;
+    const { data, error } = await supabase
+      .from("feed_comments")
+      .select(commentSelect)
+      .eq("post_id", postId)
+      .order("created_at", { ascending: true })
+      .range(offset, offset + limit);
+
+    if (error) {
+      throw new Error("Yorumlar yüklenemedi.");
+    }
+
+    const rows = (data ?? []).slice(0, limit);
+
+    return {
+      comments: rows.map((row) => mapComment(row as unknown as CommentRow)),
+      nextOffset: offset + rows.length,
+      hasMore: (data ?? []).length > limit,
+    };
   }
 
   async createPost(payload: CreateFeedPostPayload): Promise<FeedPost> {
@@ -240,5 +296,21 @@ export class SupabaseFeedRepository implements FeedRepository {
     }
 
     return this.getPost(postId);
+  }
+
+  async deletePost(postId: string, _requesterId: string): Promise<void> {
+    const { data, error } = await supabase
+      .from("feed_posts")
+      .delete()
+      .eq("id", postId)
+      .select("id");
+
+    if (error) {
+      throw new Error("Post silinemedi.");
+    }
+
+    if (!data || data.length === 0) {
+      throw new Error("Bu postu silme yetkiniz yok.");
+    }
   }
 }

@@ -11,6 +11,7 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		13B07FC11A68108700A75B9A /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 13B07FB71A68108700A75B9A /* main.m */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		4C2DBA4F8DA84EBAA5DAAE78 /* GoogleService-Info.plist in Resources */ = {isa = PBXBuildFile; fileRef = 4C2DBA4E8DA84EBAA5DAAE78 /* GoogleService-Info.plist */; };
 		62FE0ACD567F4F4294BE1E62 /* noop-file.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFC1722332B434286F33737 /* noop-file.swift */; };
 		96905EF65AED1B983A6B3ABC /* libPods-Ehlibyte.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 58EEBF8E8E6FB1BC6CAF49B5 /* libPods-Ehlibyte.a */; };
 		B18059E884C0ABDD17F3DC3D /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAC715A2D49A985799AEE119 /* ExpoModulesProvider.swift */; };
@@ -24,6 +25,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = Ehlibyte/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = Ehlibyte/Info.plist; sourceTree = "<group>"; };
 		13B07FB71A68108700A75B9A /* main.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = main.m; path = Ehlibyte/main.m; sourceTree = "<group>"; };
+		4C2DBA4E8DA84EBAA5DAAE78 /* GoogleService-Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = "GoogleService-Info.plist"; path = "Ehlibyte/GoogleService-Info.plist"; sourceTree = "<group>"; };
 		58EEBF8E8E6FB1BC6CAF49B5 /* libPods-Ehlibyte.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-Ehlibyte.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		69198B3627B347A3B74E297C /* Ehlibyte-Bridging-Header.h */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.h; name = "Ehlibyte-Bridging-Header.h"; path = "Ehlibyte/Ehlibyte-Bridging-Header.h"; sourceTree = "<group>"; };
 		6C2E3173556A471DD304B334 /* Pods-Ehlibyte.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-Ehlibyte.debug.xcconfig"; path = "Target Support Files/Pods-Ehlibyte/Pods-Ehlibyte.debug.xcconfig"; sourceTree = "<group>"; };
@@ -56,6 +58,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				13B07FB71A68108700A75B9A /* main.m */,
+				4C2DBA4E8DA84EBAA5DAAE78 /* GoogleService-Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				ADFC1722332B434286F33737 /* noop-file.swift */,
 				69198B3627B347A3B74E297C /* Ehlibyte-Bridging-Header.h */,
@@ -177,6 +180,9 @@
 							com.apple.InAppPurchase = {
 								enabled = 1;
 							};
+							com.apple.SignInWithApple = {
+								enabled = 1;
+							};
 						};
 					};
 				};
@@ -206,6 +212,7 @@
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				4C2DBA4F8DA84EBAA5DAAE78 /* GoogleService-Info.plist in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -21,10 +21,13 @@ EXPO_PUBLIC_REVENUECAT_TEST_API_KEY=test_your_public_key
 EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_your_public_key
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_your_public_key
 EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=premium
+EXPO_PUBLIC_USE_REVENUECAT=false
 ```
 
-Test Store anahtarını yalnızca geliştirmede kullan. App Store/TestFlight build'lerinde
-platforma özel public anahtarı kullan.
+Development ortamında `EXPO_PUBLIC_USE_REVENUECAT` boş veya `false` ise uygulama mock
+ödeme servisini kullanır. StoreKit/App Store ürünleri hazır olduğunda yerel test için
+`EXPO_PUBLIC_USE_REVENUECAT=true` yap. App Store/TestFlight build'lerinde platforma
+özel public anahtarı kullan.
 
 ## Empty Offerings Hatası
 

@@ -39,6 +39,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     content: {
       flexGrow: 1,
       padding: theme.spacing.lg,
+      paddingBottom: 132,
       backgroundColor: theme.colors.background
     }
   });

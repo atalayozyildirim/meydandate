@@ -15,6 +15,7 @@ import {
   type LoginFormValues,
 } from "@/features/auth/schemas/authSchemas";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { formatAuthErrorMessage } from "@/features/auth/utils/authErrorMessages";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { formatPhoneNumberInput } from "@/shared/utils/phone";
@@ -41,7 +42,7 @@ export default function LoginScreen() {
     } catch (error) {
       Alert.alert(
         "Giriş başarısız",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
+        formatAuthErrorMessage(error),
       );
     }
   });
@@ -53,7 +54,7 @@ export default function LoginScreen() {
     } catch (error) {
       Alert.alert(
         "Giriş başarısız",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
+        formatAuthErrorMessage(error, provider),
       );
     }
   };

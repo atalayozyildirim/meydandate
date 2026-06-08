@@ -2,11 +2,9 @@
 import type { User } from "@/domain/entities/User";
 
 export const feedTagValues = [
-  "cem",
   "muharrem",
   "deyis",
   "soru",
-  "lokma",
   "gundem",
 ] as const;
 

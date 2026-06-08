@@ -2,6 +2,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import Animated, {
   interpolate,
@@ -17,6 +18,7 @@ import { useDiscoverDeck } from "@/features/discover/hooks/useDiscoverDeck";
 import { AdMobBanner } from "@/features/ads";
 import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
+import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
 import { EmptyState } from "@/shared/components/EmptyState";
@@ -30,8 +32,10 @@ const OFFSCREEN_DISTANCE = 520;
 const MAX_ROTATION_DEGREES = 14;
 
 export default function DiscoverScreen() {
+  const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
+  const currentUser = useAuthStore((state) => state.currentUser);
   const { height } = useWindowDimensions();
   const {
     deck,
@@ -57,6 +61,20 @@ export default function DiscoverScreen() {
 
   const completeSwipe = async (action: LikeAction) => {
     if (!activeCard) {
+      return;
+    }
+
+    if (action === "super_like" && !currentUser?.isPremium) {
+      translateX.value = 0;
+      translateY.value = 0;
+      Alert.alert(
+        "Premium gerekli",
+        "Super Like, Ehlibyte Premium ile kullanılabilir.",
+        [
+          { text: "Vazgeç", style: "cancel" },
+          { text: "Premium'u incele", onPress: () => router.push("/tabs/premium") },
+        ],
+      );
       return;
     }
 

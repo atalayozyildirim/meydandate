@@ -83,14 +83,14 @@ export class SupabaseMatchRepository implements MatchRepository {
       throw new Error("Swipe kaydedilemedi");
     }
 
-    // Check if there's a mutual like
-    if (action === "like") {
+    // Check if there's a mutual positive action. Super Like also counts as intent to match.
+    if (action !== "pass") {
       const { data: reverseSwipe } = await supabase
         .from("swipes")
         .select("*")
         .eq("userId", targetUserId)
         .eq("targetUserId", userId)
-        .eq("action", "like")
+        .neq("action", "pass")
         .single();
 
       if (reverseSwipe) {

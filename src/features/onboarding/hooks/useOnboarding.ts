@@ -2,7 +2,18 @@
 import { useMutation } from "@tanstack/react-query";
 import type { OnboardingProfile } from "@/domain/repositories/UserRepository";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { moderateStrictTextFields } from "@/features/moderation/utils/strictTextModeration";
 import { container } from "@/infrastructure/config/Container";
+
+const onboardingTextFields = [
+  { key: "name", label: "Profil adı" },
+  { key: "city", label: "Şehir" },
+  { key: "occupation", label: "Meslek" },
+  { key: "bio", label: "Bio" },
+  { key: "hometown", label: "Memleket" },
+  { key: "favoriteSong", label: "Favori türkü" },
+  { key: "favoritePoet", label: "Favori ozan" },
+] satisfies Array<{ key: keyof OnboardingProfile; label: string }>;
 
 export const useOnboarding = () => {
   const currentUser = useAuthStore((state) => state.currentUser);
@@ -14,7 +25,14 @@ export const useOnboarding = () => {
         throw new Error("Onboarding icin oturum gerekli.");
       }
 
-      const updatedUser = await container.userRepository.completeOnboarding(currentUser.id, profile);
+      const moderatedProfile = await moderateStrictTextFields({
+        scope: "onboarding",
+        userId: currentUser.id,
+        payload: profile,
+        fields: onboardingTextFields,
+      });
+
+      const updatedUser = await container.userRepository.completeOnboarding(currentUser.id, moderatedProfile);
 
       try {
         await container.matchRepository.claimSpecialInvite(updatedUser.id);

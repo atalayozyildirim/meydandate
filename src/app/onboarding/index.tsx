@@ -8,15 +8,24 @@ import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { OnboardingProfile } from "@/domain/repositories/UserRepository";
 import { useSession } from "@/features/auth/hooks/useSession";
+import { useAuthStore } from "@/features/auth/stores/authStore";
+import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useOnboarding } from "@/features/onboarding/hooks/useOnboarding";
-import { onboardingSchema, type OnboardingFormValues } from "@/features/onboarding/schemas/onboardingSchema";
+import {
+  onboardingSchema,
+  type OnboardingFormValues,
+} from "@/features/onboarding/schemas/onboardingSchema";
 import { container } from "@/infrastructure/config/Container";
 import { env } from "@/infrastructure/config/env";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { OptionChip } from "@/shared/components/OptionChip";
 import { Screen } from "@/shared/components/Screen";
-import { culturalIdentityOptions, cultureImportanceOptions, interestOptions } from "@/shared/constants/options";
+import {
+  culturalIdentityOptions,
+  cultureImportanceOptions,
+  interestOptions,
+} from "@/shared/constants/options";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
 import { useTheme } from "@/shared/theme";
 
@@ -37,7 +46,9 @@ const formatRemainingTime = (remainingMs: number) => {
 };
 
 const clearKnowledgeTestAttemptState = () =>
-  container.tokenStorage.deleteItem(env.knowledgeTestAttemptKey).catch(() => undefined);
+  container.tokenStorage
+    .deleteItem(env.knowledgeTestAttemptKey)
+    .catch(() => undefined);
 
 const saveKnowledgeTestAttemptState = (state: KnowledgeTestAttemptState) =>
   container.tokenStorage
@@ -58,9 +69,9 @@ const aleviKnowledgeQuestions = [
     id: "semah",
     question: "Semah en doğru nasıl tanımlanır?",
     options: [
-      { id: "ibadet", label: "Cemlerde dönülen ritüel/ibadet dansı", correct: true },
-      { id: "oyun", label: "Sadece eğlence oyunu", correct: false },
-      { id: "spor", label: "Spor yarışması", correct: false },
+      { id: "ibadet", label: "Cemlerde dönülen ritüel/ibadet ", correct: true },
+      { id: "one1", label: "Geleneksel", correct: false },
+      { id: "spor", label: "Ritual", correct: false },
     ],
   },
   {
@@ -69,16 +80,16 @@ const aleviKnowledgeQuestions = [
     options: [
       { id: "yas", label: "Yas, sabır ve arınma", correct: true },
       { id: "tuketim", label: "Tüketim ve gösteriş", correct: false },
-      { id: "zorunlu", label: "Herkesi zorla aynılaştırma", correct: false },
+      { id: "zorunlu", label: "İsyan", correct: false },
     ],
   },
   {
     id: "lokma",
-    question: "Lokma paylaşımının topluluk içindeki anlamı nedir?",
+    question: "Muharrem orucu kaç gündür?",
     options: [
-      { id: "paylasim", label: "Paylaşım ve dayanışma", correct: true },
-      { id: "ticaret", label: "Ticari satış", correct: false },
-      { id: "ceza", label: "Ceza verme", correct: false },
+      { id: "paylasim", label: "11", correct: false },
+      { id: "test", label: "12", correct: true },
+      { id: "ceza", label: "14", correct: false },
     ],
   },
 ] as const;
@@ -91,7 +102,7 @@ const toProfilePayload = (values: OnboardingFormValues): OnboardingProfile => {
     bio: values.bio,
     culturalIdentity: values.culturalIdentity,
     cultureImportance: values.cultureImportance,
-    interests: values.interests
+    interests: values.interests,
   };
 
   if (values.occupation) {
@@ -123,6 +134,7 @@ export default function OnboardingScreen() {
   const styles = createStyles(theme);
   const { currentUser } = useSession();
   const { completeOnboarding, isCompleting } = useOnboarding();
+  const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const imagePicker = useImagePicker();
   const [quizAnswers, setQuizAnswers] = useState<Record<string, string>>({});
   const [failedAttempts, setFailedAttempts] = useState(0);
@@ -143,30 +155,39 @@ export default function OnboardingScreen() {
       culturalIdentity: currentUser?.culturalIdentity ?? "prefer_not_to_say",
       cultureImportance: currentUser?.cultureImportance ?? "somewhat_important",
       interests: currentUser?.interests ?? [],
-      photoUri: currentUser?.photos[0]?.uri ?? ""
-    }
+      photoUri: currentUser?.photos[0]?.uri ?? "",
+    },
   });
   const selectedPhotoUri = form.watch("photoUri");
-  const hasPassedKnowledgeTest = aleviKnowledgeQuestions.every(
-    (question) => Boolean(quizAnswers[question.id]),
+  const hasPassedKnowledgeTest = aleviKnowledgeQuestions.every((question) =>
+    Boolean(quizAnswers[question.id]),
   );
   const isKnowledgeTestLocked = lockedUntil !== null && lockedUntil > now;
-  const remainingAttempts = Math.max(0, MAX_KNOWLEDGE_TEST_ATTEMPTS - failedAttempts);
+  const remainingAttempts = Math.max(
+    0,
+    MAX_KNOWLEDGE_TEST_ATTEMPTS - failedAttempts,
+  );
 
   useEffect(() => {
     let isMounted = true;
 
     const loadAttemptState = async () => {
       try {
-        const storedState = await container.tokenStorage.getItem(env.knowledgeTestAttemptKey);
+        const storedState = await container.tokenStorage.getItem(
+          env.knowledgeTestAttemptKey,
+        );
 
         if (!storedState) {
           return;
         }
 
-        const parsedState = JSON.parse(storedState) as KnowledgeTestAttemptState;
+        const parsedState = JSON.parse(
+          storedState,
+        ) as KnowledgeTestAttemptState;
         const parsedLockedUntil =
-          typeof parsedState.lockedUntil === "number" ? parsedState.lockedUntil : null;
+          typeof parsedState.lockedUntil === "number"
+            ? parsedState.lockedUntil
+            : null;
 
         if (parsedLockedUntil && parsedLockedUntil > Date.now()) {
           if (isMounted) {
@@ -185,7 +206,10 @@ export default function OnboardingScreen() {
           setFailedAttempts(
             Math.max(
               0,
-              Math.min(parsedState.failedAttempts || 0, MAX_KNOWLEDGE_TEST_ATTEMPTS - 1),
+              Math.min(
+                parsedState.failedAttempts || 0,
+                MAX_KNOWLEDGE_TEST_ATTEMPTS - 1,
+              ),
             ),
           );
         }
@@ -250,7 +274,28 @@ export default function OnboardingScreen() {
       void clearKnowledgeTestAttemptState();
       router.replace("/tabs/feed");
     } catch (error) {
-      Alert.alert("Onboarding tamamlanamadı", error instanceof Error ? error.message : "Tekrar deneyin.");
+      if (isPermanentBanError(error)) {
+        Alert.alert(
+          "Kalıcı ban",
+          error instanceof Error
+            ? error.message
+            : "Ağır güvenlik ihlali nedeniyle hesap kalıcı olarak banlandı.",
+          [
+            {
+              text: "Tamam",
+              style: "destructive",
+              onPress: () => void applyPermanentBan(),
+            },
+          ],
+          { cancelable: false },
+        );
+        return;
+      }
+
+      Alert.alert(
+        "Onboarding tamamlanamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
     }
   });
 
@@ -285,7 +330,9 @@ export default function OnboardingScreen() {
         return;
       }
 
-      const nextState: KnowledgeTestAttemptState = { failedAttempts: nextFailedAttempts };
+      const nextState: KnowledgeTestAttemptState = {
+        failedAttempts: nextFailedAttempts,
+      };
       setFailedAttempts(nextFailedAttempts);
       await saveKnowledgeTestAttemptState(nextState);
 
@@ -304,12 +351,17 @@ export default function OnboardingScreen() {
 
   return (
     <Screen>
-      <LinearGradient colors={["#FF4458", "#FD267A", "#8A2387"]} style={styles.hero}>
+      <LinearGradient
+        colors={["#FF4458", "#FD267A", "#8A2387"]}
+        style={styles.hero}
+      >
         <View style={styles.heroMark}>
           <Text style={styles.heroLetter}>e</Text>
         </View>
         <Text style={styles.heroKicker}>Ehlibyte'e hoş geldin</Text>
-        <Text style={styles.heroTitle}>Profilini kur, kartlarda görün, eşleşmeye başla.</Text>
+        <Text style={styles.heroTitle}>
+          Profilini kur, kartlarda görün, eşleşmeye başla.
+        </Text>
         <View style={styles.heroSteps}>
           <View style={styles.heroStep}>
             <Ionicons name="person-circle" size={18} color="#FFFFFF" />
@@ -329,7 +381,9 @@ export default function OnboardingScreen() {
       <View style={styles.header}>
         <Text style={styles.kicker}>Onboarding</Text>
         <Text style={styles.title}>Kartını hazırla</Text>
-        <Text style={styles.description}>Bu bilgiler profil kartında ve eşleşme önerilerinde kullanılır.</Text>
+        <Text style={styles.description}>
+          Bu bilgiler profil kartında ve eşleşme önerilerinde kullanılır.
+        </Text>
       </View>
 
       <View style={styles.quizCard}>
@@ -338,11 +392,23 @@ export default function OnboardingScreen() {
             <Text style={styles.kicker}>Alevilik bilgi testi</Text>
             <Text style={styles.sectionTitle}>Giriş için tüm soruları geç</Text>
           </View>
-          <View style={[styles.scoreBadge, hasPassedKnowledgeTest && styles.scoreBadgePassed]}>
-            <Text style={styles.scoreText}>{Object.keys(quizAnswers).length}/4</Text>
+          <View
+            style={[
+              styles.scoreBadge,
+              hasPassedKnowledgeTest && styles.scoreBadgePassed,
+            ]}
+          >
+            <Text style={styles.scoreText}>
+              {Object.keys(quizAnswers).length}/4
+            </Text>
           </View>
         </View>
-        <Text style={[styles.quizStatus, isKnowledgeTestLocked && styles.quizStatusLocked]}>
+        <Text
+          style={[
+            styles.quizStatus,
+            isKnowledgeTestLocked && styles.quizStatusLocked,
+          ]}
+        >
           {isKnowledgeTestLocked
             ? `Test kilitli. ${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`
             : `Kalan deneme hakkı: ${remainingAttempts}`}
@@ -358,7 +424,9 @@ export default function OnboardingScreen() {
                   <Pressable
                     key={option.id}
                     disabled={!attemptStateLoaded || isKnowledgeTestLocked}
-                    onPress={() => void answerKnowledgeQuestion(question.id, option)}
+                    onPress={() =>
+                      void answerKnowledgeQuestion(question.id, option)
+                    }
                     style={({ pressed }) => [
                       styles.quizOption,
                       selected && styles.quizOptionSelected,
@@ -366,7 +434,12 @@ export default function OnboardingScreen() {
                       pressed && styles.pressed,
                     ]}
                   >
-                    <Text style={[styles.quizOptionText, selected && styles.quizOptionTextSelected]}>
+                    <Text
+                      style={[
+                        styles.quizOptionText,
+                        selected && styles.quizOptionTextSelected,
+                      ]}
+                    >
                       {option.label}
                     </Text>
                   </Pressable>
@@ -398,7 +471,9 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Alevi kültürü hayatınızda ne kadar önemli?</Text>
+        <Text style={styles.sectionTitle}>
+          Alevi kültürü hayatınızda ne kadar önemli?
+        </Text>
         <Controller
           control={form.control}
           name="cultureImportance"
@@ -436,15 +511,19 @@ export default function OnboardingScreen() {
                       onPress={() => {
                         field.onChange(
                           isSelected
-                            ? field.value.filter((interest) => interest !== option.value)
-                            : [...field.value, option.value]
+                            ? field.value.filter(
+                                (interest) => interest !== option.value,
+                              )
+                            : [...field.value, option.value],
                         );
                       }}
                     />
                   );
                 })}
               </View>
-              {fieldState.error ? <Text style={styles.error}>{fieldState.error.message}</Text> : null}
+              {fieldState.error ? (
+                <Text style={styles.error}>{fieldState.error.message}</Text>
+              ) : null}
             </>
           )}
         />
@@ -457,9 +536,16 @@ export default function OnboardingScreen() {
           name="photoUri"
           render={({ field }) => (
             <View style={styles.photoRow}>
-              {selectedPhotoUri ? <Image source={{ uri: selectedPhotoUri }} style={styles.previewPhoto} /> : null}
+              {selectedPhotoUri ? (
+                <Image
+                  source={{ uri: selectedPhotoUri }}
+                  style={styles.previewPhoto}
+                />
+              ) : null}
               <Button
-                label={selectedPhotoUri ? "Fotoğrafı değiştir" : "Fotoğraf yükle"}
+                label={
+                  selectedPhotoUri ? "Fotoğrafı değiştir" : "Fotoğraf yükle"
+                }
                 variant="secondary"
                 loading={imagePicker.isPicking}
                 onPress={async () => {
@@ -477,7 +563,12 @@ export default function OnboardingScreen() {
           control={form.control}
           name="name"
           render={({ field, fieldState }) => (
-            <Input label="İsim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+            <Input
+              label="İsim"
+              value={field.value}
+              onChangeText={field.onChange}
+              error={fieldState.error?.message}
+            />
           )}
         />
         <Controller
@@ -497,13 +588,24 @@ export default function OnboardingScreen() {
           control={form.control}
           name="city"
           render={({ field, fieldState }) => (
-            <Input label="Şehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+            <Input
+              label="Şehir"
+              value={field.value}
+              onChangeText={field.onChange}
+              error={fieldState.error?.message}
+            />
           )}
         />
         <Controller
           control={form.control}
           name="occupation"
-          render={({ field }) => <Input label="Meslek" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Meslek"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
         <Controller
           control={form.control}
@@ -521,17 +623,35 @@ export default function OnboardingScreen() {
         <Controller
           control={form.control}
           name="hometown"
-          render={({ field }) => <Input label="Memleket" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Memleket"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
         <Controller
           control={form.control}
           name="favoriteSong"
-          render={({ field }) => <Input label="Favori türkü" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Favori türkü"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
         <Controller
           control={form.control}
           name="favoritePoet"
-          render={({ field }) => <Input label="Favori ozan" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Favori ozan"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
       </View>
 
@@ -549,7 +669,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     header: {
       gap: theme.spacing.xs,
-      marginBottom: theme.spacing.lg
+      marginBottom: theme.spacing.lg,
     },
     hero: {
       minHeight: 300,
@@ -562,7 +682,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       shadowOpacity: 1,
       shadowRadius: 20,
       shadowOffset: { width: 0, height: 12 },
-      elevation: 5
+      elevation: 5,
     },
     heroMark: {
       width: 62,
@@ -570,29 +690,29 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#FFFFFF"
+      backgroundColor: "#FFFFFF",
     },
     heroLetter: {
       fontSize: 38,
       lineHeight: 42,
       fontWeight: "900",
-      color: theme.colors.primary
+      color: theme.colors.primary,
     },
     heroKicker: {
       ...theme.typography.caption,
       color: "rgba(255, 255, 255, 0.76)",
-      textTransform: "uppercase"
+      textTransform: "uppercase",
     },
     heroTitle: {
       fontSize: 34,
       lineHeight: 39,
       fontWeight: "900",
-      color: "#FFFFFF"
+      color: "#FFFFFF",
     },
     heroSteps: {
       flexDirection: "row",
       gap: theme.spacing.xs,
-      flexWrap: "wrap"
+      flexWrap: "wrap",
     },
     heroStep: {
       minHeight: 36,
@@ -601,28 +721,28 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       gap: theme.spacing.xxs,
       paddingHorizontal: theme.spacing.md,
-      backgroundColor: "rgba(255, 255, 255, 0.18)"
+      backgroundColor: "rgba(255, 255, 255, 0.18)",
     },
     heroStepText: {
       ...theme.typography.caption,
-      color: "#FFFFFF"
+      color: "#FFFFFF",
     },
     kicker: {
       ...theme.typography.caption,
       color: theme.colors.primary,
-      textTransform: "uppercase"
+      textTransform: "uppercase",
     },
     title: {
       ...theme.typography.title,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     description: {
       ...theme.typography.body,
-      color: theme.colors.muted
+      color: theme.colors.muted,
     },
     section: {
       gap: theme.spacing.sm,
-      marginBottom: theme.spacing.lg
+      marginBottom: theme.spacing.lg,
     },
     quizCard: {
       gap: theme.spacing.md,
@@ -631,13 +751,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       marginBottom: theme.spacing.lg,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.12)"
+      borderColor: "rgba(233, 64, 87, 0.12)",
     },
     quizHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: theme.spacing.md
+      gap: theme.spacing.md,
     },
     scoreBadge: {
       minWidth: 54,
@@ -645,32 +765,32 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.elevated
+      backgroundColor: theme.colors.elevated,
     },
     scoreBadgePassed: {
-      backgroundColor: theme.colors.success
+      backgroundColor: theme.colors.success,
     },
     scoreText: {
       ...theme.typography.caption,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     quizStatus: {
       ...theme.typography.caption,
-      color: theme.colors.muted
+      color: theme.colors.muted,
     },
     quizStatusLocked: {
       color: theme.colors.danger,
-      fontWeight: "700"
+      fontWeight: "700",
     },
     quizQuestion: {
-      gap: theme.spacing.sm
+      gap: theme.spacing.sm,
     },
     quizQuestionText: {
       ...theme.typography.subheading,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     quizOptions: {
-      gap: theme.spacing.xs
+      gap: theme.spacing.xs,
     },
     quizOption: {
       minHeight: 44,
@@ -679,46 +799,46 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.colors.border,
       paddingHorizontal: theme.spacing.md,
       justifyContent: "center",
-      backgroundColor: "rgba(255, 255, 255, 0.78)"
+      backgroundColor: "rgba(255, 255, 255, 0.78)",
     },
     quizOptionSelected: {
       borderColor: theme.colors.primary,
-      backgroundColor: "#FFF0F3"
+      backgroundColor: "#FFF0F3",
     },
     quizOptionDisabled: {
-      opacity: 0.5
+      opacity: 0.5,
     },
     quizOptionText: {
       ...theme.typography.body,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     quizOptionTextSelected: {
       color: theme.colors.primary,
-      fontWeight: "700"
+      fontWeight: "700",
     },
     pressed: {
-      opacity: 0.82
+      opacity: 0.82,
     },
     sectionTitle: {
       ...theme.typography.subheading,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     chipWrap: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: theme.spacing.xs
+      gap: theme.spacing.xs,
     },
     error: {
       ...theme.typography.caption,
-      color: theme.colors.danger
+      color: theme.colors.danger,
     },
     photoRow: {
-      gap: theme.spacing.sm
+      gap: theme.spacing.sm,
     },
     previewPhoto: {
       width: "100%",
       height: 220,
       borderRadius: theme.radius.md,
-      backgroundColor: theme.colors.elevated
-    }
+      backgroundColor: theme.colors.elevated,
+    },
   });

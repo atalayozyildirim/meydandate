@@ -1,4 +1,5 @@
 // Hukuki dokuman ekranlari icin ortak baslik, metin ve geri donus davranisi.
+import type { PropsWithChildren } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +17,10 @@ interface LegalDocumentScreenProps {
   document: LegalDocument;
 }
 
-export const LegalDocumentScreen = ({ document }: LegalDocumentScreenProps) => {
+export const LegalDocumentScreen = ({
+  document,
+  children,
+}: PropsWithChildren<LegalDocumentScreenProps>) => {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -33,6 +37,7 @@ export const LegalDocumentScreen = ({ document }: LegalDocumentScreenProps) => {
       <Card style={styles.card}>
         <Text style={styles.body}>{document.body}</Text>
       </Card>
+      {children}
       <Button label="Geri don" variant="ghost" onPress={() => router.back()} />
     </Screen>
   );

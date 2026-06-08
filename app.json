@@ -31,9 +31,18 @@
     ],
     "ios": {
       "bundleIdentifier": "com.ehlibyte.app",
+      "scheme": [
+        "com.ehlibyte.app",
+        "com.googleusercontent.apps.88965241358-06fo7k0brkki4mubo35vsvv2asjgs1op"
+      ],
+      "googleServicesFile": "./ios/Ehlibyte/GoogleService-Info.plist",
+      "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Profil fotografi seçmek icin fotoğraf kütüphanesine erişim gerekiyor.",
         "NSCameraUsageDescription": "Profil fotografi çekmek için kamera erişimine izin verin."
+      },
+      "entitlements": {
+        "com.apple.developer.applesignin": ["Default"]
       }
     },
     "android": {

@@ -1,6 +1,6 @@
 # Google ve Apple Login Kurulumu
 
-Son kontrol: 2026-06-07
+Son kontrol: 2026-06-08
 
 ## Durum
 
@@ -13,8 +13,36 @@ Kod tarafında OAuth akışı bağlandı:
 - Access/refresh token mevcut secure storage akışına yazılıyor.
 - Social login ile gelen kullanıcı için `public.users` profil satırı yoksa otomatik oluşturuluyor.
 - `src/app/auth/callback.tsx` fallback callback ekranı eklendi.
+- OAuth hata mesajları `redirect_uri_mismatch`, kapalı provider ve hatalı client id gibi
+  dashboard kurulum hatalarını anlaşılır aksiyonlara çeviriyor.
 
 Dashboard/provider tarafı tamamlanmadan prod'da çalışmaz.
+
+## Firebase Native Dosya Durumu
+
+Google iOS Firebase config dosyası projeye eklendi:
+
+```text
+ios/Ehlibyte/GoogleService-Info.plist
+```
+
+Yerel iOS ayarları:
+
+- `GoogleService-Info.plist` Xcode resource bundle'a eklendi.
+- `app.json` içine `ios.googleServicesFile` eklendi.
+- Google `REVERSED_CLIENT_ID` iOS URL scheme olarak eklendi.
+- `ios.usesAppleSignIn` ve Apple Sign In entitlement/capability açıldı.
+- Dosyadaki `BUNDLE_ID`, uygulamanın `com.ehlibyte.app` bundle identifier'ı ile uyumlu.
+
+Android tarafı henüz tamam değil; Firebase Console'da Android app için `com.ehlibyte.app`
+package name ile `google-services.json` indirilmeli. Android native klasörü oluşturulduktan sonra
+dosya `android/app/google-services.json` konumuna eklenmeli ve `app.json` içinde
+`android.googleServicesFile` tanımlanmalı.
+
+Not: Bu projede çalışan sosyal giriş kodu şu anda Supabase Auth OAuth akışıdır. Firebase
+Console'da Google/Apple provider açmak native Firebase config'i hazırlar, ancak uygulamanın
+oturumlarını Firebase Auth'a taşımaz. Firebase Auth'a tam geçiş istenirse `AuthRepository`,
+session saklama ve Supabase RLS/JWT stratejisi ayrıca yeniden tasarlanmalı.
 
 ## Uygulama Kimlikleri
 
