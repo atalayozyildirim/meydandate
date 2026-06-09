@@ -58,21 +58,42 @@ const saveKnowledgeTestAttemptState = (state: KnowledgeTestAttemptState) =>
 const aleviKnowledgeQuestions = [
   {
     id: "cem",
-    question: "Cem erkânında topluluğun temel ilkelerinden biri hangisidir?",
+    question:
+      "Aşure gününde karşı komşuna aşure götürürken yüzüne karşı alevilerin yemeği yenilmez dedimi",
     options: [
-      { id: "rizalik", label: "Rızalık ve saygı", correct: true },
-      { id: "gosteris", label: "Gösteriş ve rekabet", correct: false },
-      { id: "yalnizlik", label: "Yalnız kalmak", correct: false },
+      { id: "yobazockomsu", label: "Evet", correct: true },
+      { id: "gosteris", label: "Hayır", correct: false },
+      { id: "yalnizlik", label: "Duymadım", correct: false },
     ],
   },
-  // "Lâ fetâ illâ Ali, lâ seyfe illâ Zülfikār", "Ali'den başka yiğit, Zülfikar'dan başka kılıç yoktur"
   {
     id: "semah",
-    question: "Semah en doğru nasıl tanımlanır?",
+    question: "Cem erkani gelenekte hangi mekanda yurutulur?",
     options: [
-      { id: "ibadet", label: "Cemlerde dönülen ritüel/ibadet ", correct: true },
-      { id: "one1", label: "Geleneksel", correct: false },
-      { id: "spor", label: "Ritual", correct: false },
+      { id: "ibadet", label: "Cemevi ", correct: true },
+      { id: "one1", label: "Herhangi bir yer", correct: false },
+      { id: "spor", label: "Köylerde", correct: false },
+    ],
+  },
+  {
+    id: "yali",
+    question: '"Lâ fetâ illâ Ali, lâ seyfe illâ Zülfikār" anlamı nedir ?',
+    options: [
+      {
+        id: "one4",
+        label: "Ali'den başka yiğit Zülfikar'dan keskin kılıç yoktur.",
+        correct: false,
+      },
+      {
+        id: "one5",
+        label: "Ali'den başka yiğit Zülfikar'dan başka güç yoktur",
+        correct: false,
+      },
+      {
+        id: "one6",
+        label: "Ali'den başka yiğit, Zülfikar'dan başka kılıç yoktur",
+        correct: true,
+      },
     ],
   },
   {
@@ -80,17 +101,17 @@ const aleviKnowledgeQuestions = [
     question: "Muharrem orucu hangi değerle ilişkilidir?",
     options: [
       { id: "yas", label: "Yas, sabır ve arınma", correct: true },
-      { id: "tuketim", label: "Tüketim ve gösteriş", correct: false },
-      { id: "zorunlu", label: "İsyan", correct: false },
+      { id: "test100", label: "Sabır", correct: false },
+      { id: "zorunlu", label: "İnanç", correct: false },
     ],
   },
   {
     id: "lokma",
     question: "Muharrem orucu kaç gündür?",
     options: [
-      { id: "paylasim", label: "11", correct: false },
-      { id: "test", label: "12", correct: true },
-      { id: "ceza", label: "14", correct: false },
+      { id: "11", label: "11", correct: false },
+      { id: "12", label: "12", correct: true },
+      { id: "14", label: "14", correct: false },
     ],
   },
 ] as const;
