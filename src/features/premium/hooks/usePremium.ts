@@ -33,8 +33,8 @@ export const usePremium = () => {
 
       return container.paymentService.purchase(currentUser.id, plan);
     },
-    onSuccess: async () => {
-      if (currentUser) {
+    onSuccess: async (result) => {
+      if (currentUser && result.subscription.status === "active") {
         setCurrentUser({
           ...currentUser,
           isPremium: true,
@@ -75,11 +75,16 @@ export const usePremium = () => {
       return container.paymentService.restorePurchases(currentUser.id);
     },
     onSuccess: async (subscription) => {
-      if (currentUser && subscription.status === "active") {
+      if (currentUser) {
+        const premiumBadges: Badge[] =
+          subscription.status === "active"
+            ? Array.from(new Set<Badge>([...currentUser.badges, "premium_member"]))
+            : currentUser.badges.filter((badge) => badge !== "premium_member");
+
         setCurrentUser({
           ...currentUser,
-          isPremium: true,
-          badges: Array.from(new Set([...currentUser.badges, "premium_member"]))
+          isPremium: subscription.status === "active",
+          badges: premiumBadges
         });
       }
 

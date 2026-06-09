@@ -64,7 +64,16 @@ export interface User {
   photos: ProfilePhoto[];
   badges: Badge[];
   isPremium: boolean;
+  isDiscoverable?: boolean;
+  matchByLocation?: boolean;
+  matchRadiusKm?: number;
+  locationLatitude?: number;
+  locationLongitude?: number;
+  locationUpdatedAt?: string;
+  distanceKm?: number;
   boostedUntil?: string;
+  blockedUsers?: string[];
+  mutedUsers?: string[];
   hasPassedEntryTest: boolean;
   hasCompletedOnboarding: boolean;
   createdAt: string;
@@ -86,4 +95,5 @@ export interface UserProfileUpdate {
   photos?: ProfilePhoto[];
   hasPassedEntryTest?: boolean;
   hasCompletedOnboarding?: boolean;
+  isDiscoverable?: boolean;
 }

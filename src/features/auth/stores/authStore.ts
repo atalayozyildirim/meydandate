@@ -2,6 +2,7 @@
 import { create } from "zustand";
 import type { User } from "@/domain/entities/User";
 import type {
+  AuthSession,
   LoginCredentials,
   OtpChallenge,
   RegisterPayload,
@@ -26,6 +27,7 @@ interface AuthState {
   completeSocialLoginCallback: (callbackUrl: string) => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   logout: () => Promise<void>;
+  deleteAccount: () => Promise<void>;
   applyPermanentBan: () => Promise<void>;
   setCurrentUser: (user: User) => void;
 }
@@ -36,6 +38,40 @@ const assertDeviceIsAllowed = async () => {
   if (ban) {
     throw new Error("Bu cihaz kalıcı ban aldı. Yeni kayıt veya giriş yapılamaz.");
   }
+};
+
+const mergePremiumStatus = async (user: User): Promise<User> => {
+  try {
+    const subscription = await container.paymentService.getSubscription(user.id);
+
+    if (subscription.status !== "active") {
+      return {
+        ...user,
+        isPremium: false,
+        badges: user.badges.filter((badge) => badge !== "premium_member"),
+      };
+    }
+
+    return {
+      ...user,
+      isPremium: true,
+      badges: Array.from(new Set([...user.badges, "premium_member"])),
+    };
+  } catch {
+    return user;
+  }
+};
+
+const persistSession = async (session: AuthSession) => {
+  await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
+  if (session.refreshToken) {
+    await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
+  }
+
+  return {
+    ...session,
+    user: await mergePremiumStatus(session.user),
+  };
 };
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -71,12 +107,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       return;
     }
 
-    await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
-    if (session.refreshToken) {
-      await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
-    }
+    const hydratedSession = await persistSession(session);
 
-    set({ accessToken: session.accessToken, currentUser: session.user, isHydrated: true });
+    set({ accessToken: hydratedSession.accessToken, currentUser: hydratedSession.user, isHydrated: true });
   },
   login: async (credentials) => {
     set({ isSubmitting: true });
@@ -117,11 +150,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     try {
       const session = await container.authRepository.verifyOtp({ ...challenge, token });
-      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
-      if (session.refreshToken) {
-        await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
-      }
-      set({ accessToken: session.accessToken, currentUser: session.user, pendingOtp: null });
+      const hydratedSession = await persistSession(session);
+      set({ accessToken: hydratedSession.accessToken, currentUser: hydratedSession.user, pendingOtp: null });
     } finally {
       set({ isSubmitting: false });
     }
@@ -148,11 +178,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await assertDeviceIsAllowed();
       const session = await container.authRepository.signInWithProvider(provider);
-      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
-      if (session.refreshToken) {
-        await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
-      }
-      set({ accessToken: session.accessToken, currentUser: session.user });
+      const hydratedSession = await persistSession(session);
+      set({ accessToken: hydratedSession.accessToken, currentUser: hydratedSession.user });
     } finally {
       set({ isSubmitting: false });
     }
@@ -163,11 +190,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await assertDeviceIsAllowed();
       const session = await container.authRepository.completeOAuthCallback(callbackUrl);
-      await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
-      if (session.refreshToken) {
-        await container.tokenStorage.setItem(env.secureRefreshTokenKey, session.refreshToken);
-      }
-      set({ accessToken: session.accessToken, currentUser: session.user });
+      const hydratedSession = await persistSession(session);
+      set({ accessToken: hydratedSession.accessToken, currentUser: hydratedSession.user });
     } finally {
       set({ isSubmitting: false });
     }
@@ -188,6 +212,18 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       await container.authRepository.logout(token);
     }
 
+    await container.tokenStorage.deleteItem(env.secureTokenKey);
+    await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
+    set({ accessToken: null, currentUser: null });
+  },
+  deleteAccount: async () => {
+    const token = get().accessToken;
+
+    if (!token) {
+      throw new Error("Hesap silmek için oturum gerekli.");
+    }
+
+    await container.authRepository.deleteAccount(token);
     await container.tokenStorage.deleteItem(env.secureTokenKey);
     await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
     set({ accessToken: null, currentUser: null });

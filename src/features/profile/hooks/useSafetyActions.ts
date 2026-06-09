@@ -8,6 +8,7 @@ import { queryKeys } from "@/shared/constants/queryKeys";
 export const useSafetyActions = () => {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.currentUser);
+  const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
 
   const ensureUserId = () => {
     if (!currentUser) {
@@ -24,13 +25,37 @@ export const useSafetyActions = () => {
 
   const blockMutation = useMutation({
     mutationFn: async (blockedUserId: string) => {
-      await container.userRepository.blockUser(ensureUserId(), blockedUserId);
-      await queryClient.invalidateQueries({ queryKey: [queryKeys.discover] });
+      const userId = ensureUserId();
+      await container.userRepository.blockUser(userId, blockedUserId);
+
+      if (currentUser) {
+        setCurrentUser({
+          ...currentUser,
+          blockedUsers: Array.from(new Set([...(currentUser.blockedUsers ?? []), blockedUserId])),
+        });
+      }
+
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.profile, userId] }),
+      ]);
     }
   });
 
   const muteMutation = useMutation({
-    mutationFn: (mutedUserId: string) => container.userRepository.muteUser(ensureUserId(), mutedUserId)
+    mutationFn: async (mutedUserId: string) => {
+      const userId = ensureUserId();
+      await container.userRepository.muteUser(userId, mutedUserId);
+
+      if (currentUser) {
+        setCurrentUser({
+          ...currentUser,
+          mutedUsers: Array.from(new Set([...(currentUser.mutedUsers ?? []), mutedUserId])),
+        });
+      }
+
+      await queryClient.invalidateQueries({ queryKey: [queryKeys.profile, userId] });
+    }
   });
 
   return {

@@ -1,6 +1,6 @@
 # Prod Readiness Checklist
 
-Son kontrol: 2026-06-07
+Son kontrol: 2026-06-09
 
 ## 1. Environment
 
@@ -31,6 +31,8 @@ Minimum kontrol:
 - Apple provider enabled.
 - iOS TestFlight'ta Apple ve Google login test edildi.
 - Android internal testing'de Google login test edildi.
+- Google metadata `avatar_url`/`picture` döndürüyorsa ilk profil fotoğrafı otomatik doluyor.
+- Apple çoğu hesapta profil fotoğrafı döndürmez; bu durumda avatar fallback tasarımı beklenen davranış.
 
 ## 3. RevenueCat
 
@@ -48,6 +50,9 @@ RevenueCat dashboard:
 - Current Offering aktif.
 - Current Offering içinde aylık ve yıllık paketler var.
 - Product identifiers App Store Connect ve RevenueCat'te birebir aynı.
+- Webhook URL: `https://<project-ref>.supabase.co/functions/v1/revenuecat-webhook`
+- Webhook Authorization Header Value, Supabase `REVENUECAT_WEBHOOK_AUTH_TOKEN` secret'ı ile aynı.
+- Sandbox satın alma sonrası Supabase `users.isPremium` ve `users.badges` güncelleniyor.
 
 App şu planları bekliyor:
 
@@ -112,6 +117,34 @@ Supabase Dashboard > Database > Advisors
 ```
 
 Kalan `SECURITY DEFINER` uyarıları `is_admin`, `is_moderator`, `get_my_profile`, `claim_zeynep_cisem_invite`, `accept_special_match_invite` gibi kontrollü RPC'ler için beklenebilir. Yeni tablo RLS'leri açık olmalı.
+
+Starter rehber kontrolü:
+
+```sql
+select name, occupation, bio
+from public.users
+where email in (
+  'ece.rehber@ehlibyte.app',
+  'selin.rehber@ehlibyte.app',
+  'murat.rehber@ehlibyte.app'
+);
+```
+
+Bu profiller karşılama rehberidir ve otomatik yanıt verir; gerçek kullanıcı gibi gizlenmemelidir.
+
+Premium/boost kontrolü:
+
+```sql
+select proname
+from pg_proc
+where proname = 'activate_premium_boost';
+```
+
+```sql
+select "isPremium", badges, "boostedUntil"
+from public.users
+where id = '<test-user-id>';
+```
 
 ## 7. Admin
 

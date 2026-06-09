@@ -13,6 +13,10 @@ ile başlayan secret anahtarları `EXPO_PUBLIC_*` değişkenlerine koyma.
    entitlement'ına bağla.
 6. Current offering içinde aylık ve annual paketlerini bu içe aktarılan ürünlere bağla.
 7. Android yayınlanacaksa aynı işlemi Google Play uygulaması için yap.
+8. RevenueCat Webhooks entegrasyonunda Supabase Edge Function URL'ini ekle:
+   `https://<project-ref>.supabase.co/functions/v1/revenuecat-webhook`.
+9. Webhook Authorization Header Value alanına güçlü bir secret koy. Aynı değeri
+   Supabase secret olarak `REVENUECAT_WEBHOOK_AUTH_TOKEN` adıyla tanımla.
 
 ## Environment
 
@@ -29,6 +33,30 @@ Development ortamında `EXPO_PUBLIC_USE_REVENUECAT` boş veya `false` ise uygula
 `EXPO_PUBLIC_USE_REVENUECAT=true` yap. App Store/TestFlight build'lerinde platforma
 özel public anahtarı kullan.
 
+## Supabase Webhook
+
+Satın alma sonrası app anında local Premium durumunu günceller, fakat Supabase'teki
+kalıcı `users.isPremium` ve ücretli rozetler RevenueCat webhook'u ile senkronize edilir.
+Bu webhook deploy edilmeden boost, profil rozeti ve Discover önceliği prod'da kalıcı
+olarak güvenilir kabul edilmemelidir.
+
+Supabase secrets:
+
+```bash
+supabase secrets set REVENUECAT_WEBHOOK_AUTH_TOKEN='Bearer güçlü-secret'
+supabase secrets set REVENUECAT_ENTITLEMENT_ID=premium
+```
+
+Deploy:
+
+```bash
+supabase functions deploy revenuecat-webhook --no-verify-jwt
+```
+
+RevenueCat dashboard'da Authorization Header Value olarak `REVENUECAT_WEBHOOK_AUTH_TOKEN`
+ile aynı değeri gir. Sandbox purchase ve restore testinden sonra Supabase `users`
+tablosunda ilgili kullanıcının `isPremium` ve `badges` alanlarını kontrol et.
+
 ## Empty Offerings Hatası
 
 Loglarda `None of the products registered in the RevenueCat dashboard could be fetched`
@@ -37,8 +65,7 @@ sorgusu bu id'leri bulamamıştır. Bu kodla çözülen bir durum değildir; das
 konfigürasyonu hizalanmalıdır.
 
 - RevenueCat ürün identifier'ı App Store Connect Product ID ile birebir aynı olmalı.
-  `monthly`, `yearly`, `lifetime` görüyorsan App Store Connect'te de tam olarak bu id'ler
-  olmalı veya RevenueCat'teki ürünleri App Store'daki gerçek id'lerle değiştir.
+  App şu anda `monthly` ve `yearly` planlarını satın alma UI'ında sunar.
 - Current offering içinde app'in desteklemediği `lifetime` gibi ürünler varsa mağazada
   gerçekten oluşturulana kadar offering'den çıkar.
 - App Store Connect'te Paid Applications Agreement, Tax ve Banking durumları tamamlanmalı.
@@ -53,4 +80,5 @@ konfigürasyonu hizalanmalıdır.
 - RevenueCat offering current durumda
 - Aylık ve yıllık paketler `premium` entitlement'ına bağlı
 - Offering'deki product id listesi App Store Connect ve Google Play ile birebir aynı
+- RevenueCat webhook Supabase Edge Function'a bağlı ve Authorization header doğrulanıyor
 - Sandbox satın alma ve restore akışı test edilmiş

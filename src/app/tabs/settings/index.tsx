@@ -2,12 +2,18 @@
 import { useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/features/auth/hooks/useSession";
+import { useAuthStore } from "@/features/auth/stores/authStore";
+import { container } from "@/infrastructure/config/Container";
 import { Button } from "@/shared/components/Button";
 import { Card } from "@/shared/components/Card";
 import { OptionChip } from "@/shared/components/OptionChip";
 import { Screen } from "@/shared/components/Screen";
+import { queryKeys } from "@/shared/constants/queryKeys";
+import { clampMatchRadiusKm, DEFAULT_MATCH_RADIUS_KM } from "@/shared/utils/location";
 import { useTheme, type ThemePreference } from "@/shared/theme";
 
 interface SettingsRowProps {
@@ -25,15 +31,127 @@ const legalLinks = [
   { title: "Rıza Yönetimi", path: "/legal/consent-management" },
 ] as const;
 
+const locationRadiusOptions = [10, 25, 50, 100, 250] as const;
+
+interface LocationPreferenceArgs {
+  enabled: boolean;
+  radiusKm: number;
+  refreshLocation?: boolean;
+}
+
+const requestCurrentLocation = async () => {
+  const permission = await Location.requestForegroundPermissionsAsync();
+
+  if (permission.status !== "granted") {
+    throw new Error("Konum izni verilmedi. Yakındaki eşleşmeler için izin gerekli.");
+  }
+
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+  };
+};
+
 export default function SettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
-  const { logout } = useSession();
+  const queryClient = useQueryClient();
+  const { currentUser, logout } = useSession();
+  const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
-  const [profileHidden, setProfileHidden] = useState(false);
   const [privacyStrict, setPrivacyStrict] = useState(true);
   const [language, setLanguage] = useState<"tr" | "en">("tr");
+  const blockedCount = currentUser?.blockedUsers?.length ?? 0;
+  const profileHidden = currentUser ? !(currentUser.isDiscoverable ?? true) : false;
+  const locationMatchEnabled = currentUser?.matchByLocation ?? false;
+  const matchRadiusKm = clampMatchRadiusKm(currentUser?.matchRadiusKm ?? DEFAULT_MATCH_RADIUS_KM);
+  const hasProfileLocation =
+    typeof currentUser?.locationLatitude === "number" &&
+    typeof currentUser?.locationLongitude === "number";
+  const locationUpdatedAt = currentUser?.locationUpdatedAt
+    ? new Date(currentUser.locationUpdatedAt)
+    : null;
+  const locationUpdatedLabel =
+    locationUpdatedAt && Number.isFinite(locationUpdatedAt.getTime())
+      ? `${locationUpdatedAt.toLocaleDateString("tr-TR")} ${locationUpdatedAt.toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+        })}`
+      : null;
+  const locationSubtitle = locationMatchEnabled
+    ? hasProfileLocation
+      ? `Yakındaki profiller ${matchRadiusKm} km içinde. ${locationUpdatedLabel ? `Son: ${locationUpdatedLabel}` : ""}`
+      : "Konumu yenilemek gerekiyor."
+    : "Discover akışında yakın profilleri öne çıkar.";
+  const profileVisibilityMutation = useMutation({
+    mutationFn: async (isHidden: boolean) => {
+      if (!currentUser) {
+        throw new Error("Profil gizliliği için oturum gerekli.");
+      }
+
+      return container.userRepository.setProfileDiscoverability(currentUser.id, !isHidden);
+    },
+    onSuccess: async (updatedUser) => {
+      setCurrentUser(updatedUser);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+      ]);
+    },
+    onError: (error) => {
+      Alert.alert(
+        "Gizlilik güncellenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    },
+  });
+  const locationMatchingMutation = useMutation({
+    mutationFn: async ({ enabled, radiusKm, refreshLocation = false }: LocationPreferenceArgs) => {
+      if (!currentUser) {
+        throw new Error("Konum tercihi için oturum gerekli.");
+      }
+
+      const needsLocation = enabled && (refreshLocation || !hasProfileLocation);
+      const coordinates = needsLocation ? await requestCurrentLocation() : undefined;
+
+      return container.userRepository.setLocationMatching(currentUser.id, {
+        enabled,
+        radiusKm,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+      });
+    },
+    onSuccess: async (updatedUser) => {
+      setCurrentUser(updatedUser);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+      ]);
+    },
+    onError: (error) => {
+      Alert.alert(
+        "Konum güncellenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    },
+  });
+
+  const updateLocationPreference = (
+    enabled: boolean,
+    radiusKm = matchRadiusKm,
+    refreshLocation = false,
+  ) => {
+    if (locationMatchingMutation.isPending) {
+      return;
+    }
+
+    locationMatchingMutation.mutate({ enabled, radiusKm, refreshLocation });
+  };
 
   const row = ({ title, subtitle, icon, danger = false, onPress }: SettingsRowProps) => (
     <Pressable onPress={onPress} style={styles.row}>
@@ -57,7 +175,7 @@ export default function SettingsScreen() {
   const openAccountDeletion = () => {
     Alert.alert(
       "Hesap silme",
-      "Hesap silme talep ekranına geçeceksin. Bu işlem için kimlik doğrulama ve backend silme akışı ayrıca bağlanmalı.",
+      "Hesap silme ekranına geçeceksin. Silme işleminden önce son kez onay istenir.",
       [
         { text: "Vazgeç", style: "cancel" },
         {
@@ -123,7 +241,10 @@ export default function SettingsScreen() {
         })}
         {row({
           title: "Engellenen kullanıcılar",
-          subtitle: "Blokladığın hesaplar burada yönetilecek.",
+          subtitle:
+            blockedCount > 0
+              ? `${blockedCount} kullanıcı engelli. Engellediklerin Keşfet akışında görünmez.`
+              : "Profil güvenlik menüsünden engellediğin kişiler Keşfet akışından çıkarılır.",
           icon: "remove-circle-outline",
         })}
         {row({
@@ -155,6 +276,51 @@ export default function SettingsScreen() {
       </Card>
 
       <Card style={styles.section}>
+        <Text style={styles.sectionTitle}>Eşleşme</Text>
+        <View style={styles.toggleRow}>
+          <View style={styles.rowIcon}>
+            <Ionicons name="navigate-outline" size={20} color={theme.colors.primary} />
+          </View>
+          <View style={styles.rowBody}>
+            <Text style={styles.rowTitle}>Konuma göre eşleşme</Text>
+            <Text style={styles.rowSubtitle}>{locationSubtitle}</Text>
+          </View>
+          <Switch
+            value={locationMatchEnabled}
+            disabled={!currentUser || locationMatchingMutation.isPending}
+            onValueChange={(enabled) => updateLocationPreference(enabled, matchRadiusKm, enabled)}
+            trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+        <View style={styles.chipWrap}>
+          {locationRadiusOptions.map((radiusKm) => (
+            <OptionChip
+              key={radiusKm}
+              label={`${radiusKm} km`}
+              selected={matchRadiusKm === radiusKm}
+              disabled={!currentUser || locationMatchingMutation.isPending}
+              onPress={() =>
+                updateLocationPreference(
+                  true,
+                  radiusKm,
+                  !locationMatchEnabled || !hasProfileLocation,
+                )
+              }
+            />
+          ))}
+        </View>
+        <Button
+          label={locationMatchEnabled ? "Konumu yenile" : "Konumu kullan"}
+          variant="ghost"
+          loading={locationMatchingMutation.isPending}
+          disabled={!currentUser}
+          icon={<Ionicons name="locate" size={18} color={theme.colors.primary} />}
+          onPress={() => updateLocationPreference(true, matchRadiusKm, true)}
+        />
+      </Card>
+
+      <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Gizlilik</Text>
         <View style={styles.toggleRow}>
           <View style={styles.rowIcon}>
@@ -166,7 +332,8 @@ export default function SettingsScreen() {
           </View>
           <Switch
             value={profileHidden}
-            onValueChange={setProfileHidden}
+            disabled={profileVisibilityMutation.isPending}
+            onValueChange={(hidden) => profileVisibilityMutation.mutate(hidden)}
             trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
             thumbColor="#FFFFFF"
           />

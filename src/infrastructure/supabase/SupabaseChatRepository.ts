@@ -3,13 +3,95 @@ import type {
   SendMessagePayload,
 } from "@/domain/repositories/ChatRepository";
 import type { Conversation, Message } from "@/domain/entities/Message";
+import type { User } from "@/domain/entities/User";
 import { supabase } from "./client";
+import { mapSupabaseUser, publicUserColumns } from "./userMapper";
+
+type ConversationRow = {
+  id: string;
+  participant1Id: string;
+  participant2Id: string;
+  lastMessageAt: string | null;
+  createdAt: string;
+};
+
+type MessageRow = {
+  id: string;
+  conversationId: string;
+  senderId: string;
+  body: string;
+  status: Message["status"];
+  createdAt: string;
+};
 
 export class SupabaseChatRepository implements ChatRepository {
+  private async getUsersById(userIds: string[]): Promise<Map<string, User>> {
+    const uniqueIds = Array.from(new Set(userIds));
+
+    if (uniqueIds.length === 0) {
+      return new Map();
+    }
+
+    const { data, error } = await supabase
+      .from("users")
+      .select(publicUserColumns)
+      .in("id", uniqueIds);
+
+    if (error) {
+      throw new Error("Konuşma kullanıcıları yüklenemedi");
+    }
+
+    return new Map(
+      (data || []).map((row) => {
+        const user = mapSupabaseUser(row as unknown as Partial<User>);
+        return [user.id, user];
+      }),
+    );
+  }
+
+  private async buildConversation(row: ConversationRow): Promise<Conversation> {
+    const [{ data: messageRows, error: messageError }, usersById] = await Promise.all([
+      supabase
+        .from("messages")
+        .select("id,conversationId,senderId,body,status,createdAt")
+        .eq("conversationId", row.id)
+        .order("createdAt", { ascending: true }),
+      this.getUsersById([row.participant1Id, row.participant2Id]),
+    ]);
+
+    if (messageError) {
+      throw new Error("Mesajlar yüklenemedi");
+    }
+
+    const participant1 = usersById.get(row.participant1Id);
+    const participant2 = usersById.get(row.participant2Id);
+
+    if (!participant1 || !participant2) {
+      throw new Error("Konuşma kullanıcıları eksik");
+    }
+
+    const messages: Message[] = ((messageRows || []) as MessageRow[]).map((message) => ({
+      id: message.id,
+      conversationId: message.conversationId,
+      senderId: message.senderId,
+      body: message.body,
+      status: message.status ?? "sent",
+      createdAt: message.createdAt,
+    }));
+
+    return {
+      id: row.id,
+      participants: [participant1, participant2],
+      messages,
+      unreadCount: 0,
+      updatedAt: row.lastMessageAt ?? row.createdAt,
+    };
+  }
+
   async listConversations(userId: string): Promise<Conversation[]> {
     const { data, error } = await supabase
       .from("conversations")
-      .select("*")
+      .select("id,participant1Id,participant2Id,lastMessageAt,createdAt")
       .or(`participant1Id.eq.${userId},participant2Id.eq.${userId}`)
       .order("lastMessageAt", { ascending: false });
 
@@ -17,13 +99,17 @@ export class SupabaseChatRepository implements ChatRepository {
       throw new Error("Konuşmalar yüklenemedi");
     }
 
-    return data || [];
+    return Promise.all(
+      ((data || []) as ConversationRow[]).map((conversation) =>
+        this.buildConversation(conversation),
+      ),
+    );
   }
 
   async getConversation(conversationId: string): Promise<Conversation> {
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
-      .select("*")
+      .select("id,participant1Id,participant2Id,lastMessageAt,createdAt")
       .eq("id", conversationId)
       .single();
 
@@ -31,21 +117,7 @@ export class SupabaseChatRepository implements ChatRepository {
       throw new Error("Konuşma bulunamadı");
     }
 
-    // Get messages for this conversation
-    const { data: messages, error: msgError } = await supabase
-      .from("messages")
-      .select("*")
-      .eq("conversationId", conversationId)
-      .order("createdAt", { ascending: true });
-
-    if (msgError) {
-      throw new Error("Mesajlar yüklenemedi");
-    }
-
-    return {
-      ...conversation,
-      messages: messages || [],
-    };
+    return this.buildConversation(conversation as unknown as ConversationRow);
   }
 
   async sendMessage(payload: SendMessagePayload): Promise<Message> {

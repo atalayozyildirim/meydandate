@@ -6,5 +6,6 @@ export const useSession = () =>
     accessToken: state.accessToken,
     currentUser: state.currentUser,
     isHydrated: state.isHydrated,
-    logout: state.logout
+    logout: state.logout,
+    deleteAccount: state.deleteAccount
   }));

@@ -65,6 +65,7 @@ const aleviKnowledgeQuestions = [
       { id: "yalnizlik", label: "Yalnız kalmak", correct: false },
     ],
   },
+  // "Lâ fetâ illâ Ali, lâ seyfe illâ Zülfikār", "Ali'den başka yiğit, Zülfikar'dan başka kılıç yoktur"
   {
     id: "semah",
     question: "Semah en doğru nasıl tanımlanır?",

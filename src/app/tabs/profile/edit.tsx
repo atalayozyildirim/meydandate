@@ -1,7 +1,8 @@
 // Profil düzenleme ekranında form, fotoğraf seçimi ve ilgi alanı güncellemesi yapılır.
 import { useEffect } from "react";
-import { Alert, Image, StyleSheet, Text, View } from "react-native";
+import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileUpdate } from "@/domain/entities/User";
@@ -10,6 +11,7 @@ import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { profileSchema, type ProfileFormValues } from "@/features/profile/schemas/profileSchema";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { Button } from "@/shared/components/Button";
+import { Card } from "@/shared/components/Card";
 import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
 import { OptionChip } from "@/shared/components/OptionChip";
@@ -131,88 +133,129 @@ export default function ProfileEditScreen() {
   });
 
   return (
-    <Screen>
+    <Screen style={styles.screen}>
       <View style={styles.header}>
-        <Text style={styles.kicker}>Profil</Text>
-        <Text style={styles.title}>Profili düzenle</Text>
+        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+          <Ionicons name="chevron-back" size={23} color={theme.colors.text} />
+        </Pressable>
+        <View style={styles.headerText}>
+          <Text style={styles.kicker}>Profil</Text>
+          <Text style={styles.title}>Profili düzenle</Text>
+        </View>
       </View>
-      <Controller
-        control={form.control}
-        name="photoUri"
-        render={({ field }) => (
-          <View style={styles.photoSection}>
-            {selectedPhotoUri ? <Image source={{ uri: selectedPhotoUri }} style={styles.photo} /> : null}
-            <Button
-              label="Fotoğrafı değiştir"
-              variant="secondary"
-              loading={imagePicker.isPicking}
-              onPress={async () => {
-                const uri = await imagePicker.pickImage();
 
-                if (uri) {
-                  field.onChange(uri);
-                }
-              }}
+      <Card style={styles.photoCard}>
+        <Controller
+          control={form.control}
+          name="photoUri"
+          render={({ field }) => (
+            <>
+              {selectedPhotoUri ? (
+                <Image source={{ uri: selectedPhotoUri }} style={styles.photo} />
+              ) : (
+                <View style={styles.photoFallback}>
+                  <Ionicons name="person" size={30} color="#FFFFFF" />
+                </View>
+              )}
+              <View style={styles.photoText}>
+                <Text style={styles.sectionTitle}>Profil fotoğrafı</Text>
+                <Text style={styles.helperText}>Net ve güncel bir fotoğraf seç.</Text>
+              </View>
+              <Button
+                label="Değiştir"
+                variant="ghost"
+                style={styles.photoButton}
+                loading={imagePicker.isPicking}
+                icon={<Ionicons name="image-outline" size={18} color={theme.colors.primary} />}
+                onPress={async () => {
+                  const uri = await imagePicker.pickImage();
+
+                  if (uri) {
+                    field.onChange(uri);
+                  }
+                }}
+              />
+            </>
+          )}
+        />
+      </Card>
+
+      <Card style={styles.section}>
+        <Text style={styles.sectionTitle}>Temel bilgiler</Text>
+        <Controller
+          control={form.control}
+          name="name"
+          render={({ field, fieldState }) => (
+            <Input label="İsim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+          )}
+        />
+        <View style={styles.twoColumn}>
+          <View style={styles.column}>
+            <Controller
+              control={form.control}
+              name="age"
+              render={({ field, fieldState }) => (
+                <Input
+                  label="Yaş"
+                  keyboardType="number-pad"
+                  value={String(field.value)}
+                  onChangeText={(value) => field.onChange(Number(value))}
+                  error={fieldState.error?.message}
+                />
+              )}
             />
           </View>
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="name"
-        render={({ field, fieldState }) => (
-          <Input label="İsim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="age"
-        render={({ field, fieldState }) => (
-          <Input
-            label="Yaş"
-            keyboardType="number-pad"
-            value={String(field.value)}
-            onChangeText={(value) => field.onChange(Number(value))}
-            error={fieldState.error?.message}
-          />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="city"
-        render={({ field, fieldState }) => (
-          <Input label="Şehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="occupation"
-        render={({ field }) => <Input label="Meslek" value={field.value} onChangeText={field.onChange} />}
-      />
-      <Controller
-        control={form.control}
-        name="bio"
-        render={({ field, fieldState }) => (
-          <Input label="Bio" multiline value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
-        )}
-      />
-      <Controller
-        control={form.control}
-        name="hometown"
-        render={({ field }) => <Input label="Memleket" value={field.value} onChangeText={field.onChange} />}
-      />
-      <Controller
-        control={form.control}
-        name="favoriteSong"
-        render={({ field }) => <Input label="Favori türkü" value={field.value} onChangeText={field.onChange} />}
-      />
-      <Controller
-        control={form.control}
-        name="favoritePoet"
-        render={({ field }) => <Input label="Favori ozan" value={field.value} onChangeText={field.onChange} />}
-      />
+          <View style={styles.column}>
+            <Controller
+              control={form.control}
+              name="city"
+              render={({ field, fieldState }) => (
+                <Input label="Şehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+              )}
+            />
+          </View>
+        </View>
+        <Controller
+          control={form.control}
+          name="occupation"
+          render={({ field }) => <Input label="Meslek" value={field.value} onChangeText={field.onChange} />}
+        />
+        <Controller
+          control={form.control}
+          name="bio"
+          render={({ field, fieldState }) => (
+            <Input
+              label="Bio"
+              multiline
+              value={field.value}
+              onChangeText={field.onChange}
+              error={fieldState.error?.message}
+              style={styles.multilineInput}
+            />
+          )}
+        />
+      </Card>
 
-      <View style={styles.section}>
+      <Card style={styles.section}>
+        <Text style={styles.sectionTitle}>Kişisel detaylar</Text>
+        <Controller
+          control={form.control}
+          name="hometown"
+          render={({ field }) => <Input label="Memleket" value={field.value} onChangeText={field.onChange} />}
+        />
+        <Controller
+          control={form.control}
+          name="favoriteSong"
+          render={({ field }) => <Input label="Favori türkü" value={field.value} onChangeText={field.onChange} />}
+        />
+        <Controller
+          control={form.control}
+          name="favoritePoet"
+          render={({ field }) => <Input label="Favori ozan" value={field.value} onChangeText={field.onChange} />}
+        />
+      </Card>
+
+      <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Kültürel beyan</Text>
         <Controller
           control={form.control}
@@ -246,9 +289,9 @@ export default function ProfileEditScreen() {
             </View>
           )}
         />
-      </View>
+      </Card>
 
-      <View style={styles.section}>
+      <Card style={styles.section}>
         <Text style={styles.sectionTitle}>İlgi alanları</Text>
         <Controller
           control={form.control}
@@ -279,18 +322,40 @@ export default function ProfileEditScreen() {
             </>
           )}
         />
-      </View>
+      </Card>
 
-      <Button label="Kaydet" loading={isUpdating} onPress={onSubmit} />
+      <View style={styles.footerActions}>
+        <Button label="Vazgeç" variant="ghost" style={styles.footerButton} onPress={() => router.back()} />
+        <Button label="Kaydet" loading={isUpdating} style={styles.footerButton} onPress={onSubmit} />
+      </View>
     </Screen>
   );
 }
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
+    screen: {
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.sm,
+    },
     header: {
+      flexDirection: "row",
+      alignItems: "center",
       gap: theme.spacing.xs,
-      marginBottom: theme.spacing.lg
+      marginBottom: theme.spacing.xs
+    },
+    backButton: {
+      width: 42,
+      height: 42,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated
+    },
+    headerText: {
+      flex: 1,
+      gap: theme.spacing.xxs
     },
     kicker: {
       ...theme.typography.caption,
@@ -298,23 +363,42 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       textTransform: "uppercase"
     },
     title: {
-      ...theme.typography.title,
+      ...theme.typography.heading,
       color: theme.colors.text
     },
-    photoSection: {
+    photoCard: {
+      flexDirection: "row",
+      alignItems: "center",
       gap: theme.spacing.sm,
-      marginBottom: theme.spacing.md
     },
     photo: {
-      width: "100%",
-      height: 260,
-      borderRadius: theme.radius.md,
+      width: 72,
+      height: 72,
+      borderRadius: theme.radius.pill,
       backgroundColor: theme.colors.elevated
+    },
+    photoFallback: {
+      width: 72,
+      height: 72,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary
+    },
+    photoText: {
+      flex: 1,
+      gap: theme.spacing.xxs
+    },
+    helperText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted
+    },
+    photoButton: {
+      minHeight: 42,
+      paddingHorizontal: theme.spacing.sm
     },
     section: {
       gap: theme.spacing.sm,
-      marginTop: theme.spacing.md,
-      marginBottom: theme.spacing.md
     },
     sectionTitle: {
       ...theme.typography.subheading,
@@ -324,6 +408,26 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.xs
+    },
+    twoColumn: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    column: {
+      flex: 1
+    },
+    multilineInput: {
+      minHeight: 92,
+      borderRadius: theme.radius.lg,
+      paddingTop: theme.spacing.sm,
+      textAlignVertical: "top"
+    },
+    footerActions: {
+      flexDirection: "row",
+      gap: theme.spacing.sm
+    },
+    footerButton: {
+      flex: 1
     },
     error: {
       ...theme.typography.caption,

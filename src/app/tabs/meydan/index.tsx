@@ -23,7 +23,7 @@ const ceremonySteps = [
   {
     title: "Canlı yayın",
     description:
-      "streamUrl geldiğinde video açılır; katılan canlar listede görünür.",
+      "Yayın açıldığında video bu ekranda başlar; katılan canlar listede görünür.",
   },
   {
     title: "Saygılı katılım",
@@ -60,6 +60,21 @@ export default function MeydanRoomScreen() {
   const isLive = room?.status === "live";
   const hasStream = Boolean(room?.streamUrl);
   const canManageRoom = Boolean(room?.canManage);
+  const roomStatusLabel = isLive
+    ? "Canlı"
+    : room?.status === "offline"
+      ? "Kapalı"
+      : "Planlandı";
+  const stageTitle = isLive
+    ? "Yayın bağlantısı hazırlanıyor"
+    : room?.status === "offline"
+      ? "Yayın sona erdi"
+      : "Yayın yakında başlayacak";
+  const stageDescription = isLive
+    ? "Canlı görüntü birkaç saniye içinde burada görünür. Sohbet ve katılımcılar açık."
+    : room?.status === "offline"
+      ? "Bir sonraki buluşma duyurulduğunda bu oda yeniden açılır."
+      : "Yayın saati geldiğinde görüntü otomatik olarak burada başlar.";
   const syncedPositionMillis = useMemo(() => {
     if (!room?.startedAt) {
       return 0;
@@ -177,24 +192,20 @@ export default function MeydanRoomScreen() {
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
-        <View style={styles.liveBadge}>
-          <View style={[styles.liveDot, !isLive && styles.liveDotIdle]} />
-          <Text style={styles.liveText}>{isLive ? "Canlı" : "Hazır"}</Text>
+        <View style={styles.headerTop}>
+          <View style={styles.liveBadge}>
+            <View style={[styles.liveDot, !isLive && styles.liveDotIdle]} />
+            <Text style={styles.liveText}>{roomStatusLabel}</Text>
+          </View>
+          <View style={styles.countBadge}>
+            <Ionicons name="people-outline" size={15} color={theme.colors.primary} />
+            <Text style={styles.countText}>{participantCount}</Text>
+          </View>
         </View>
-        <Text style={styles.kicker}>Ehlibyte</Text>
         <Text style={styles.title}>{room?.title ?? "Sanal Cem odası"}</Text>
         <Text style={styles.description}>
           {room?.description ??
             "Canlı erkân, deyiş ve topluluk sohbetleri için planlı yayın odası."}
-        </Text>
-      </View>
-
-      <View style={styles.purposePanel}>
-        <Text style={styles.sectionTitle}>Bu odanın amacı</Text>
-        <Text style={styles.purposeText}>
-          Ehlibyte içinde planlı Alevi kültür etkinliklerini canlı izletmek:
-          erkân yayını, deyiş/nefes, soru-cevap ve topluluk buluşması. Odaya
-          katılanlar görünür; yayın açıldığında video burada oynar.
         </Text>
       </View>
 
@@ -214,14 +225,11 @@ export default function MeydanRoomScreen() {
           />
         ) : (
           <View style={styles.emptyStage}>
-            <Ionicons name="radio-outline" size={32} color="#FFFFFF" />
-            <Text style={styles.stageTitle}>
-              {isLive ? "Canlı yayın bekleniyor" : "Yayın hazır değil"}
-            </Text>
-            <Text style={styles.stageDescription}>
-              Backend `streamUrl` döndürdüğünde bu alan gerçek canlı video
-              oynatır.
-            </Text>
+            <View style={styles.stageIcon}>
+              <Ionicons name="radio-outline" size={26} color="#FFFFFF" />
+            </View>
+            <Text style={styles.stageTitle}>{stageTitle}</Text>
+            <Text style={styles.stageDescription}>{stageDescription}</Text>
           </View>
         )}
         <View style={styles.stageMeta}>
@@ -232,6 +240,13 @@ export default function MeydanRoomScreen() {
         </View>
       </View>
 
+      <Button
+        label={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
+        variant={isJoined ? "ghost" : "primary"}
+        loading={isJoining}
+        onPress={() => void toggleRoom()}
+      />
+
       {isError ? (
         <View style={styles.errorBox}>
           <Ionicons
@@ -240,7 +255,7 @@ export default function MeydanRoomScreen() {
             color={theme.colors.warning}
           />
           <Text style={styles.errorText}>
-            Canlı endpoint'e bağlanılamadı. API açılınca oda otomatik yenilenir.
+            Oda bilgileri şu an yenilenemiyor. Bağlantı düzelince ekran otomatik güncellenir.
           </Text>
         </View>
       ) : null}
@@ -294,13 +309,6 @@ export default function MeydanRoomScreen() {
         </View>
       ) : null}
 
-      <Button
-        label={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
-        variant={isJoined ? "ghost" : "primary"}
-        loading={isJoining}
-        onPress={() => void toggleRoom()}
-      />
-
       <View style={styles.section}>
         <View style={styles.chatHeader}>
           <Text style={styles.sectionTitle}>Sohbet</Text>
@@ -318,8 +326,22 @@ export default function MeydanRoomScreen() {
                   message.isCurrentUser && styles.chatBubbleCurrent,
                 ]}
               >
-                <Text style={styles.chatSender}>{message.senderName}</Text>
-                <Text style={styles.chatBody}>{message.body}</Text>
+                <Text
+                  style={[
+                    styles.chatSender,
+                    message.isCurrentUser && styles.chatBubbleCurrentSender,
+                  ]}
+                >
+                  {message.senderName}
+                </Text>
+                <Text
+                  style={[
+                    styles.chatBody,
+                    message.isCurrentUser && styles.chatBubbleCurrentBody,
+                  ]}
+                >
+                  {message.body}
+                </Text>
               </View>
             ))
           )}
@@ -370,6 +392,14 @@ export default function MeydanRoomScreen() {
         </View>
       </View>
 
+      <View style={styles.purposePanel}>
+        <Text style={styles.sectionTitle}>Bu odanın amacı</Text>
+        <Text style={styles.purposeText}>
+          Planlı erkân, deyiş, soru-cevap ve topluluk buluşmalarını tek ekranda
+          izlemek ve saygılı bir sohbet alanı açmak.
+        </Text>
+      </View>
+
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>Erkân akışı</Text>
         {ceremonySteps.map((step, index) => (
@@ -391,15 +421,22 @@ export default function MeydanRoomScreen() {
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     screen: {
-      gap: theme.spacing.lg,
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingTop: theme.spacing.sm,
       paddingBottom: 104,
     },
     header: {
       gap: theme.spacing.xs,
     },
+    headerTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
     liveBadge: {
       alignSelf: "flex-start",
-      minHeight: 34,
+      minHeight: 32,
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing.sm,
       flexDirection: "row",
@@ -420,34 +457,44 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.primary,
     },
-    kicker: {
-      ...theme.typography.caption,
-      color: theme.colors.primary,
-      textTransform: "uppercase",
-    },
     title: {
-      ...theme.typography.title,
+      ...theme.typography.heading,
       color: theme.colors.text,
     },
     description: {
-      ...theme.typography.body,
+      ...theme.typography.caption,
       color: theme.colors.muted,
+    },
+    countBadge: {
+      minHeight: 32,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.14)",
+    },
+    countText: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
     },
     purposePanel: {
       gap: theme.spacing.xs,
-      borderRadius: 22,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: "rgba(233, 64, 87, 0.12)",
-      padding: theme.spacing.md,
+      padding: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
     },
     purposeText: {
-      ...theme.typography.body,
+      ...theme.typography.caption,
       color: theme.colors.muted,
     },
     stage: {
-      minHeight: 260,
-      borderRadius: 30,
+      minHeight: 198,
+      borderRadius: 24,
       overflow: "hidden",
       justifyContent: "space-between",
       backgroundColor: "#171923",
@@ -459,19 +506,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     video: {
       width: "100%",
-      minHeight: 260,
+      minHeight: 198,
       backgroundColor: "#000000",
     },
     emptyStage: {
       flex: 1,
-      minHeight: 218,
+      minHeight: 150,
       justifyContent: "center",
-      gap: theme.spacing.sm,
-      padding: theme.spacing.lg,
+      gap: theme.spacing.xs,
+      padding: theme.spacing.md,
+    },
+    stageIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(255, 255, 255, 0.12)",
     },
     stageTitle: {
-      fontSize: 30,
-      lineHeight: 35,
+      fontSize: 23,
+      lineHeight: 28,
       fontWeight: "900",
       color: "#FFFFFF",
     },
@@ -483,7 +538,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.xs,
-      padding: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      paddingBottom: theme.spacing.md,
     },
     stageMetaText: {
       ...theme.typography.caption,
@@ -552,9 +608,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.xs,
     },
     participant: {
-      width: "23.5%",
-      minHeight: 106,
-      borderRadius: 20,
+      width: "31.8%",
+      minHeight: 88,
+      borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
       gap: theme.spacing.xxs,
@@ -564,8 +620,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.colors.border,
     },
     avatar: {
-      width: 42,
-      height: 42,
+      width: 36,
+      height: 36,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
@@ -598,12 +654,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xxs,
-      backgroundColor: "#FFF0F3",
+      backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
     },
     chatList: {
       gap: theme.spacing.xs,
-      minHeight: 96,
-      borderRadius: 22,
+      minHeight: 82,
+      borderRadius: 16,
       padding: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
@@ -625,7 +681,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     chatBubbleCurrent: {
       alignSelf: "flex-end",
-      backgroundColor: "#FFF0F3",
+      backgroundColor: theme.isDark ? theme.colors.primary : "#FFF0F3",
     },
     chatSender: {
       fontSize: 11,
@@ -633,9 +689,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "700",
       color: theme.colors.primary,
     },
+    chatBubbleCurrentSender: {
+      color: theme.isDark ? "rgba(255, 255, 255, 0.82)" : theme.colors.primary,
+    },
     chatBody: {
       ...theme.typography.body,
       color: theme.colors.text,
+    },
+    chatBubbleCurrentBody: {
+      color: theme.isDark ? "#FFFFFF" : theme.colors.text,
     },
     chatComposer: {
       minHeight: 54,
@@ -674,8 +736,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     stepRow: {
       flexDirection: "row",
       gap: theme.spacing.sm,
-      padding: theme.spacing.md,
-      borderRadius: 20,
+      padding: theme.spacing.sm,
+      borderRadius: 16,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: theme.colors.border,

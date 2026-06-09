@@ -58,7 +58,16 @@ export class SupabaseAuthRepository implements AuthRepository {
 
   private getSocialProfilePhotos(user: SupabaseAuthUser) {
     const metadata = user.user_metadata ?? {};
-    const avatarUrl = metadata.avatar_url || metadata.picture;
+    const identityData = user.identities
+      ?.map((identity) => identity.identity_data)
+      .find((candidate) => candidate?.avatar_url || candidate?.picture);
+    const avatarUrl =
+      metadata.avatar_url ||
+      metadata.picture ||
+      metadata.photo_url ||
+      metadata.image_url ||
+      identityData?.avatar_url ||
+      identityData?.picture;
 
     if (typeof avatarUrl !== "string" || !avatarUrl.startsWith("https://")) {
       return [];
@@ -69,8 +78,23 @@ export class SupabaseAuthRepository implements AuthRepository {
 
   private async ensureSocialProfile(user: SupabaseAuthUser) {
     let profile = await this.getMyProfile();
+    const socialPhotos = this.getSocialProfilePhotos(user);
 
     if (profile) {
+      const profilePhotos = (profile as { photos?: unknown }).photos;
+      const existingPhotos = Array.isArray(profilePhotos) ? profilePhotos : [];
+
+      if (existingPhotos.length === 0 && socialPhotos.length > 0) {
+        const { error } = await supabase
+          .from("users")
+          .update({ photos: socialPhotos })
+          .eq("id", user.id);
+
+        if (!error) {
+          profile = await this.getMyProfile();
+        }
+      }
+
       return profile;
     }
 
@@ -85,7 +109,7 @@ export class SupabaseAuthRepository implements AuthRepository {
       culturalIdentity: "prefer_not_to_say",
       cultureImportance: "somewhat_important",
       interests: [],
-      photos: this.getSocialProfilePhotos(user),
+      photos: socialPhotos,
     });
 
     if (error) {
@@ -299,6 +323,21 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async logout(token: string): Promise<void> {
+    await supabase.auth.signOut();
+  }
+
+  async deleteAccount(token: string): Promise<void> {
+    const { error } = await supabase.functions.invoke("delete-account", {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    });
+
+    if (error) {
+      throw new Error(error.message || "Hesap silinemedi.");
+    }
+
     await supabase.auth.signOut();
   }
 }

@@ -1,0 +1,2 @@
+-- Local reset seed hook. Starter guide data lives in migrations so production
+-- and local databases receive the same onboarding baseline.

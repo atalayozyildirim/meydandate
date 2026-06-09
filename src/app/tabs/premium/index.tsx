@@ -160,11 +160,6 @@ export default function PremiumScreen() {
           <Text style={styles.price}>{planPrices?.yearly ?? "Yükleniyor..."}</Text>
           <Button label="Yıllık başlat" variant="secondary" loading={isPurchasing} onPress={() => void buyPlan("yearly")} />
         </Card>
-        <Card style={styles.planCard}>
-          <Text style={styles.planTitle}>Ömür boyu</Text>
-          <Text style={styles.price}>{planPrices?.lifetime ?? "Yükleniyor..."}</Text>
-          <Button label="Ömür boyu al" variant="secondary" loading={isPurchasing} onPress={() => void buyPlan("lifetime")} />
-        </Card>
       </View>
       <Button
         label="Satın alımları geri yükle"

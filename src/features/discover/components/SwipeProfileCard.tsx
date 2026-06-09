@@ -5,6 +5,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { CulturalCompatibility } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { Card } from "@/shared/components/Card";
+import { formatDistanceKm } from "@/shared/utils/location";
 import { formatScore } from "@/shared/utils/score";
 import { isProfileBoostActive } from "@/shared/utils/profileBoost";
 import { useTheme } from "@/shared/theme";
@@ -21,6 +22,7 @@ export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: 
   const styles = createStyles(theme);
   const primaryPhoto = user.photos.find((photo) => photo.isPrimary)?.uri;
   const hasActiveBoost = isProfileBoostActive(user.boostedUntil);
+  const distanceLabel = formatDistanceKm(user.distanceKm);
 
   return (
     <Card style={[styles.card, { height }]}>
@@ -48,7 +50,9 @@ export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: 
           </Text>
           <View style={styles.metaRow}>
             <Ionicons name="location" size={16} color="#FFFFFF" />
-            <Text style={styles.city}>{user.city}</Text>
+            <Text style={styles.city}>
+              {distanceLabel ? `${distanceLabel} · ${user.city}` : user.city}
+            </Text>
           </View>
           <Text numberOfLines={2} style={styles.bio}>{user.bio}</Text>
           <View style={styles.scoreGrid}>

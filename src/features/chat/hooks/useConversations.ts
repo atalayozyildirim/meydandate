@@ -27,7 +27,8 @@ export const useConversation = (conversationId: string) => {
 
   const query = useQuery({
     queryKey: [queryKeys.conversation, conversationId],
-    queryFn: () => container.chatRepository.getConversation(conversationId)
+    queryFn: () => container.chatRepository.getConversation(conversationId),
+    refetchInterval: 1500,
   });
 
   const sendMutation = useMutation({

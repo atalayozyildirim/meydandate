@@ -1,6 +1,6 @@
 // Tekil conversation ekraninda mesajlari ve mesaj gonderme formunu yonetir.
-import { useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { useEffect, useRef, useState } from "react";
+import { Alert, Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Avatar } from "@/shared/components/Avatar";
@@ -13,6 +13,14 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 
+const HEART_MESSAGE = "❤️";
+
+interface FloatingHeart {
+  id: string;
+  animated: Animated.Value;
+  isOwn: boolean;
+}
+
 export default function ConversationScreen() {
   const params = useLocalSearchParams<{ conversationId: string }>();
   const conversationId = params.conversationId;
@@ -21,6 +29,8 @@ export default function ConversationScreen() {
   const styles = createStyles(theme);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const [message, setMessage] = useState("");
+  const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
+  const lastAnimatedHeartIdRef = useRef<string | null>(null);
   const { conversation, currentUser, isLoading, sendMessage, isSending } = useConversation(conversationId);
 
   if (isLoading || !conversation || !currentUser) {
@@ -28,6 +38,38 @@ export default function ConversationScreen() {
   }
 
   const partner = conversation.participants.find((user) => user.id !== currentUser.id) ?? conversation.participants[1];
+
+  const spawnHeart = (isOwn: boolean) => {
+    const id = `heart-${Date.now()}-${Math.random()}`;
+    const animated = new Animated.Value(0);
+    setFloatingHearts((current) => [...current, { id, animated, isOwn }]);
+
+    Animated.timing(animated, {
+      toValue: 1,
+      duration: 1200,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => {
+      setFloatingHearts((current) => current.filter((heart) => heart.id !== id));
+    });
+  };
+
+  useEffect(() => {
+    const lastMessage = conversation?.messages.at(-1);
+
+    if (
+      !lastMessage ||
+      !currentUser ||
+      lastMessage.id === lastAnimatedHeartIdRef.current ||
+      lastMessage.body.trim() !== HEART_MESSAGE ||
+      lastMessage.senderId === currentUser.id
+    ) {
+      return;
+    }
+
+    lastAnimatedHeartIdRef.current = lastMessage.id;
+    spawnHeart(false);
+  }, [conversation?.messages, currentUser]);
 
   const submitMessage = async (body: string) => {
     const trimmedBody = body.trim();
@@ -59,6 +101,15 @@ export default function ConversationScreen() {
       }
 
       Alert.alert("Mesaj gonderilemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
+    }
+  };
+
+  const sendHeart = async () => {
+    try {
+      await sendMessage(HEART_MESSAGE);
+      spawnHeart(true);
+    } catch (error) {
+      Alert.alert("Kalp gönderilemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
     }
   };
 
@@ -107,9 +158,49 @@ export default function ConversationScreen() {
             style={styles.input}
             multiline
           />
+          <Pressable
+            disabled={isSending}
+            onPress={() => void sendHeart()}
+            style={({ pressed }) => [styles.heartButton, pressed && styles.buttonPressed]}
+          >
+            <Ionicons name="heart" size={22} color={theme.colors.primary} />
+          </Pressable>
           <Pressable disabled={isSending} onPress={() => void submitMessage(message)} style={styles.sendButton}>
             <Ionicons name="send" size={20} color="#FFFFFF" />
           </Pressable>
+        </View>
+        <View pointerEvents="none" style={styles.heartLayer}>
+          {floatingHearts.map((heart) => (
+            <Animated.Text
+              key={heart.id}
+              style={[
+                styles.floatingHeart,
+                heart.isOwn ? styles.floatingHeartOwn : styles.floatingHeartOther,
+                {
+                  opacity: heart.animated.interpolate({
+                    inputRange: [0, 0.85, 1],
+                    outputRange: [0, 1, 0],
+                  }),
+                  transform: [
+                    {
+                      translateY: heart.animated.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0, -150],
+                      }),
+                    },
+                    {
+                      scale: heart.animated.interpolate({
+                        inputRange: [0, 0.25, 1],
+                        outputRange: [0.75, 1.18, 1],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            >
+              {HEART_MESSAGE}
+            </Animated.Text>
+          ))}
         </View>
       </KeyboardAvoidingView>
     </Screen>
@@ -199,6 +290,16 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.text,
       backgroundColor: theme.colors.surface
     },
+    heartButton: {
+      width: 46,
+      height: 46,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
+      borderWidth: 1,
+      borderColor: theme.colors.border
+    },
     sendButton: {
       width: 46,
       height: 46,
@@ -206,5 +307,28 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.primary
+    },
+    buttonPressed: {
+      opacity: 0.82
+    },
+    heartLayer: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "flex-end",
+      paddingBottom: 82
+    },
+    floatingHeart: {
+      position: "absolute",
+      bottom: 74,
+      fontSize: 42,
+      lineHeight: 50,
+      textShadowColor: theme.colors.shadow,
+      textShadowOffset: { width: 0, height: 8 },
+      textShadowRadius: 14
+    },
+    floatingHeartOwn: {
+      right: 62
+    },
+    floatingHeartOther: {
+      left: 46
     }
   });

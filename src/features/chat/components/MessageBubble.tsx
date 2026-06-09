@@ -11,7 +11,8 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message, isOwn }: MessageBubbleProps) => {
   const theme = useTheme();
-  const styles = createStyles(theme, isOwn);
+  const isHeart = message.body.trim() === "❤️";
+  const styles = createStyles(theme, isOwn, isHeart);
 
   return (
     <View style={styles.row}>
@@ -25,21 +26,25 @@ export const MessageBubble = ({ message, isOwn }: MessageBubbleProps) => {
   );
 };
 
-const createStyles = (theme: ReturnType<typeof useTheme>, isOwn: boolean) =>
+const createStyles = (
+  theme: ReturnType<typeof useTheme>,
+  isOwn: boolean,
+  isHeart: boolean,
+) =>
   StyleSheet.create({
     row: {
       flexDirection: "row",
       justifyContent: isOwn ? "flex-end" : "flex-start"
     },
     bubble: {
-      maxWidth: "78%",
+      maxWidth: isHeart ? 92 : "78%",
       borderRadius: theme.radius.lg,
-      padding: theme.spacing.md,
+      padding: isHeart ? theme.spacing.sm : theme.spacing.md,
       gap: theme.spacing.xs,
       backgroundColor: isOwn ? theme.colors.primary : theme.colors.elevated
     },
     body: {
-      ...theme.typography.body,
+      ...(isHeart ? { fontSize: 40, lineHeight: 46, fontWeight: "800" as const } : theme.typography.body),
       color: isOwn ? "#FFFFFF" : theme.colors.text
     },
     meta: {

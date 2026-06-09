@@ -159,4 +159,19 @@ export class MockAuthRepository implements AuthRepository {
   async logout(token: string): Promise<void> {
     mockDatabase.tokenToUserId.delete(token);
   }
+
+  async deleteAccount(token: string): Promise<void> {
+    const userId = mockDatabase.tokenToUserId.get(token);
+
+    if (!userId) {
+      throw new Error("Oturum bulunamadı.");
+    }
+
+    mockDatabase.tokenToUserId.delete(token);
+    const userIndex = mockDatabase.users.findIndex((user) => user.id === userId);
+
+    if (userIndex >= 0) {
+      mockDatabase.users.splice(userIndex, 1);
+    }
+  }
 }

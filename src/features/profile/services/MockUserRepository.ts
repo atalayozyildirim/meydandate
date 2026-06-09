@@ -1,10 +1,16 @@
 // Mock kullanici repository'si profil, onboarding ve guvenlik islemlerini yonetir.
 import type { Report, BlockedUser } from "@/domain/entities/Match";
 import type { User, UserProfileUpdate } from "@/domain/entities/User";
-import type { OnboardingProfile, ReportPayload, UserRepository } from "@/domain/repositories/UserRepository";
+import type {
+  LocationMatchingUpdate,
+  OnboardingProfile,
+  ReportPayload,
+  UserRepository,
+} from "@/domain/repositories/UserRepository";
 import { createId } from "@/shared/utils/id";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { getProfileBoostExpiry, getProfileBoostRank } from "@/shared/utils/profileBoost";
+import { clampMatchRadiusKm, getDistanceKm } from "@/shared/utils/location";
 
 const findUser = (userId: string) => {
   const user = mockDatabase.users.find((candidate) => candidate.id === userId);
@@ -93,7 +99,42 @@ export class MockUserRepository implements UserRepository {
     return updatedUser;
   }
 
+  async setProfileDiscoverability(userId: string, isDiscoverable: boolean): Promise<User> {
+    const currentUser = findUser(userId);
+    const updatedUser = mergeUser(currentUser, { isDiscoverable });
+    const index = mockDatabase.users.findIndex((user) => user.id === userId);
+    mockDatabase.users[index] = updatedUser;
+
+    return updatedUser;
+  }
+
+  async setLocationMatching(userId: string, update: LocationMatchingUpdate): Promise<User> {
+    const currentUser = findUser(userId);
+    const nextUpdate: Partial<User> = {
+      matchByLocation: update.enabled,
+      matchRadiusKm: clampMatchRadiusKm(update.radiusKm),
+    };
+
+    if (
+      typeof update.latitude === "number" &&
+      Number.isFinite(update.latitude) &&
+      typeof update.longitude === "number" &&
+      Number.isFinite(update.longitude)
+    ) {
+      nextUpdate.locationLatitude = update.latitude;
+      nextUpdate.locationLongitude = update.longitude;
+      nextUpdate.locationUpdatedAt = new Date().toISOString();
+    }
+
+    const updatedUser = mergeUser(currentUser, nextUpdate);
+    const index = mockDatabase.users.findIndex((user) => user.id === userId);
+    mockDatabase.users[index] = updatedUser;
+
+    return updatedUser;
+  }
+
   async listDiscoverCandidates(userId: string): Promise<User[]> {
+    const currentUser = findUser(userId);
     const blockedIds = new Set(
       mockDatabase.blockedUsers
         .filter((blockedUser) => blockedUser.blockerId === userId)
@@ -106,16 +147,48 @@ export class MockUserRepository implements UserRepository {
     );
 
     const nowMs = Date.now();
+    const hasLocationMatching =
+      currentUser.matchByLocation === true &&
+      typeof currentUser.locationLatitude === "number" &&
+      typeof currentUser.locationLongitude === "number";
 
     return mockDatabase.users
-      .filter(
-        (user) =>
-          user.id !== userId &&
-          user.hasPassedEntryTest &&
-          user.hasCompletedOnboarding &&
-          !blockedIds.has(user.id) &&
-          !actedUserIds.has(user.id),
-      )
+      .flatMap((user) => {
+        if (
+          user.id === userId ||
+          !user.hasPassedEntryTest ||
+          !user.hasCompletedOnboarding ||
+          !(user.isDiscoverable ?? true) ||
+          user.blockedUsers?.includes(userId) ||
+          user.mutedUsers?.includes(userId) ||
+          blockedIds.has(user.id) ||
+          actedUserIds.has(user.id)
+        ) {
+          return [];
+        }
+
+        if (!hasLocationMatching) {
+          return [user];
+        }
+
+        if (
+          typeof user.locationLatitude !== "number" ||
+          typeof user.locationLongitude !== "number"
+        ) {
+          return [];
+        }
+
+        const distanceKm = getDistanceKm(
+          currentUser.locationLatitude as number,
+          currentUser.locationLongitude as number,
+          user.locationLatitude,
+          user.locationLongitude,
+        );
+
+        return distanceKm <= (currentUser.matchRadiusKm ?? 50)
+          ? [{ ...user, distanceKm }]
+          : [];
+      })
       .sort((first, second) => {
         const boostRank =
           getProfileBoostRank(second.boostedUntil, nowMs) -
@@ -123,6 +196,16 @@ export class MockUserRepository implements UserRepository {
 
         if (boostRank !== 0) {
           return boostRank;
+        }
+
+        if (hasLocationMatching) {
+          const distanceRank =
+            (first.distanceKm ?? Number.POSITIVE_INFINITY) -
+            (second.distanceKm ?? Number.POSITIVE_INFINITY);
+
+          if (distanceRank !== 0) {
+            return distanceRank;
+          }
         }
 
         if (first.isPremium !== second.isPremium) {

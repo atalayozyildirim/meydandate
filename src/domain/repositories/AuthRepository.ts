@@ -37,4 +37,5 @@ export interface AuthRepository {
   restoreSession(token: string, refreshToken?: string): Promise<AuthSession | null>;
   forgotPassword(email: string): Promise<void>;
   logout(token: string): Promise<void>;
+  deleteAccount(token: string): Promise<void>;
 }

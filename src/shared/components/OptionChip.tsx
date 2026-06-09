@@ -6,20 +6,30 @@ interface OptionChipProps {
   label: string;
   selected: boolean;
   onPress: () => void;
+  disabled?: boolean;
 }
 
-export const OptionChip = ({ label, selected, onPress }: OptionChipProps) => {
+export const OptionChip = ({ label, selected, onPress, disabled = false }: OptionChipProps) => {
   const theme = useTheme();
-  const styles = createStyles(theme, selected);
+  const styles = createStyles(theme, selected, disabled);
 
   return (
-    <Pressable accessibilityRole="button" onPress={onPress} style={({ pressed }) => [styles.chip, pressed && styles.pressed]}>
+    <Pressable
+      accessibilityRole="button"
+      disabled={disabled}
+      onPress={onPress}
+      style={({ pressed }) => [styles.chip, pressed && styles.pressed]}
+    >
       <Text style={styles.label}>{label}</Text>
     </Pressable>
   );
 };
 
-const createStyles = (theme: ReturnType<typeof useTheme>, selected: boolean) =>
+const createStyles = (
+  theme: ReturnType<typeof useTheme>,
+  selected: boolean,
+  disabled: boolean,
+) =>
   StyleSheet.create({
     chip: {
       minHeight: 38,
@@ -29,7 +39,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>, selected: boolean) =>
       justifyContent: "center",
       borderWidth: 1,
       borderColor: selected ? theme.colors.primary : theme.colors.border,
-      backgroundColor: selected ? theme.colors.primary : "rgba(255, 255, 255, 0.78)"
+      backgroundColor: selected ? theme.colors.primary : theme.colors.surface,
+      opacity: disabled ? 0.52 : 1
     },
     pressed: {
       opacity: 0.8

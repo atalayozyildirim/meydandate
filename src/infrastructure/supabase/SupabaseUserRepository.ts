@@ -1,17 +1,23 @@
 import type {
   UserRepository,
+  LocationMatchingUpdate,
   OnboardingProfile,
   ReportPayload,
 } from "@/domain/repositories/UserRepository";
 import type { User, UserProfileUpdate } from "@/domain/entities/User";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
-import { getProfileBoostExpiry, getProfileBoostRank } from "@/shared/utils/profileBoost";
+import { getProfileBoostRank } from "@/shared/utils/profileBoost";
+import { clampMatchRadiusKm } from "@/shared/utils/location";
 
 type PrivateProfile = Partial<User> & {
   blockedUsers?: string[];
   mutedUsers?: string[];
 };
+
+const hasStoredLocation = (profile: Partial<User>) =>
+  typeof profile.locationLatitude === "number" &&
+  typeof profile.locationLongitude === "number";
 
 export class SupabaseUserRepository implements UserRepository {
   async getCurrentUser(userId: string): Promise<User> {
@@ -32,6 +38,7 @@ export class SupabaseUserRepository implements UserRepository {
       .from("users")
       .select(publicUserColumns)
       .eq("id", userId)
+      .eq("isDiscoverable", true)
       .eq("hasCompletedOnboarding", true)
       .single();
 
@@ -84,18 +91,49 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   async activatePremiumBoost(userId: string): Promise<User> {
-    const boostedUntil = getProfileBoostExpiry().toISOString();
+    const { data, error } = await supabase
+      .rpc("activate_premium_boost")
+      .maybeSingle();
+    const profile = data as Partial<User> | null;
 
-    const { error } = await supabase
-      .from("users")
-      .update({ boostedUntil })
-      .eq("id", userId);
-
-    if (error) {
+    if (error || !profile || profile.id !== userId) {
       throw new Error("Boost etkinleştirilemedi");
     }
 
-    return this.getCurrentUser(userId);
+    return mapSupabaseUser(profile);
+  }
+
+  async setProfileDiscoverability(userId: string, isDiscoverable: boolean): Promise<User> {
+    const { data, error } = await supabase
+      .rpc("set_profile_discoverability", {
+        next_is_discoverable: isDiscoverable,
+      })
+      .maybeSingle();
+    const profile = data as Partial<User> | null;
+
+    if (error || !profile || profile.id !== userId) {
+      throw new Error("Profil gizlilik tercihi güncellenemedi");
+    }
+
+    return mapSupabaseUser(profile);
+  }
+
+  async setLocationMatching(userId: string, update: LocationMatchingUpdate): Promise<User> {
+    const { data, error } = await supabase
+      .rpc("set_location_matching", {
+        next_match_by_location: update.enabled,
+        next_radius_km: clampMatchRadiusKm(update.radiusKm),
+        next_latitude: update.latitude ?? null,
+        next_longitude: update.longitude ?? null,
+      })
+      .maybeSingle();
+    const profile = data as Partial<User> | null;
+
+    if (error || !profile || profile.id !== userId) {
+      throw new Error("Konum eşleşme tercihi güncellenemedi");
+    }
+
+    return mapSupabaseUser(profile);
   }
 
   async listDiscoverCandidates(userId: string): Promise<User[]> {
@@ -112,15 +150,40 @@ export class SupabaseUserRepository implements UserRepository {
     const blockedUserIds = currentProfile.blockedUsers || [];
     const mutedUserIds = currentProfile.mutedUsers || [];
 
+    if (currentProfile.matchByLocation && hasStoredLocation(currentProfile)) {
+      const { data, error } = await supabase
+        .rpc("list_location_discover_candidates");
+
+      if (error) {
+        throw new Error("Yakındaki adaylar yüklenemedi");
+      }
+
+      return (data || []).map((row) => mapSupabaseUser(row as Partial<User>));
+    }
+
+    const { data: swipes, error: swipesError } = await supabase
+      .from("swipes")
+      .select("targetUserId")
+      .eq("userId", userId);
+
+    if (swipesError) {
+      throw new Error("Adaylar yüklenemedi");
+    }
+
     // Get all users except current user and blocked/muted users
     let query = supabase
       .from("users")
       .select(publicUserColumns)
       .neq("id", userId)
       .eq("hasPassedEntryTest", true)
-      .eq("hasCompletedOnboarding", true);
+      .eq("hasCompletedOnboarding", true)
+      .eq("isActive", true)
+      .eq("isDiscoverable", true);
 
-    const excludedUserIds = Array.from(new Set([...blockedUserIds, ...mutedUserIds]));
+    const actedUserIds = (swipes || [])
+      .map((swipe) => swipe.targetUserId)
+      .filter((targetUserId): targetUserId is string => typeof targetUserId === "string");
+    const excludedUserIds = Array.from(new Set([...blockedUserIds, ...mutedUserIds, ...actedUserIds]));
 
     if (excludedUserIds.length > 0) {
       query = query.not("id", "in", `(${excludedUserIds.join(",")})`);

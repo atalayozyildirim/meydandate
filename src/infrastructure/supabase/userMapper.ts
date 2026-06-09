@@ -1,6 +1,15 @@
 import type { ProfilePhoto, User } from "@/domain/entities/User";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 
+type SupabaseUserRow = Partial<User> & {
+  distance_km?: number | null;
+  locationLatitude?: number | null;
+  locationLongitude?: number | null;
+  locationUpdatedAt?: string | null;
+  matchByLocation?: boolean | null;
+  matchRadiusKm?: number | null;
+};
+
 export const publicUserColumns = [
   "id",
   "name",
@@ -17,12 +26,16 @@ export const publicUserColumns = [
   "photos",
   "badges",
   "isPremium",
+  "isDiscoverable",
   "boostedUntil",
   "hasPassedEntryTest",
   "hasCompletedOnboarding",
   "createdAt",
   "updatedAt",
 ].join(",");
+
+const finiteNumber = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
 
 const normalizePhotos = (photos: unknown): ProfilePhoto[] => {
   if (!Array.isArray(photos)) {
@@ -53,7 +66,7 @@ const normalizePhotos = (photos: unknown): ProfilePhoto[] => {
   });
 };
 
-export const mapSupabaseUser = (row: Partial<User>): User => ({
+export const mapSupabaseUser = (row: SupabaseUserRow): User => ({
   id: row.id ?? "",
   name: sanitizePlainText(row.name, 80),
   email: row.email ?? "",
@@ -71,7 +84,18 @@ export const mapSupabaseUser = (row: Partial<User>): User => ({
   photos: normalizePhotos(row.photos),
   badges: row.badges ?? [],
   isPremium: row.isPremium ?? false,
+  isDiscoverable: row.isDiscoverable ?? true,
+  matchByLocation: row.matchByLocation ?? false,
+  matchRadiusKm: row.matchRadiusKm ?? 50,
+  ...(finiteNumber(row.locationLatitude) !== undefined ? { locationLatitude: finiteNumber(row.locationLatitude) } : {}),
+  ...(finiteNumber(row.locationLongitude) !== undefined ? { locationLongitude: finiteNumber(row.locationLongitude) } : {}),
+  ...(row.locationUpdatedAt ? { locationUpdatedAt: row.locationUpdatedAt } : {}),
+  ...(finiteNumber(row.distanceKm ?? row.distance_km) !== undefined
+    ? { distanceKm: finiteNumber(row.distanceKm ?? row.distance_km) }
+    : {}),
   ...(row.boostedUntil ? { boostedUntil: row.boostedUntil } : {}),
+  ...(row.blockedUsers ? { blockedUsers: row.blockedUsers } : {}),
+  ...(row.mutedUsers ? { mutedUsers: row.mutedUsers } : {}),
   hasPassedEntryTest: row.hasPassedEntryTest ?? false,
   hasCompletedOnboarding: row.hasCompletedOnboarding ?? false,
   createdAt: row.createdAt ?? new Date(0).toISOString(),

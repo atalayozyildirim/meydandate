@@ -243,7 +243,11 @@ export default function DiscoverScreen() {
       ) : (
         <EmptyState
           title="Simdilik yeni profil yok"
-          description="Yeni profiller geldiginde Discover akisi otomatik yenilenecek."
+          description={
+            currentUser?.matchByLocation
+              ? "Yakinda yeni profil yoksa Ayarlar'dan mesafe araligini genisletebilirsin."
+              : "Yeni profiller geldiginde Discover akisi otomatik yenilenecek."
+          }
         />
       )}
 
