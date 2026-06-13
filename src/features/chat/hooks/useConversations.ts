@@ -7,6 +7,7 @@ import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
 
 export const useConversations = () => {
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.currentUser);
 
   const query = useQuery({
@@ -15,9 +16,19 @@ export const useConversations = () => {
     queryFn: () => container.chatRepository.listConversations(currentUser?.id ?? "")
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (conversationId: string) =>
+      container.chatRepository.deleteConversation(conversationId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: [queryKeys.conversations, currentUser?.id] });
+    },
+  });
+
   return {
     conversations: query.data ?? [],
-    isLoading: query.isLoading
+    isLoading: query.isLoading,
+    deleteConversation: deleteMutation.mutateAsync,
+    isDeleting: deleteMutation.isPending,
   };
 };
 

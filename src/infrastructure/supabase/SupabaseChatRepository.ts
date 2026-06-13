@@ -162,4 +162,15 @@ export class SupabaseChatRepository implements ChatRepository {
       }
     });
   }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", conversationId);
+
+    if (error) {
+      throw new Error("Sohbet silinemedi.");
+    }
+  }
 }

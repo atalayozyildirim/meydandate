@@ -1,5 +1,6 @@
 // Profil fotografi secimini Expo ImagePicker uzerinden soyutlar.
 import { useState } from "react";
+import { Alert } from "react-native";
 import * as ImagePicker from "expo-image-picker";
 
 interface PickImageOptions {
@@ -19,6 +20,10 @@ export const useImagePicker = () => {
       const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
 
       if (!permission.granted) {
+        Alert.alert(
+          "Galeri İzni Gerekli",
+          "Fotoğraf seçebilmek için uygulamanın galeriye erişim izni olmalıdır. Lütfen cihaz ayarlarından bu izni verin."
+        );
         return null;
       }
 
@@ -35,6 +40,12 @@ export const useImagePicker = () => {
       }
 
       return result.assets[0] ?? null;
+    } catch (error) {
+      Alert.alert(
+        "Galeri Açma Hatası",
+        error instanceof Error ? error.message : "Fotoğraf kütüphanesi açılamadı."
+      );
+      return null;
     } finally {
       setIsPicking(false);
     }

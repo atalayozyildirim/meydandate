@@ -275,8 +275,26 @@ export class MockFeedRepository implements FeedRepository {
 
   async createPost(payload: CreateFeedPostPayload): Promise<FeedPost> {
     const timestamp = new Date().toISOString();
+    const postId = createId("feed_post");
+
+    const poll = payload.poll
+      ? {
+          id: createId("feed_poll"),
+          postId,
+          question: payload.poll.question,
+          options: payload.poll.options.map((opt: string) => ({
+            id: createId("feed_poll_option"),
+            text: opt,
+            voteCount: 0,
+          })),
+          totalVotes: 0,
+          votedOptionId: null,
+          endsAt: null,
+        }
+      : null;
+
     const post: FeedPost = {
-      id: createId("feed_post"),
+      id: postId,
       authorId: payload.authorId,
       author: getUser(payload.authorId),
       body: sanitizePlainText(payload.body, 2000),
@@ -285,6 +303,7 @@ export class MockFeedRepository implements FeedRepository {
       likedByUserIds: [],
       comments: [],
       reportCount: 0,
+      poll,
       createdAt: timestamp,
       updatedAt: timestamp,
     };
@@ -372,10 +391,26 @@ export class MockFeedRepository implements FeedRepository {
   }
 
   async votePoll(
-    _pollId: string,
-    _optionId: string,
+    pollId: string,
+    optionId: string,
     _userId: string,
   ): Promise<void> {
-    // Mock: anket oyu uygulamada kalıcı değil
+    const post = feedPosts.find((p) => p.poll?.id === pollId);
+    if (!post || !post.poll) return;
+
+    const poll = post.poll;
+    if (poll.votedOptionId) {
+      const oldOption = poll.options.find((o) => o.id === poll.votedOptionId);
+      if (oldOption) oldOption.voteCount = Math.max(0, oldOption.voteCount - 1);
+      poll.totalVotes = Math.max(0, poll.totalVotes - 1);
+    }
+
+    const option = poll.options.find((o) => o.id === optionId);
+    if (option) {
+      option.voteCount += 1;
+      poll.totalVotes += 1;
+      poll.votedOptionId = optionId;
+    }
+    post.updatedAt = new Date().toISOString();
   }
 }

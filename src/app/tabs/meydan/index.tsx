@@ -393,7 +393,6 @@ export default function MeydanRoomScreen() {
               >
                 {/* Avatar — flex row reverse ile sag/sol otomatik */}
                 <Pressable
-                  disabled={message.isCurrentUser}
                   onPress={() =>
                     router.push({
                       pathname: "/tabs/profile/[userId]",
@@ -426,7 +425,15 @@ export default function MeydanRoomScreen() {
                     ]}
                   >
                     {!message.isCurrentUser ? (
-                      <View style={styles.chatMessageMeta}>
+                      <Pressable
+                        onPress={() =>
+                          router.push({
+                            pathname: "/tabs/profile/[userId]",
+                            params: { userId: message.senderId },
+                          })
+                        }
+                        style={styles.chatMessageMeta}
+                      >
                         <Text style={styles.chatSender} numberOfLines={1}>
                           {message.senderName}
                         </Text>
@@ -437,7 +444,7 @@ export default function MeydanRoomScreen() {
                             color={theme.colors.primary}
                           />
                         ) : null}
-                      </View>
+                      </Pressable>
                     ) : null}
                     <Text style={styles.chatBody}>{message.body}</Text>
                   </View>
@@ -504,12 +511,10 @@ export default function MeydanRoomScreen() {
                 pressed && styles.participantPressed,
               ]}
               onPress={() => {
-                if (!participant.isCurrentUser) {
-                  router.push({
-                    pathname: "/tabs/profile/[userId]",
-                    params: { userId: participant.id },
-                  });
-                }
+                router.push({
+                  pathname: "/tabs/profile/[userId]",
+                  params: { userId: participant.id },
+                });
               }}
             >
               <View style={styles.participantAvatarWrap}>

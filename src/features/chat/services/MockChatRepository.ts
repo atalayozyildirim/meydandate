@@ -101,4 +101,11 @@ export class MockChatRepository implements ChatRepository {
       updatedAt: new Date().toISOString()
     };
   }
+
+  async deleteConversation(conversationId: string): Promise<void> {
+    const idx = mockDatabase.conversations.findIndex((c) => c.id === conversationId);
+    if (idx !== -1) {
+      mockDatabase.conversations.splice(idx, 1);
+    }
+  }
 }

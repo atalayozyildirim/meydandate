@@ -1,5 +1,8 @@
 // Sohbet listesini conversation kartlariyla gosterir.
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useRef } from "react";
+import { Alert, Animated, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import Swipeable from "react-native-gesture-handler/Swipeable";
+import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
@@ -16,7 +19,8 @@ export default function ChatListScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const currentUser = useAuthStore((state) => state.currentUser);
-  const { conversations, isLoading } = useConversations();
+  const { conversations, isLoading, deleteConversation } = useConversations();
+  const swipeableRefs = useRef<Record<string, Swipeable>>({});
 
   if (isLoading) {
     return <Loading label="Sohbetler yukleniyor" />;
@@ -25,6 +29,40 @@ export default function ChatListScreen() {
   const activeConversationCount = conversations.filter(
     (conversation) => conversation.messages.length > 0,
   ).length;
+
+  const handleDelete = (conversationId: string) => {
+    Alert.alert(
+      "Sohbeti Sil",
+      "Bu sohbeti ve tüm mesajları silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
+      [
+        {
+          text: "Vazgeç",
+          style: "cancel",
+          onPress: () => {
+            swipeableRefs.current[conversationId]?.close();
+          },
+        },
+        {
+          text: "Sil",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await deleteConversation(conversationId);
+            } catch (error) {
+              Alert.alert("Hata", "Sohbet silinemedi.");
+              swipeableRefs.current[conversationId]?.close();
+            }
+          },
+        },
+      ],
+      {
+        cancelable: true,
+        onDismiss: () => {
+          swipeableRefs.current[conversationId]?.close();
+        },
+      }
+    );
+  };
 
   return (
     <Screen>
@@ -76,63 +114,81 @@ export default function ChatListScreen() {
               lastMessage?.body ?? "Henüz mesaj yok. Ilk mesaj senden gelsin.";
 
             return (
-              <Pressable
+              <Swipeable
                 key={conversation.id}
-                onPress={() =>
-                  router.push({
-                    pathname: "/tabs/chat/[conversationId]",
-                    params: { conversationId: conversation.id },
-                  })
-                }
-                style={({ pressed }) => [pressed && styles.pressed]}
-              >
-                <Card style={styles.conversationCard}>
+                ref={(ref) => {
+                  if (ref) {
+                    swipeableRefs.current[conversation.id] = ref;
+                  }
+                }}
+                renderLeftActions={() => (
                   <Pressable
-                    onPress={(e) => {
-                      e.stopPropagation();
-                      router.push({
-                        pathname: "/tabs/profile/[userId]",
-                        params: { userId: partner.id },
-                      });
-                    }}
-                    style={({ pressed }) => [pressed && styles.pressed]}
+                    onPress={() => handleDelete(conversation.id)}
+                    style={styles.deleteAction}
                   >
-                    <View style={styles.avatarWrap}>
-                      <Avatar
-                        name={partner.name}
-                        uri={partner.photos[0]?.uri}
-                        size={58}
-                      />
-                      {conversation.typingState?.isTyping ? (
-                        <View style={styles.onlineDot} />
-                      ) : null}
-                    </View>
+                    <Ionicons name="trash-outline" size={22} color="#FFF" />
+                    <Text style={styles.deleteActionText}>Sil</Text>
                   </Pressable>
-                  <View style={styles.body}>
-                    <View style={styles.row}>
-                      <Text numberOfLines={1} style={styles.name}>
-                        {partner.name}
-                      </Text>
-                      <Text style={styles.time}>
-                        {formatDateTime(conversation.updatedAt)}
-                      </Text>
-                    </View>
-                    <Text numberOfLines={2} style={styles.preview}>
-                      {preview}
-                    </Text>
-                    <View style={styles.metaRow}>
-                      <View style={styles.pill}>
-                        <Text style={styles.pillText}>
-                          {lastMessage ? "Son mesaj var" : "Yeni eslesme"}
+                )}
+                onSwipeableLeftOpen={() => handleDelete(conversation.id)}
+              >
+                <Pressable
+                  onPress={() =>
+                    router.push({
+                      pathname: "/tabs/chat/[conversationId]",
+                      params: { conversationId: conversation.id },
+                    })
+                  }
+                  style={({ pressed }) => [pressed && styles.pressed]}
+                >
+                  <Card style={styles.conversationCard}>
+                    <Pressable
+                      onPress={(e) => {
+                        e.stopPropagation();
+                        router.push({
+                          pathname: "/tabs/profile/[userId]",
+                          params: { userId: partner.id },
+                        });
+                      }}
+                      style={({ pressed }) => [pressed && styles.pressed]}
+                    >
+                      <View style={styles.avatarWrap}>
+                        <Avatar
+                          name={partner.name}
+                          uri={partner.photos[0]?.uri}
+                          size={58}
+                        />
+                        {conversation.typingState?.isTyping ? (
+                          <View style={styles.onlineDot} />
+                        ) : null}
+                      </View>
+                    </Pressable>
+                    <View style={styles.body}>
+                      <View style={styles.row}>
+                        <Text numberOfLines={1} style={styles.name}>
+                          {partner.name}
+                        </Text>
+                        <Text style={styles.time}>
+                          {formatDateTime(conversation.updatedAt)}
                         </Text>
                       </View>
-                      {conversation.typingState?.isTyping ? (
-                        <Text style={styles.typing}>Yaziyor...</Text>
-                      ) : null}
+                      <Text numberOfLines={2} style={styles.preview}>
+                        {preview}
+                      </Text>
+                      <View style={styles.metaRow}>
+                        <View style={styles.pill}>
+                          <Text style={styles.pillText}>
+                            {lastMessage ? "Son mesaj var" : "Yeni eslesme"}
+                          </Text>
+                        </View>
+                        {conversation.typingState?.isTyping ? (
+                          <Text style={styles.typing}>Yaziyor...</Text>
+                        ) : null}
+                      </View>
                     </View>
-                  </View>
-                </Card>
-              </Pressable>
+                  </Card>
+                </Pressable>
+              </Swipeable>
             );
           })}
         </ScrollView>
@@ -289,5 +345,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     typing: {
       ...theme.typography.caption,
       color: theme.colors.primary,
+    },
+    deleteAction: {
+      backgroundColor: theme.colors.danger,
+      justifyContent: "center",
+      alignItems: "center",
+      width: 76,
+      height: "100%",
+      borderRadius: theme.radius.lg,
+      flexDirection: "column",
+      gap: 4,
+    },
+    deleteActionText: {
+      color: "#FFFFFF",
+      fontSize: 12,
+      fontWeight: "600",
     },
   });

@@ -12,4 +12,5 @@ export interface ChatRepository {
   getConversation(conversationId: string): Promise<Conversation>;
   sendMessage(payload: SendMessagePayload): Promise<Message>;
   setTyping(conversationId: string, userId: string, isTyping: boolean): Promise<void>;
+  deleteConversation(conversationId: string): Promise<void>;
 }

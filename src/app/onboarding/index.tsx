@@ -167,7 +167,7 @@ export default function OnboardingScreen() {
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
       name: currentUser?.name ?? "",
-      age: currentUser?.age ?? 18,
+      age: currentUser?.age ?? 0,
       city: currentUser?.city ?? "",
       occupation: currentUser?.occupation ?? "",
       bio: currentUser?.bio ?? "",

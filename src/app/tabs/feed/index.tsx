@@ -60,7 +60,6 @@ export default function FeedScreen() {
   const [gifResults, setGifResults] = useState<Array<{ id: string; url: string; preview?: string }>>([]);
   const [isSearchingGifs, setIsSearchingGifs] = useState(false);
   const gifSearch = useGifSearch();
-  const [showComposerMenu, setShowComposerMenu] = useState(false);
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
@@ -358,29 +357,34 @@ export default function FeedScreen() {
             <View style={styles.composerActions}>
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="Ekle"
-                onPress={() => setShowComposerMenu((v) => !v)}
+                accessibilityLabel="Fotoğraf ekle"
+                disabled={imagePicker.isPicking || isCreatingPost}
+                onPress={() => void selectPostImage()}
                 style={({ pressed }) => [
                   styles.photoButton,
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons name="add" size={20} color={theme.colors.primary} />
+                <Ionicons name="image-outline" size={19} color={theme.colors.primary} />
               </Pressable>
 
-              {showComposerMenu ? (
-                <View style={{ flexDirection: 'row', gap: 8, marginLeft: 8 }}>
-                  <Pressable accessibilityRole="button" disabled={imagePicker.isPicking || isCreatingPost} onPress={() => { setShowComposerMenu(false); void selectPostImage(); }} style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}>
-                    <Ionicons name="image-outline" size={18} color={theme.colors.primary} />
-                  </Pressable>
-                  <Pressable accessibilityRole="button" disabled={isCreatingPost} onPress={() => { setShowComposerMenu(false); setShowGifPicker(true); }} style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}>
-                    <Ionicons name="images" size={18} color={theme.colors.primary} />
-                  </Pressable>
-                  <Pressable accessibilityRole="button" disabled={isCreatingPost} onPress={() => { setShowComposerMenu(false); setShowPollComposer(true); }} style={({ pressed }) => [styles.photoButton, pressed && styles.pressed]}>
-                    <Ionicons name="list" size={18} color={theme.colors.primary} />
-                  </Pressable>
-                </View>
-              ) : null}
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Anket ekle"
+                disabled={isCreatingPost}
+                onPress={() => setShowPollComposer((v) => !v)}
+                style={({ pressed }) => [
+                  styles.photoButton,
+                  showPollComposer && styles.photoButtonActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="bar-chart-outline"
+                  size={19}
+                  color={showPollComposer ? "#FFFFFF" : theme.colors.primary}
+                />
+              </Pressable>
               <ScrollView
                 horizontal
                 showsHorizontalScrollIndicator={false}
@@ -436,48 +440,56 @@ export default function FeedScreen() {
           </View>
         </View>
       </View>
-      {showGifPicker ? (
-        <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }}>
+      {showPollComposer ? (
+        <View style={styles.pollComposerBox}>
+          <View style={styles.pollComposerHeader}>
+            <Ionicons name="bar-chart-outline" size={16} color={theme.colors.primary} />
+            <Text style={styles.pollComposerTitle}>Anket Oluştur</Text>
+            <Pressable
+              onPress={() => { setShowPollComposer(false); setPollQuestion(""); setPollOptions(["", ""]); }}
+              style={styles.pollComposerClose}
+            >
+              <Ionicons name="close" size={18} color={theme.colors.muted} />
+            </Pressable>
+          </View>
           <TextInput
-            value={gifQuery}
-            onChangeText={setGifQuery}
-            placeholder="GIF ara"
+            value={pollQuestion}
+            onChangeText={setPollQuestion}
+            placeholder="Anket sorusunu yaz..."
             placeholderTextColor={theme.colors.muted}
-            style={[styles.input, { minHeight: 42 }]}
-            onSubmitEditing={async () => {
-              setIsSearchingGifs(true);
-              const results = await gifSearch.search(gifQuery || "funny");
-              setGifResults(results);
-              setIsSearchingGifs(false);
-            }}
+            style={styles.pollInput}
           />
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8, alignItems: 'center' }}>
-            <Pressable onPress={async () => {
-              setIsSearchingGifs(true);
-              const results = await gifSearch.search(gifQuery || "funny");
-              setGifResults(results);
-              setIsSearchingGifs(false);
-            }} style={styles.shareButton}>
-              <Text style={styles.shareButtonText}>Ara</Text>
+          {pollOptions.map((opt, idx) => (
+            <View key={idx} style={styles.pollOptionRow}>
+              <View style={styles.pollOptionNumber}>
+                <Text style={styles.pollOptionNumberText}>{idx + 1}</Text>
+              </View>
+              <TextInput
+                value={opt}
+                onChangeText={(v) => setPollOptions((cur) => cur.map((c, i) => i === idx ? v : c))}
+                placeholder={`Seçenek ${idx + 1}`}
+                placeholderTextColor={theme.colors.muted}
+                style={styles.pollOptionInput}
+              />
+              {pollOptions.length > 2 ? (
+                <Pressable
+                  onPress={() => setPollOptions((cur) => cur.filter((_, i) => i !== idx))}
+                  style={styles.pollRemoveButton}
+                >
+                  <Ionicons name="close-circle" size={20} color={theme.colors.muted} />
+                </Pressable>
+              ) : null}
+            </View>
+          ))}
+          {pollOptions.length < 5 ? (
+            <Pressable
+              onPress={() => setPollOptions((cur) => [...cur, ""])}
+              style={styles.pollAddOptionButton}
+            >
+              <Ionicons name="add-circle-outline" size={16} color={theme.colors.primary} />
+              <Text style={styles.pollAddOptionText}>Seçenek Ekle</Text>
             </Pressable>
-            <Pressable onPress={() => setShowGifPicker(false)} style={[styles.botGhostButton, { marginLeft: 8 }] }>
-              <Text style={styles.botGhostButtonText}>Kapat</Text>
-            </Pressable>
-          </View>
-
-          <View style={{ marginTop: 12 }}>
-            {isSearchingGifs ? (
-              <ActivityIndicator color={theme.colors.primary} />
-            ) : (
-              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-                {gifResults.map((g) => (
-                  <Pressable key={g.id} onPress={async () => { try { setIsSearchingGifs(true); const resp = await supabase.functions.invoke('store-gif', { body: { url: g.url } }); const data = typeof resp === 'object' ? (resp as any).data ?? (resp as any) : null; const publicUrl = data?.publicUrl ?? data?.publicUrl; setSelectedImage({ uri: publicUrl ?? g.url }); } catch (e) { setSelectedImage({ uri: g.url }); } finally { setIsSearchingGifs(false); setShowGifPicker(false); } }} style={{ marginRight: 8 }}>
-                    <Image source={{ uri: g.preview ?? g.url }} style={{ width: 120, height: 120, borderRadius: 8 }} />
-                  </Pressable>
-                ))}
-              </ScrollView>
-            )}
-          </View>
+          ) : null}
         </View>
       ) : null}
       {isAdmin ? (
@@ -578,21 +590,6 @@ export default function FeedScreen() {
               )}
             </Pressable>
           </View>
-{showPollComposer ? (
-  <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }}>
-    <TextInput value={pollQuestion} onChangeText={setPollQuestion} placeholder="Anket sorusu" placeholderTextColor={theme.colors.muted} style={[styles.input, { minHeight: 46 }]} />
-    {pollOptions.map((opt, idx) => (
-      <View key={idx} style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-        <TextInput value={opt} onChangeText={(v) => setPollOptions((cur) => cur.map((c, i) => i === idx ? v : c))} placeholder={`Seçenek ${idx + 1}`} placeholderTextColor={theme.colors.muted} style={[styles.input, { flex: 1, minHeight: 40 }]} />
-        <Pressable onPress={() => setPollOptions((cur) => cur.filter((_, i) => i !== idx))} style={styles.botIconButton}><Ionicons name="trash-outline" size={18} color={theme.colors.danger} /></Pressable>
-      </View>
-    ))}
-    <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-      <Pressable onPress={() => setPollOptions((cur) => [...cur, ""]) } style={styles.shareButton}><Text style={styles.shareButtonText}>Seçenek Ekle</Text></Pressable>
-      <Pressable onPress={() => { setShowPollComposer(false); setPollQuestion(""); setPollOptions(["", ""]); }} style={[styles.botGhostButton, { marginLeft: 8 }]}><Text style={styles.botGhostButtonText}>İptal</Text></Pressable>
-    </View>
-  </View>
-) : null}
           {botPosts.length > 0 ? (
             <View style={styles.botList}>
               {botPosts.slice(0, 3).map((post) => (
@@ -873,9 +870,98 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       backgroundColor: theme.colors.elevated,
     },
+    photoButtonActive: {
+      backgroundColor: theme.colors.primary,
+    },
     tagScroller: {
       flex: 1,
     },
+    pollComposerBox: {
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: "rgba(17, 24, 39, 0.08)",
+      backgroundColor: theme.isDark ? "#161B26" : "#FFF8FB",
+    },
+    pollComposerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    pollComposerTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      flex: 1,
+      fontSize: 14,
+    },
+    pollComposerClose: {
+      width: 32,
+      height: 32,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pollInput: {
+      minHeight: 46,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      ...theme.typography.body,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surface,
+    },
+    pollOptionRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    pollOptionNumber: {
+      width: 26,
+      height: 26,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(233, 64, 87, 0.10)",
+    },
+    pollOptionNumberText: {
+      fontSize: 12,
+      fontWeight: "700",
+      color: theme.colors.primary,
+    },
+    pollOptionInput: {
+      flex: 1,
+      minHeight: 42,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.xs,
+      ...theme.typography.body,
+      fontSize: 14,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.surface,
+    },
+    pollRemoveButton: {
+      width: 30,
+      height: 30,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    pollAddOptionButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingVertical: theme.spacing.xs,
+    },
+    pollAddOptionText: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+    },
+
     tagWrap: {
       flexDirection: "row",
       gap: theme.spacing.xs,

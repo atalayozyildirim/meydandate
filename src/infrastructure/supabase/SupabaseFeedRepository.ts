@@ -207,7 +207,7 @@ type PostRow = {
   author: User;
   likes?: LikeRow[];
   comments?: CommentRow[];
-  poll?: PollRow | null;
+  poll?: PollRow | PollRow[] | null;
 };
 
 type BotPostRow = {
@@ -249,29 +249,31 @@ const mapComment = (row: CommentRow): FeedComment => ({
 });
 
 const mapPoll = (
-  rawPoll: PollRow | null | undefined,
+  rawPoll: PollRow | PollRow[] | null | undefined,
   currentUserId: string,
 ): FeedPoll | null => {
   if (!rawPoll) return null;
-  const options = (rawPoll.options ?? [])
+  const poll = Array.isArray(rawPoll) ? rawPoll[0] : rawPoll;
+  if (!poll) return null;
+  const options = (poll.options ?? [])
     .sort((a, b) => a.display_order - b.display_order)
     .map((opt) => ({
       id: opt.id,
       text: opt.text,
-      voteCount: (rawPoll.votes ?? []).filter((v) => v.option_id === opt.id)
+      voteCount: (poll.votes ?? []).filter((v) => v.option_id === opt.id)
         .length,
     }));
-  const userVote = (rawPoll.votes ?? []).find(
+  const userVote = (poll.votes ?? []).find(
     (v) => v.user_id === currentUserId,
   );
   return {
-    id: rawPoll.id,
-    postId: rawPoll.post_id,
-    question: rawPoll.question,
+    id: poll.id,
+    postId: poll.post_id,
+    question: poll.question,
     options,
-    totalVotes: (rawPoll.votes ?? []).length,
+    totalVotes: (poll.votes ?? []).length,
     votedOptionId: userVote?.option_id ?? null,
-    endsAt: rawPoll.ends_at ?? null,
+    endsAt: poll.ends_at ?? null,
   };
 };
 

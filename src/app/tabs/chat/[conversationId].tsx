@@ -26,11 +26,16 @@ import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 
 const HEART_MESSAGE = "❤️";
+// eslint-disable-next-line global-require
+const LottieView = require("lottie-react-native").default;
+// eslint-disable-next-line global-require
+const loveJson = require("../../../../assets/lottie/love.json");
 
 interface FloatingHeart {
   id: string;
   animated: Animated.Value;
-  isOwn: boolean;
+  xOffset: number;  // rastgele yatay konum (sag alt)
+  drift: number;    // yukari cikis sirasindaki yatay sapma
 }
 
 export default function ConversationScreen() {
@@ -48,15 +53,19 @@ export default function ConversationScreen() {
   const { conversation, currentUser, isLoading, sendMessage, isSending } =
     useConversation(conversationId);
 
-  // spawnHeart'i hook bagimliliklari icin once tanimliyoruz (useEffect'te kullaniliyor)
-  const spawnHeart = useCallback((isOwn: boolean) => {
+  // spawnHeart - X canli yayin efekti: alt sagdan yukari yukseliyor
+  const spawnHeart = useCallback((_isOwn: boolean) => {
     const id = `heart-${Date.now()}-${Math.random()}`;
     const animated = new Animated.Value(0);
-    setFloatingHearts((current) => [...current, { id, animated, isOwn }]);
+    // Sagda biraz rastgele konum: 8px - 80px sag kenardan
+    const xOffset = Math.floor(Math.random() * 72) + 8;
+    // Yukari cikista hafif sola/saga sapma: -20 ile +20
+    const drift = Math.floor(Math.random() * 40) - 20;
+    setFloatingHearts((current) => [...current, { id, animated, xOffset, drift }]);
 
     Animated.timing(animated, {
       toValue: 1,
-      duration: 1200,
+      duration: 2200,
       easing: Easing.out(Easing.cubic),
       useNativeDriver: true,
     }).start(() => {
@@ -279,65 +288,46 @@ export default function ConversationScreen() {
         ) : null}
         <View pointerEvents="none" style={styles.heartLayer}>
           {floatingHearts.map((heart) => {
+            // Giris: hizlica buyur, cikis: yukari ciktikca kucul ve kaybol
             const opacity = heart.animated.interpolate({
-              inputRange: [0, 0.85, 1],
-              outputRange: [0, 1, 0],
+              inputRange: [0, 0.08, 0.75, 1],
+              outputRange: [0, 1, 1, 0],
             });
 
+            // Yukari yukselme - X canli yayin gibi yuksek mesafe
             const translateY = heart.animated.interpolate({
               inputRange: [0, 1],
-              outputRange: [0, -150],
+              outputRange: [0, -340],
             });
 
+            // Hafif yatay sapma (sola veya saga)
+            const translateX = heart.animated.interpolate({
+              inputRange: [0, 0.5, 1],
+              outputRange: [0, heart.drift * 0.5, heart.drift],
+            });
+
+            // Girise bur buyur, yukselirken kucul
             const scale = heart.animated.interpolate({
-              inputRange: [0, 0.25, 1],
-              outputRange: [0.75, 1.18, 1],
+              inputRange: [0, 0.12, 0.4, 1],
+              outputRange: [0.3, 1.25, 1.05, 0.7],
             });
-
-            // Try to render Lottie if available and local love.json exists; fall back to text heart
-            let LottieView: any = null;
-            let loveJson: any = null;
-
-            try {
-              // eslint-disable-next-line global-require
-              LottieView = require("lottie-react-native").default;
-            } catch (e) {
-              LottieView = null;
-            }
-
-            try {
-              // eslint-disable-next-line global-require
-              loveJson = require("../../../../indirilenler/love.json");
-            } catch (e) {
-              loveJson = null;
-            }
-
-            if (LottieView && loveJson) {
-              return (
-                <Animated.View
-                  key={heart.id}
-                  style={[
-                    styles.lottieWrapper,
-                    { opacity, transform: [{ translateY }, { scale }] },
-                  ]}
-                >
-                  {/* Render local Lottie animation once */}
-                  <LottieView source={loveJson} autoPlay loop={false} style={styles.lottie} />
-                </Animated.View>
-              );
-            }
 
             return (
-              <Animated.Text
+              <Animated.View
                 key={heart.id}
                 style={[
-                  styles.floatingHeart,
-                  heart.isOwn ? styles.floatingHeartOwn : styles.floatingHeartOther,
-                  { opacity, transform: [{ translateY }, { scale }] },
+                  styles.lottieWrapper,
+                  { right: heart.xOffset },
+                  { opacity, transform: [{ translateY }, { translateX }, { scale }] },
                 ]}
               >
-                {HEART_MESSAGE}
-              </Animated.Text>
+                <LottieView
+                  source={loveJson}
+                  autoPlay
+                  loop={false}
+                  style={styles.lottie}
+                />
+              </Animated.View>
             );
           })}
         </View>
@@ -461,34 +451,18 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     heartLayer: {
       ...StyleSheet.absoluteFillObject,
-      justifyContent: "flex-end",
-      paddingBottom: 82,
-    },
-    floatingHeart: {
-      position: "absolute",
-      bottom: 74,
-      fontSize: 42,
-      lineHeight: 50,
-      textShadowColor: theme.colors.shadow,
-      textShadowOffset: { width: 0, height: 8 },
-      textShadowRadius: 14,
-    },
-    floatingHeartOwn: {
-      right: 62,
-    },
-    floatingHeartOther: {
-      left: 46,
+      // Kullanici etkilesimini engelleme - sadece gorsel katman
+      pointerEvents: "none",
     },
     lottieWrapper: {
       position: "absolute",
-      bottom: 48,
-      alignItems: "center",
-      justifyContent: "center",
-      width: 140,
-      height: 140,
+      // composer'in uzerinde, ekranin sag alt kosesinde spawn olur
+      bottom: 90,
+      width: 100,
+      height: 100,
     },
     lottie: {
-      width: 140,
-      height: 140,
+      width: 100,
+      height: 100,
     },
   });

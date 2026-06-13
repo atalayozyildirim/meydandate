@@ -79,7 +79,7 @@ export default function ProfileScreen() {
 
       <Card style={styles.premiumCard}>
         <View style={styles.premiumIcon}>
-          <Ionicons name="star-outline" size={22} color="#FFFFFF" />
+          <Ionicons name="flame-outline" size={22} color="#FFFFFF" />
         </View>
         <View style={styles.storeText}>
           <Text style={styles.sectionTitle}>Ehlibyte Premium</Text>
