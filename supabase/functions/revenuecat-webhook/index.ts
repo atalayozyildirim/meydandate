@@ -38,7 +38,8 @@ type Badge =
   | "premium_member"
   | "muharrem_follower"
   | "cem_room_supporter"
-  | "culture_guardian";
+  | "culture_guardian"
+  | "zulfiqar_sword";
 
 const premiumEntitlementId =
   Deno.env.get("REVENUECAT_ENTITLEMENT_ID")?.trim() || "premium";
@@ -57,6 +58,7 @@ const badgeProductById: Record<string, Badge> = {
   "ehlibyte.badge.muharrem_follower": "muharrem_follower",
   "ehlibyte.badge.cem_room_supporter": "cem_room_supporter",
   "ehlibyte.badge.culture_guardian": "culture_guardian",
+  "ehlibyte.badge.zulfiqar_sword": "zulfiqar_sword",
 };
 
 const userIdPattern =

@@ -125,8 +125,7 @@ select name, occupation, bio
 from public.users
 where email in (
   'ece.rehber@ehlibyte.app',
-  'selin.rehber@ehlibyte.app',
-  'murat.rehber@ehlibyte.app'
+
 );
 ```
 

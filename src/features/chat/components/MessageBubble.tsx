@@ -11,7 +11,8 @@ interface MessageBubbleProps {
 
 export const MessageBubble = ({ message, isOwn }: MessageBubbleProps) => {
   const theme = useTheme();
-  const isHeart = message.body.trim() === "❤️";
+  const trimmed = message.body.trim();
+  const isHeart = trimmed === "❤️";
   const styles = createStyles(theme, isOwn, isHeart);
 
   return (

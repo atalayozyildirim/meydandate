@@ -6,6 +6,7 @@
     "sdkVersion": "49.0.0",
     "platforms": ["ios", "android"],
     "scheme": "ehlibyte",
+    "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "icon": "./assets/icon.png",
     "splash": {
@@ -37,15 +38,11 @@
     ],
     "ios": {
       "bundleIdentifier": "com.ehlibyte.app",
-      "scheme": [
-        "com.ehlibyte.app",
-        "com.googleusercontent.apps.88965241358-06fo7k0brkki4mubo35vsvv2asjgs1op"
-      ],
       "googleServicesFile": "./ios/Ehlibyte/GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Profil fotografi seçmek icin fotoğraf kütüphanesine erişim gerekiyor.",
-        "NSCameraUsageDescription": "Profil fotografi çekmek için kamera erişimine izin verin.",
+        "NSPhotoLibraryUsageDescription": "Profil ve post fotoğrafı seçmek için fotoğraf kütüphanesine erişim gerekiyor.",
+        "NSCameraUsageDescription": "Profil ve post fotoğrafı çekmek için kamera erişimine izin verin.",
         "NSLocationWhenInUseUsageDescription": "Yakındaki eşleşmeleri göstermek için konumuna erişmek istiyoruz."
       },
       "entitlements": {
@@ -54,10 +51,7 @@
     },
     "android": {
       "package": "com.ehlibyte.app",
-      "permissions": [
-        "READ_EXTERNAL_STORAGE",
-        "WRITE_EXTERNAL_STORAGE"
-      ],
+      "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FF4458"

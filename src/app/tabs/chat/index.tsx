@@ -1,5 +1,5 @@
 // Sohbet listesini conversation kartlariyla gosterir.
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
@@ -22,19 +22,58 @@ export default function ChatListScreen() {
     return <Loading label="Sohbetler yukleniyor" />;
   }
 
+  const activeConversationCount = conversations.filter(
+    (conversation) => conversation.messages.length > 0,
+  ).length;
+
   return (
     <Screen>
       <View style={styles.header}>
-        <Text style={styles.kicker}>Chat</Text>
-        <Text style={styles.title}>Sohbetler</Text>
+        <View>
+          <Text style={styles.kicker}>Mesajlar</Text>
+          <Text style={styles.title}>Sohbetlerin</Text>
+          <Text style={styles.subtitle}>
+            Eslesmelerinle tum konusmalarina tek yerden ulas.
+          </Text>
+        </View>
+        <View style={styles.summaryBadge}>
+          <Text style={styles.summaryValue}>{conversations.length}</Text>
+          <Text style={styles.summaryLabel}>Toplam</Text>
+        </View>
       </View>
+
+      <View style={styles.heroCard}>
+        <View style={styles.heroStat}>
+          <Text style={styles.heroValue}>{activeConversationCount}</Text>
+          <Text style={styles.heroLabel}>Aktif sohbet</Text>
+        </View>
+        <View style={styles.heroDivider} />
+        <View style={styles.heroStat}>
+          <Text style={styles.heroValue}>
+            {Math.max(conversations.length - activeConversationCount, 0)}
+          </Text>
+          <Text style={styles.heroLabel}>Yeni eslesme</Text>
+        </View>
+      </View>
+
       {conversations.length === 0 ? (
-        <EmptyState title="Sohbet yok" description="Bir match sonrasi mesajlasma burada baslayacak." />
+        <EmptyState
+          title="Sohbet yok"
+          description="Bir match sonrası mesajlaşma burada başlayacak."
+        />
       ) : (
-        <View style={styles.list}>
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.list}
+        >
           {conversations.map((conversation) => {
-            const partner = conversation.participants.find((user) => user.id !== currentUser?.id) ?? conversation.participants[1];
+            const partner =
+              conversation.participants.find(
+                (user) => user.id !== currentUser?.id,
+              ) ?? conversation.participants[1];
             const lastMessage = conversation.messages.at(-1);
+            const preview =
+              lastMessage?.body ?? "Henüz mesaj yok. Ilk mesaj senden gelsin.";
 
             return (
               <Pressable
@@ -42,25 +81,61 @@ export default function ChatListScreen() {
                 onPress={() =>
                   router.push({
                     pathname: "/tabs/chat/[conversationId]",
-                    params: { conversationId: conversation.id }
+                    params: { conversationId: conversation.id },
                   })
                 }
+                style={({ pressed }) => [pressed && styles.pressed]}
               >
                 <Card style={styles.conversationCard}>
-                  <Avatar name={partner.name} uri={partner.photos[0]?.uri} size={58} />
+                  <Pressable
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      router.push({
+                        pathname: "/tabs/profile/[userId]",
+                        params: { userId: partner.id },
+                      });
+                    }}
+                    style={({ pressed }) => [pressed && styles.pressed]}
+                  >
+                    <View style={styles.avatarWrap}>
+                      <Avatar
+                        name={partner.name}
+                        uri={partner.photos[0]?.uri}
+                        size={58}
+                      />
+                      {conversation.typingState?.isTyping ? (
+                        <View style={styles.onlineDot} />
+                      ) : null}
+                    </View>
+                  </Pressable>
                   <View style={styles.body}>
                     <View style={styles.row}>
-                      <Text style={styles.name}>{partner.name}</Text>
-                      <Text style={styles.time}>{formatDateTime(conversation.updatedAt)}</Text>
+                      <Text numberOfLines={1} style={styles.name}>
+                        {partner.name}
+                      </Text>
+                      <Text style={styles.time}>
+                        {formatDateTime(conversation.updatedAt)}
+                      </Text>
                     </View>
-                    <Text style={styles.preview}>{lastMessage?.body ?? "Henuz mesaj yok. Ilk mesaj senden gelsin."}</Text>
-                    {conversation.typingState?.isTyping ? <Text style={styles.typing}>Yaziyor...</Text> : null}
+                    <Text numberOfLines={2} style={styles.preview}>
+                      {preview}
+                    </Text>
+                    <View style={styles.metaRow}>
+                      <View style={styles.pill}>
+                        <Text style={styles.pillText}>
+                          {lastMessage ? "Son mesaj var" : "Yeni eslesme"}
+                        </Text>
+                      </View>
+                      {conversation.typingState?.isTyping ? (
+                        <Text style={styles.typing}>Yaziyor...</Text>
+                      ) : null}
+                    </View>
                   </View>
                 </Card>
               </Pressable>
             );
           })}
-        </View>
+        </ScrollView>
       )}
     </Screen>
   );
@@ -69,49 +144,150 @@ export default function ChatListScreen() {
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     header: {
-      gap: theme.spacing.xs,
-      marginBottom: theme.spacing.lg
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+      marginBottom: theme.spacing.md,
     },
     kicker: {
       ...theme.typography.caption,
       color: theme.colors.primary,
-      textTransform: "uppercase"
+      textTransform: "uppercase",
     },
     title: {
       ...theme.typography.title,
-      color: theme.colors.text
+      color: theme.colors.text,
+    },
+    subtitle: {
+      ...theme.typography.body,
+      color: theme.colors.muted,
+      marginTop: theme.spacing.xs,
+      maxWidth: 260,
+    },
+    summaryBadge: {
+      minWidth: 72,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      backgroundColor: theme.colors.elevated,
+      alignItems: "center",
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    summaryValue: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+    },
+    summaryLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    heroCard: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderRadius: theme.radius.lg,
+      marginBottom: theme.spacing.lg,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    heroStat: {
+      flex: 1,
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+    },
+    heroValue: {
+      ...theme.typography.title,
+      color: theme.colors.text,
+    },
+    heroLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    heroDivider: {
+      width: 1,
+      alignSelf: "stretch",
+      backgroundColor: theme.colors.border,
+      marginHorizontal: theme.spacing.md,
     },
     list: {
-      gap: theme.spacing.md
+      gap: theme.spacing.md,
+      paddingBottom: theme.spacing.xl,
+    },
+    pressed: {
+      opacity: 0.9,
+      transform: [{ scale: 0.985 }],
     },
     conversationCard: {
       flexDirection: "row",
       gap: theme.spacing.md,
-      alignItems: "center"
+      alignItems: "center",
+      paddingVertical: theme.spacing.md,
+    },
+    avatarWrap: {
+      position: "relative",
+    },
+    onlineDot: {
+      position: "absolute",
+      right: 2,
+      bottom: 2,
+      width: 12,
+      height: 12,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.primary,
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
     },
     body: {
       flex: 1,
-      gap: theme.spacing.xxs
+      gap: theme.spacing.xs,
     },
     row: {
       flexDirection: "row",
       justifyContent: "space-between",
-      gap: theme.spacing.sm
+      gap: theme.spacing.sm,
     },
     name: {
       ...theme.typography.subheading,
-      color: theme.colors.text
+      color: theme.colors.text,
+      flex: 1,
+      marginRight: theme.spacing.sm,
     },
     time: {
       ...theme.typography.caption,
-      color: theme.colors.muted
+      color: theme.colors.muted,
     },
     preview: {
       ...theme.typography.body,
-      color: theme.colors.muted
+      color: theme.colors.muted,
+      lineHeight: 20,
+    },
+    metaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
+    },
+    pill: {
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 6,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.isDark
+        ? theme.colors.background
+        : theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    pillText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
     },
     typing: {
       ...theme.typography.caption,
-      color: theme.colors.primary
-    }
+      color: theme.colors.primary,
+    },
   });

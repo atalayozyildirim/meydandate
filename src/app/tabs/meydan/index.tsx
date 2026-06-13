@@ -1,8 +1,18 @@
 // Sanal Cem odası için backend destekli live katılım ekranını sunar.
-import { Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  Alert,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { useEffect, useMemo, useState } from "react";
 import { ResizeMode, Video } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
@@ -13,6 +23,11 @@ import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 
 const roomId = "meydan-erkani";
+const formatMessageTime = (value: string) =>
+  new Intl.DateTimeFormat("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
 
 const ceremonySteps = [
   {
@@ -33,6 +48,7 @@ const ceremonySteps = [
 ];
 
 export default function MeydanRoomScreen() {
+  const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
@@ -113,7 +129,10 @@ export default function MeydanRoomScreen() {
     const nextStreamUrl = streamUrl.trim();
 
     if (!nextStreamUrl) {
-      Alert.alert("Yayın URL'i gerekli", "Canlı yayını başlatmak için HTTPS stream URL gir.");
+      Alert.alert(
+        "Yayın URL'i gerekli",
+        "Canlı yayını başlatmak için HTTPS stream URL gir.",
+      );
       return;
     }
 
@@ -198,7 +217,11 @@ export default function MeydanRoomScreen() {
             <Text style={styles.liveText}>{roomStatusLabel}</Text>
           </View>
           <View style={styles.countBadge}>
-            <Ionicons name="people-outline" size={15} color={theme.colors.primary} />
+            <Ionicons
+              name="people-outline"
+              size={15}
+              color={theme.colors.primary}
+            />
             <Text style={styles.countText}>{participantCount}</Text>
           </View>
         </View>
@@ -211,18 +234,26 @@ export default function MeydanRoomScreen() {
 
       <View style={styles.stage}>
         {hasStream && room?.streamUrl ? (
-          <Video
-            key={`${room?.id}-${room?.startedAt ?? "idle"}`}
-            source={{ uri: room.streamUrl }}
-            style={styles.video}
-            resizeMode={ResizeMode.COVER}
-            shouldPlay={isLive}
-            status={{
-              shouldPlay: isLive,
-              positionMillis: syncedPositionMillis,
-            }}
-            useNativeControls
-          />
+          <View style={{ position: "relative" }}>
+            <Video
+              key={`${room?.id}-${room?.startedAt ?? "idle"}`}
+              source={{ uri: room.streamUrl }}
+              style={styles.video}
+              resizeMode={ResizeMode.COVER}
+              shouldPlay={isLive}
+              isMuted={false}
+              isLooping={false}
+            />
+            {/* Dokunma engeli + CANLI overlay */}
+            <View pointerEvents="none" style={styles.videoOverlay}>
+              {isLive ? (
+                <View style={styles.livePill}>
+                  <View style={styles.livePillDot} />
+                  <Text style={styles.livePillText}>CANLI</Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
         ) : (
           <View style={styles.emptyStage}>
             <View style={styles.stageIcon}>
@@ -255,7 +286,8 @@ export default function MeydanRoomScreen() {
             color={theme.colors.warning}
           />
           <Text style={styles.errorText}>
-            Oda bilgileri şu an yenilenemiyor. Bağlantı düzelince ekran otomatik güncellenir.
+            Oda bilgileri şu an yenilenemiyor. Bağlantı düzelince ekran otomatik
+            güncellenir.
           </Text>
         </View>
       ) : null}
@@ -263,7 +295,11 @@ export default function MeydanRoomScreen() {
       {canManageRoom ? (
         <View style={styles.adminPanel}>
           <View style={styles.adminPanelHeader}>
-            <Ionicons name="shield-checkmark" size={19} color={theme.colors.primary} />
+            <Ionicons
+              name="shield-checkmark"
+              size={19}
+              color={theme.colors.primary}
+            />
             <Text style={styles.sectionTitle}>Admin yayını</Text>
           </View>
           <Input
@@ -311,62 +347,148 @@ export default function MeydanRoomScreen() {
 
       <View style={styles.section}>
         <View style={styles.chatHeader}>
-          <Text style={styles.sectionTitle}>Sohbet</Text>
-          <Text style={styles.chatCount}>{messages.length}</Text>
+          <View>
+            <Text style={styles.sectionTitle}>Oda sohbeti</Text>
+            <Text style={styles.chatSubtitle}>
+              Meydandaki canlarla aynı anda konuş.
+            </Text>
+          </View>
+          <View style={styles.chatCount}>
+            <Ionicons
+              name="chatbubble-ellipses"
+              size={14}
+              color={theme.colors.primary}
+            />
+            <Text style={styles.chatCountText}>{messages.length}</Text>
+          </View>
         </View>
-        <View style={styles.chatList}>
+        <ScrollView
+          nestedScrollEnabled
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.chatList}
+          style={styles.chatViewport}
+        >
           {messages.length === 0 ? (
-            <Text style={styles.emptyChatText}>İlk mesajı oda açıldığında yazabilirsin.</Text>
+            <View style={styles.emptyChat}>
+              <View style={styles.emptyChatIcon}>
+                <Ionicons
+                  name="chatbubbles-outline"
+                  size={23}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <Text style={styles.emptyChatTitle}>Sohbet henüz sessiz</Text>
+              <Text style={styles.emptyChatText}>
+                Odaya katıl ve ilk selamı sen ver.
+              </Text>
+            </View>
           ) : (
             messages.map((message) => (
               <View
                 key={message.id}
                 style={[
-                  styles.chatBubble,
-                  message.isCurrentUser && styles.chatBubbleCurrent,
+                  styles.messageRow,
+                  message.isCurrentUser && styles.messageRowOwn,
                 ]}
               >
-                <Text
+                {/* Avatar — flex row reverse ile sag/sol otomatik */}
+                <Pressable
+                  disabled={message.isCurrentUser}
+                  onPress={() =>
+                    router.push({
+                      pathname: "/tabs/profile/[userId]",
+                      params: { userId: message.senderId },
+                    })
+                  }
+                >
+                  <Avatar
+                    name={message.isCurrentUser ? "Sen" : message.senderName}
+                    uri={
+                      message.isCurrentUser ? undefined : message.senderPhotoUri
+                    }
+                    size={message.isCurrentUser ? 28 : 32}
+                  />
+                </Pressable>
+
+                {/* Balon alani — flex:1 ile genisler, icerik hizalanir */}
+                <View
                   style={[
-                    styles.chatSender,
-                    message.isCurrentUser && styles.chatBubbleCurrentSender,
+                    styles.messageBubbleArea,
+                    message.isCurrentUser && styles.messageBubbleAreaOwn,
                   ]}
                 >
-                  {message.senderName}
-                </Text>
-                <Text
-                  style={[
-                    styles.chatBody,
-                    message.isCurrentUser && styles.chatBubbleCurrentBody,
-                  ]}
-                >
-                  {message.body}
-                </Text>
+                  <View
+                    style={[
+                      styles.messageBubble,
+                      message.isCurrentUser
+                        ? styles.messageBubbleOwn
+                        : styles.messageBubbleOther,
+                    ]}
+                  >
+                    {!message.isCurrentUser ? (
+                      <View style={styles.chatMessageMeta}>
+                        <Text style={styles.chatSender} numberOfLines={1}>
+                          {message.senderName}
+                        </Text>
+                        {message.senderIsPremium ? (
+                          <Ionicons
+                            name="checkmark-circle"
+                            size={13}
+                            color={theme.colors.primary}
+                          />
+                        ) : null}
+                      </View>
+                    ) : null}
+                    <Text style={styles.chatBody}>{message.body}</Text>
+                  </View>
+                  <Text
+                    style={[
+                      styles.messageTime,
+                      message.isCurrentUser && styles.messageTimeOwn,
+                    ]}
+                  >
+                    {formatMessageTime(message.createdAt)}
+                  </Text>
+                </View>
               </View>
             ))
           )}
-        </View>
+        </ScrollView>
         <View style={styles.chatComposer}>
-          <TextInput
-            value={chatDraft}
-            onChangeText={setChatDraft}
-            placeholder="Mesaj yaz"
-            placeholderTextColor={theme.colors.muted}
-            style={styles.chatInput}
-            selectionColor={theme.colors.primary}
-            multiline
-          />
+          <View style={styles.chatInputFrame}>
+            <Ionicons
+              name="chatbubble-outline"
+              size={18}
+              color={theme.colors.muted}
+            />
+            <TextInput
+              value={chatDraft}
+              onChangeText={setChatDraft}
+              placeholder={
+                isJoined
+                  ? "Meydana bir mesaj yaz..."
+                  : "Mesaj için önce odaya katıl"
+              }
+              placeholderTextColor={theme.colors.muted}
+              editable={isJoined}
+              style={styles.chatInput}
+              selectionColor={theme.colors.primary}
+              multiline
+            />
+          </View>
           <Pressable
             accessibilityRole="button"
-            disabled={isSendingMessage}
+            accessibilityLabel="Mesajı gönder"
+            disabled={isSendingMessage || !isJoined || !chatDraft.trim()}
             onPress={() => void handleSendMessage()}
             style={({ pressed }) => [
               styles.sendButton,
               pressed && styles.sendButtonPressed,
-              isSendingMessage && styles.sendButtonDisabled,
+              (isSendingMessage || !isJoined || !chatDraft.trim()) &&
+                styles.sendButtonDisabled,
             ]}
           >
-            <Ionicons name="send" size={19} color="#FFFFFF" />
+            <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
       </View>
@@ -375,14 +497,39 @@ export default function MeydanRoomScreen() {
         <Text style={styles.sectionTitle}>Katılanlar</Text>
         <View style={styles.participantGrid}>
           {participants.map((participant) => (
-            <Pressable key={participant.id} style={styles.participant}>
-              <View style={styles.avatar}>
-                <Text style={styles.avatarText}>
-                  {participant.name.slice(0, 1)}
-                </Text>
+            <Pressable
+              key={participant.id}
+              style={({ pressed }) => [
+                styles.participant,
+                pressed && styles.participantPressed,
+              ]}
+              onPress={() => {
+                if (!participant.isCurrentUser) {
+                  router.push({
+                    pathname: "/tabs/profile/[userId]",
+                    params: { userId: participant.id },
+                  });
+                }
+              }}
+            >
+              <View style={styles.participantAvatarWrap}>
+                <Avatar
+                  name={participant.name}
+                  uri={participant.photoUri}
+                  size={42}
+                />
+                {participant.isPremium ? (
+                  <View style={styles.premiumDot}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                ) : null}
               </View>
               <Text numberOfLines={1} style={styles.participantName}>
-                {participant.name}
+                {participant.isCurrentUser ? "Sen" : participant.name}
               </Text>
               <Text numberOfLines={1} style={styles.participantRole}>
                 {participant.role}
@@ -442,7 +589,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      backgroundColor: "#FFF0F3",
+      backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
     },
     liveDot: {
       width: 9,
@@ -609,7 +756,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     participant: {
       width: "31.8%",
-      minHeight: 88,
+      minHeight: 96,
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
@@ -619,17 +766,25 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
-    avatar: {
-      width: 36,
-      height: 36,
+    participantPressed: {
+      opacity: 0.8,
+      transform: [{ scale: 0.97 }],
+    },
+    participantAvatarWrap: {
+      position: "relative",
+    },
+    premiumDot: {
+      position: "absolute",
+      right: -2,
+      bottom: -2,
+      width: 18,
+      height: 18,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.primary,
-    },
-    avatarText: {
-      ...theme.typography.subheading,
-      color: "#FFFFFF",
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
     },
     participantName: {
       ...theme.typography.caption,
@@ -649,79 +804,155 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "space-between",
     },
     chatCount: {
-      ...theme.typography.caption,
-      color: theme.colors.primary,
+      minHeight: 32,
       borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
       paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xxs,
       backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
     },
-    chatList: {
-      gap: theme.spacing.xs,
-      minHeight: 82,
-      borderRadius: 16,
-      padding: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
+    chatCountText: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+    },
+    chatSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "500",
+    },
+    chatViewport: {
+      maxHeight: 360,
+      minHeight: 150,
+      borderRadius: 24,
+      backgroundColor: theme.isDark ? "#0D0F14" : "#F8F9FB",
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
-    emptyChatText: {
-      ...theme.typography.body,
-      color: theme.colors.muted,
-      padding: theme.spacing.sm,
-    },
-    chatBubble: {
-      alignSelf: "flex-start",
-      maxWidth: "88%",
-      gap: theme.spacing.xxs,
-      borderRadius: 18,
+    chatList: {
+      gap: theme.spacing.xs,
       paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-      backgroundColor: theme.colors.background,
+      paddingVertical: theme.spacing.md,
+      flexGrow: 1,
     },
-    chatBubbleCurrent: {
-      alignSelf: "flex-end",
-      backgroundColor: theme.isDark ? theme.colors.primary : "#FFF0F3",
+    emptyChat: {
+      minHeight: 126,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xxs,
+      padding: theme.spacing.md,
+    },
+    emptyChatIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      marginBottom: theme.spacing.xxs,
+      backgroundColor: theme.colors.elevated,
+    },
+    emptyChatTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+    },
+    emptyChatText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      textAlign: "center",
+    },
+    messageRow: {
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: theme.spacing.xs,
+      marginBottom: theme.spacing.xs,
+    },
+    // row-reverse ile avatar sagda, balon sola hizalanir
+    messageRowOwn: {
+      flexDirection: "row-reverse",
+    },
+    // flex:1 ile kalan alani doldurur; bubble hizalamasi burada yonetilir
+    messageBubbleArea: {
+      flex: 1,
+      alignItems: "flex-start",
+    },
+    messageBubbleAreaOwn: {
+      alignItems: "flex-end",
+    },
+    messageBubble: {
+      // Yuzde maxWidth artik flex:1 parent ile dogru hesaplanir
+      maxWidth: "82%",
+      borderRadius: 18,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderWidth: 1,
+    },
+    messageBubbleOwn: {
+      borderBottomRightRadius: 4,
+      borderColor: "rgba(233, 64, 87, 0.35)",
+      backgroundColor: theme.isDark
+        ? "rgba(233, 64, 87, 0.22)"
+        : "rgba(233, 64, 87, 0.12)",
+    },
+    messageBubbleOther: {
+      borderBottomLeftRadius: 4,
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    chatMessageMeta: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     chatSender: {
-      fontSize: 11,
-      lineHeight: 14,
+      flexShrink: 1,
+      fontSize: 13,
+      lineHeight: 17,
       fontWeight: "700",
-      color: theme.colors.primary,
+      color: theme.colors.text,
     },
-    chatBubbleCurrentSender: {
-      color: theme.isDark ? "rgba(255, 255, 255, 0.82)" : theme.colors.primary,
+    messageTime: {
+      fontSize: 10,
+      lineHeight: 14,
+      color: theme.colors.muted,
+    },
+    messageTimeOwn: {
+      textAlign: "right",
     },
     chatBody: {
       ...theme.typography.body,
       color: theme.colors.text,
     },
-    chatBubbleCurrentBody: {
-      color: theme.isDark ? "#FFFFFF" : theme.colors.text,
-    },
     chatComposer: {
-      minHeight: 54,
+      minHeight: 58,
       flexDirection: "row",
-      alignItems: "flex-end",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      borderRadius: 24,
+      padding: theme.spacing.xxs,
+      paddingLeft: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    chatInputFrame: {
+      flex: 1,
+      minHeight: 48,
+      flexDirection: "row",
+      alignItems: "center",
       gap: theme.spacing.xs,
     },
     chatInput: {
       flex: 1,
-      minHeight: 54,
-      maxHeight: 112,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      backgroundColor: theme.colors.surface,
-      borderRadius: 18,
+      minHeight: 42,
+      maxHeight: 100,
       color: theme.colors.text,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
       textAlignVertical: "top",
       ...theme.typography.body,
     },
     sendButton: {
-      width: 54,
-      height: 54,
+      width: 48,
+      height: 48,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
@@ -765,5 +996,32 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     stepDescription: {
       ...theme.typography.body,
       color: theme.colors.muted,
+    },
+    videoOverlay: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: "flex-start",
+      alignItems: "flex-end",
+      padding: 10,
+    },
+    livePill: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 20,
+      backgroundColor: "rgba(220, 38, 38, 0.92)",
+    },
+    livePillDot: {
+      width: 7,
+      height: 7,
+      borderRadius: 4,
+      backgroundColor: "#FFFFFF",
+    },
+    livePillText: {
+      fontSize: 11,
+      fontWeight: "800",
+      color: "#FFFFFF",
+      letterSpacing: 1,
     },
   });

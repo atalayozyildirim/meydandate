@@ -55,11 +55,11 @@
       </dict>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Profil fotografi çekmek icin kamera erişimine izin verin.</string>
+    <string>Profil ve post fotoğrafı çekmek için kamera erişimine izin verin.</string>
     <key>NSMicrophoneUsageDescription</key>
     <string>Allow $(PRODUCT_NAME) to access your microphone</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Profil fotografi secmek icin fotoğraf kütüphanesine erişim gerekiyor.</string>
+    <string>Profil ve post fotoğrafı seçmek için fotoğraf kütüphanesine erişim gerekiyor.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
@@ -91,7 +91,7 @@
       <string>UIInterfaceOrientationLandscapeRight</string>
     </array>
     <key>UIUserInterfaceStyle</key>
-    <string>Light</string>
+    <string>Automatic</string>
     <key>UIViewControllerBasedStatusBarAppearance</key>
     <false/>
   </dict>

@@ -152,7 +152,7 @@ export class MockUserRepository implements UserRepository {
       typeof currentUser.locationLatitude === "number" &&
       typeof currentUser.locationLongitude === "number";
 
-    return mockDatabase.users
+    const visibleCandidates = mockDatabase.users
       .flatMap((user) => {
         if (
           user.id === userId ||
@@ -217,6 +217,14 @@ export class MockUserRepository implements UserRepository {
           new Date(first.createdAt).getTime()
         );
       });
+
+    const memberCandidates = visibleCandidates.filter(
+      (user) => (user.profileKind ?? "member") === "member",
+    );
+
+    return memberCandidates.length > 0
+      ? memberCandidates
+      : visibleCandidates.filter((user) => (user.profileKind ?? "member") !== "member");
   }
 
   async reportUser(userId: string, payload: ReportPayload): Promise<void> {

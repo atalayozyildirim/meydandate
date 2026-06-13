@@ -14,7 +14,14 @@ export const useDiscoverDeck = () => {
   const candidatesQuery = useQuery({
     queryKey: [queryKeys.discover, currentUser?.id],
     enabled: Boolean(currentUser),
-    queryFn: () => container.userRepository.listDiscoverCandidates(currentUser?.id ?? "")
+    retry: false,
+    queryFn: async () => {
+      try {
+        return await container.userRepository.listDiscoverCandidates(currentUser?.id ?? "");
+      } catch {
+        return [];
+      }
+    }
   });
 
   const specialInviteQuery = useQuery({
@@ -108,9 +115,16 @@ export const useDiscoverDeck = () => {
     deck,
     specialInvite: specialInviteQuery.data ?? null,
     isLoading: candidatesQuery.isLoading || specialInviteQuery.isLoading,
+    isRefreshing: candidatesQuery.isFetching || specialInviteQuery.isFetching,
     isSwiping: swipeMutation.isPending,
     isHandlingSpecialInvite: acceptSpecialInviteMutation.isPending || declineSpecialInviteMutation.isPending,
     swipe,
+    refresh: async () => {
+      await Promise.all([
+        candidatesQuery.refetch(),
+        specialInviteQuery.refetch(),
+      ]);
+    },
     acceptSpecialInvite: acceptSpecialInviteMutation.mutateAsync,
     declineSpecialInvite: declineSpecialInviteMutation.mutateAsync
   };

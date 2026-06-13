@@ -5,6 +5,8 @@ export interface LiveParticipant {
   id: string;
   name: string;
   role: string;
+  photoUri?: string;
+  isPremium?: boolean;
   isCurrentUser?: boolean;
 }
 
@@ -13,6 +15,8 @@ export interface LiveChatMessage {
   roomId: string;
   senderId: string;
   senderName: string;
+  senderPhotoUri?: string;
+  senderIsPremium?: boolean;
   body: string;
   createdAt: string;
   isCurrentUser?: boolean;

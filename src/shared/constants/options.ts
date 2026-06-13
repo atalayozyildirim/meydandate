@@ -40,7 +40,8 @@ export const badgeLabels: Record<Badge, string> = {
   premium_member: "Premium Üye",
   muharrem_follower: "Muharrem Takipçisi",
   cem_room_supporter: "Cem Odası Destekçisi",
-  culture_guardian: "Yol Erkânı Destekçisi"
+  culture_guardian: "Yol Erkânı Destekçisi",
+  zulfiqar_sword: "Zülfikar Kılıcı"
 };
 
 export const reportCategoryOptions: Option<ReportCategory>[] = [

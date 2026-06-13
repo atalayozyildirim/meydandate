@@ -331,6 +331,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     description: {
       ...theme.typography.body,
       color: theme.colors.muted,
+      width: "100%",
+      flexShrink: 1,
     },
     streakPanel: {
       minHeight: 104,
@@ -446,7 +448,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     dayCellActive: {
       borderColor: theme.colors.primary,
-      backgroundColor: "#FFF0F3",
+      backgroundColor: theme.isDark ? "rgba(255, 91, 112, 0.12)" : "#FFF0F3",
     },
     dayCellPast: {
       opacity: 0.72,
@@ -456,7 +458,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     dayCellCompleted: {
       borderColor: theme.colors.success,
-      backgroundColor: "#ECFDF3",
+      backgroundColor: theme.isDark ? "rgba(74, 222, 128, 0.12)" : "#ECFDF3",
       opacity: 1,
     },
     pressed: {
@@ -510,7 +512,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "space-between",
       gap: theme.spacing.sm,
-      backgroundColor: "#FFF0F3",
+      backgroundColor: theme.isDark ? theme.colors.surface : "#FFF0F3",
       shadowColor: theme.colors.shadow,
       shadowOpacity: 1,
       shadowRadius: 16,
@@ -519,7 +521,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     reminderPanelActive: {
       borderColor: "rgba(22, 163, 74, 0.34)",
-      backgroundColor: "#ECFDF3",
+      backgroundColor: theme.isDark ? "rgba(74, 222, 128, 0.12)" : "#ECFDF3",
     },
     reminderIcon: {
       width: 48,

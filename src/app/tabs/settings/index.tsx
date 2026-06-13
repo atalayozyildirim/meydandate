@@ -1,6 +1,7 @@
 // Hesap, bildirim, gizlilik, dil, tema ve hukuki ayarlari sunar.
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, View } from "react-native";
+import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -13,7 +14,10 @@ import { Card } from "@/shared/components/Card";
 import { OptionChip } from "@/shared/components/OptionChip";
 import { Screen } from "@/shared/components/Screen";
 import { queryKeys } from "@/shared/constants/queryKeys";
-import { clampMatchRadiusKm, DEFAULT_MATCH_RADIUS_KM } from "@/shared/utils/location";
+import {
+  clampMatchRadiusKm,
+  DEFAULT_MATCH_RADIUS_KM,
+} from "@/shared/utils/location";
 import { useTheme, type ThemePreference } from "@/shared/theme";
 
 interface SettingsRowProps {
@@ -39,11 +43,35 @@ interface LocationPreferenceArgs {
   refreshLocation?: boolean;
 }
 
+const getLocationPreferenceErrorMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/Konum izni verilmedi/i.test(message)) {
+    return message;
+  }
+
+  if (/Location is required|latitude|longitude/i.test(message)) {
+    return "Yakındaki eşleşmeyi açmak için konumunu bir kez yenilemen gerekiyor.";
+  }
+
+  if (
+    /PGRST|PostgREST|schema cache|set_location_matching|function|permission denied|column/i.test(
+      message,
+    )
+  ) {
+    return "Konum tercihini şu an kaydedemedik. Eşleşme akışı mevcut tercihinle devam edecek; birazdan tekrar dene.";
+  }
+
+  return message || "Konum tercihi güncellenemedi. Tekrar deneyin.";
+};
+
 const requestCurrentLocation = async () => {
   const permission = await Location.requestForegroundPermissionsAsync();
 
   if (permission.status !== "granted") {
-    throw new Error("Konum izni verilmedi. Yakındaki eşleşmeler için izin gerekli.");
+    throw new Error(
+      "Konum izni verilmedi. Yakındaki eşleşmeler için izin gerekli.",
+    );
   }
 
   const position = await Location.getCurrentPositionAsync({
@@ -66,10 +94,50 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [privacyStrict, setPrivacyStrict] = useState(true);
   const [language, setLanguage] = useState<"tr" | "en">("tr");
+
+  // Tercihleri SecureStore'dan yukle
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [storedNotifications, storedPrivacy, storedLanguage] =
+          await Promise.all([
+            SecureStore.getItemAsync("settings_notifications"),
+            SecureStore.getItemAsync("settings_privacy_strict"),
+            SecureStore.getItemAsync("settings_language"),
+          ]);
+        if (storedNotifications !== null)
+          setNotificationsEnabled(storedNotifications === "true");
+        if (storedPrivacy !== null) setPrivacyStrict(storedPrivacy === "true");
+        if (storedLanguage === "en" || storedLanguage === "tr")
+          setLanguage(storedLanguage);
+      } catch {
+        // Okuma hatasi sessizce gecilir, varsayilan degerler kalir
+      }
+    })();
+  }, []);
+
+  const handleNotificationsChange = (enabled: boolean) => {
+    setNotificationsEnabled(enabled);
+    void SecureStore.setItemAsync("settings_notifications", String(enabled));
+  };
+
+  const handlePrivacyStrictChange = (strict: boolean) => {
+    setPrivacyStrict(strict);
+    void SecureStore.setItemAsync("settings_privacy_strict", String(strict));
+  };
+
+  const handleLanguageChange = (lang: "tr" | "en") => {
+    setLanguage(lang);
+    void SecureStore.setItemAsync("settings_language", lang);
+  };
   const blockedCount = currentUser?.blockedUsers?.length ?? 0;
-  const profileHidden = currentUser ? !(currentUser.isDiscoverable ?? true) : false;
+  const profileHidden = currentUser
+    ? !(currentUser.isDiscoverable ?? true)
+    : false;
   const locationMatchEnabled = currentUser?.matchByLocation ?? false;
-  const matchRadiusKm = clampMatchRadiusKm(currentUser?.matchRadiusKm ?? DEFAULT_MATCH_RADIUS_KM);
+  const matchRadiusKm = clampMatchRadiusKm(
+    currentUser?.matchRadiusKm ?? DEFAULT_MATCH_RADIUS_KM,
+  );
   const hasProfileLocation =
     typeof currentUser?.locationLatitude === "number" &&
     typeof currentUser?.locationLongitude === "number";
@@ -78,10 +146,13 @@ export default function SettingsScreen() {
     : null;
   const locationUpdatedLabel =
     locationUpdatedAt && Number.isFinite(locationUpdatedAt.getTime())
-      ? `${locationUpdatedAt.toLocaleDateString("tr-TR")} ${locationUpdatedAt.toLocaleTimeString("tr-TR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })}`
+      ? `${locationUpdatedAt.toLocaleDateString("tr-TR")} ${locationUpdatedAt.toLocaleTimeString(
+          "tr-TR",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        )}`
       : null;
   const locationSubtitle = locationMatchEnabled
     ? hasProfileLocation
@@ -94,7 +165,10 @@ export default function SettingsScreen() {
         throw new Error("Profil gizliliği için oturum gerekli.");
       }
 
-      return container.userRepository.setProfileDiscoverability(currentUser.id, !isHidden);
+      return container.userRepository.setProfileDiscoverability(
+        currentUser.id,
+        !isHidden,
+      );
     },
     onSuccess: async (updatedUser) => {
       setCurrentUser(updatedUser);
@@ -111,13 +185,19 @@ export default function SettingsScreen() {
     },
   });
   const locationMatchingMutation = useMutation({
-    mutationFn: async ({ enabled, radiusKm, refreshLocation = false }: LocationPreferenceArgs) => {
+    mutationFn: async ({
+      enabled,
+      radiusKm,
+      refreshLocation = false,
+    }: LocationPreferenceArgs) => {
       if (!currentUser) {
         throw new Error("Konum tercihi için oturum gerekli.");
       }
 
       const needsLocation = enabled && (refreshLocation || !hasProfileLocation);
-      const coordinates = needsLocation ? await requestCurrentLocation() : undefined;
+      const coordinates = needsLocation
+        ? await requestCurrentLocation()
+        : undefined;
 
       return container.userRepository.setLocationMatching(currentUser.id, {
         enabled,
@@ -135,8 +215,8 @@ export default function SettingsScreen() {
     },
     onError: (error) => {
       Alert.alert(
-        "Konum güncellenemedi",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
+        "Konum kaydedilemedi",
+        getLocationPreferenceErrorMessage(error),
       );
     },
   });
@@ -153,7 +233,13 @@ export default function SettingsScreen() {
     locationMatchingMutation.mutate({ enabled, radiusKm, refreshLocation });
   };
 
-  const row = ({ title, subtitle, icon, danger = false, onPress }: SettingsRowProps) => (
+  const row = ({
+    title,
+    subtitle,
+    icon,
+    danger = false,
+    onPress,
+  }: SettingsRowProps) => (
     <Pressable onPress={onPress} style={styles.row}>
       {icon ? (
         <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
@@ -165,10 +251,14 @@ export default function SettingsScreen() {
         </View>
       ) : null}
       <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, danger && styles.dangerText]}>{title}</Text>
+        <Text style={[styles.rowTitle, danger && styles.dangerText]}>
+          {title}
+        </Text>
         <Text style={styles.rowSubtitle}>{subtitle}</Text>
       </View>
-      {onPress ? <Ionicons name="chevron-forward" size={20} color={theme.colors.muted} /> : null}
+      {onPress ? (
+        <Ionicons name="chevron-forward" size={20} color={theme.colors.muted} />
+      ) : null}
     </Pressable>
   );
 
@@ -211,24 +301,39 @@ export default function SettingsScreen() {
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Karanlık mod</Text>
-            <Text style={styles.rowSubtitle}>Uygulama genelinde koyu tema kullan.</Text>
+            <Text style={styles.rowSubtitle}>
+              Uygulama genelinde koyu tema kullan.
+            </Text>
           </View>
           <Switch
             value={theme.isDark}
-            onValueChange={(enabled) => theme.setPreference(enabled ? "dark" : "light")}
-            trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            onValueChange={(enabled) =>
+              theme.setPreference(enabled ? "dark" : "light")
+            }
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
             thumbColor="#FFFFFF"
           />
         </View>
         <View style={styles.chipWrap}>
-          {(["system", "light", "dark"] as ThemePreference[]).map((preference) => (
-            <OptionChip
-              key={preference}
-              label={preference === "system" ? "Sistem" : preference === "light" ? "Aydınlık" : "Karanlık"}
-              selected={theme.preference === preference}
-              onPress={() => theme.setPreference(preference)}
-            />
-          ))}
+          {(["system", "light", "dark"] as ThemePreference[]).map(
+            (preference) => (
+              <OptionChip
+                key={preference}
+                label={
+                  preference === "system"
+                    ? "Sistem"
+                    : preference === "light"
+                      ? "Aydınlık"
+                      : "Karanlık"
+                }
+                selected={theme.preference === preference}
+                onPress={() => theme.setPreference(preference)}
+              />
+            ),
+          )}
         </View>
       </Card>
 
@@ -260,16 +365,25 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Bildirimler</Text>
         <View style={styles.toggleRow}>
           <View style={styles.rowIcon}>
-            <Ionicons name="notifications-outline" size={20} color={theme.colors.primary} />
+            <Ionicons
+              name="notifications-outline"
+              size={20}
+              color={theme.colors.primary}
+            />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Bildirimler</Text>
-            <Text style={styles.rowSubtitle}>Eşleşme ve mesaj bildirimleri.</Text>
+            <Text style={styles.rowSubtitle}>
+              Eşleşme ve mesaj bildirimleri.
+            </Text>
           </View>
           <Switch
             value={notificationsEnabled}
-            onValueChange={setNotificationsEnabled}
-            trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            onValueChange={handleNotificationsChange}
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
             thumbColor="#FFFFFF"
           />
         </View>
@@ -279,7 +393,11 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Eşleşme</Text>
         <View style={styles.toggleRow}>
           <View style={styles.rowIcon}>
-            <Ionicons name="navigate-outline" size={20} color={theme.colors.primary} />
+            <Ionicons
+              name="navigate-outline"
+              size={20}
+              color={theme.colors.primary}
+            />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Konuma göre eşleşme</Text>
@@ -288,8 +406,13 @@ export default function SettingsScreen() {
           <Switch
             value={locationMatchEnabled}
             disabled={!currentUser || locationMatchingMutation.isPending}
-            onValueChange={(enabled) => updateLocationPreference(enabled, matchRadiusKm, enabled)}
-            trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            onValueChange={(enabled) =>
+              updateLocationPreference(enabled, matchRadiusKm, enabled)
+            }
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
             thumbColor="#FFFFFF"
           />
         </View>
@@ -315,7 +438,9 @@ export default function SettingsScreen() {
           variant="ghost"
           loading={locationMatchingMutation.isPending}
           disabled={!currentUser}
-          icon={<Ionicons name="locate" size={18} color={theme.colors.primary} />}
+          icon={
+            <Ionicons name="locate" size={18} color={theme.colors.primary} />
+          }
           onPress={() => updateLocationPreference(true, matchRadiusKm, true)}
         />
       </Card>
@@ -324,32 +449,50 @@ export default function SettingsScreen() {
         <Text style={styles.sectionTitle}>Gizlilik</Text>
         <View style={styles.toggleRow}>
           <View style={styles.rowIcon}>
-            <Ionicons name="eye-off-outline" size={20} color={theme.colors.primary} />
+            <Ionicons
+              name="eye-off-outline"
+              size={20}
+              color={theme.colors.primary}
+            />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Profili gizle</Text>
-            <Text style={styles.rowSubtitle}>Profilini keşfet akışı dışında tut.</Text>
+            <Text style={styles.rowSubtitle}>
+              Profilini keşfet akışı dışında tut.
+            </Text>
           </View>
           <Switch
             value={profileHidden}
             disabled={profileVisibilityMutation.isPending}
             onValueChange={(hidden) => profileVisibilityMutation.mutate(hidden)}
-            trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
             thumbColor="#FFFFFF"
           />
         </View>
         <View style={styles.toggleRow}>
           <View style={styles.rowIcon}>
-            <Ionicons name="shield-checkmark-outline" size={20} color={theme.colors.primary} />
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={20}
+              color={theme.colors.primary}
+            />
           </View>
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Gizlilik koruması</Text>
-            <Text style={styles.rowSubtitle}>KVKK/GDPR tercihlerini daha sıkı uygula.</Text>
+            <Text style={styles.rowSubtitle}>
+              KVKK/GDPR tercihlerini daha sıkı uygula.
+            </Text>
           </View>
           <Switch
             value={privacyStrict}
-            onValueChange={setPrivacyStrict}
-            trackColor={{ true: theme.colors.primary, false: theme.colors.border }}
+            onValueChange={handlePrivacyStrictChange}
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
             thumbColor="#FFFFFF"
           />
         </View>
@@ -358,21 +501,31 @@ export default function SettingsScreen() {
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Dil</Text>
         <View style={styles.chipWrap}>
-          <OptionChip label="Türkçe" selected={language === "tr"} onPress={() => setLanguage("tr")} />
-          <OptionChip label="English" selected={language === "en"} onPress={() => setLanguage("en")} />
+          <OptionChip
+            label="Türkçe"
+            selected={language === "tr"}
+            onPress={() => handleLanguageChange("tr")}
+          />
+          <OptionChip
+            label="English"
+            selected={language === "en"}
+            onPress={() => handleLanguageChange("en")}
+          />
         </View>
       </Card>
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Hukuki</Text>
-        {legalLinks.map((link) =>
-          row({
-            title: link.title,
-            subtitle: "Uyumluluk ve kullanıcı hakları",
-            icon: "document-text-outline",
-            onPress: () => router.push(link.path)
-          })
-        )}
+        {legalLinks.map((link) => (
+          <React.Fragment key={link.path}>
+            {row({
+              title: link.title,
+              subtitle: "Uyumluluk ve kullanıcı hakları",
+              icon: "document-text-outline",
+              onPress: () => router.push(link.path),
+            })}
+          </React.Fragment>
+        ))}
       </Card>
 
       <Button
@@ -393,7 +546,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
-      marginBottom: theme.spacing.lg
+      marginBottom: theme.spacing.lg,
     },
     backButton: {
       width: 42,
@@ -401,34 +554,34 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.elevated
+      backgroundColor: theme.colors.elevated,
     },
     headerText: {
       flex: 1,
-      gap: theme.spacing.xxs
+      gap: theme.spacing.xxs,
     },
     kicker: {
       ...theme.typography.caption,
       color: theme.colors.primary,
-      textTransform: "uppercase"
+      textTransform: "uppercase",
     },
     title: {
       ...theme.typography.title,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     section: {
       gap: theme.spacing.sm,
-      marginBottom: theme.spacing.md
+      marginBottom: theme.spacing.md,
     },
     sectionTitle: {
       ...theme.typography.subheading,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     row: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs
+      paddingVertical: theme.spacing.xs,
     },
     rowIcon: {
       width: 38,
@@ -436,35 +589,35 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.elevated
+      backgroundColor: theme.colors.elevated,
     },
     rowIconDanger: {
-      backgroundColor: "rgba(220, 38, 38, 0.10)"
+      backgroundColor: "rgba(220, 38, 38, 0.10)",
     },
     toggleRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
-      gap: theme.spacing.sm
+      gap: theme.spacing.sm,
     },
     rowBody: {
       flex: 1,
-      gap: theme.spacing.xxs
+      gap: theme.spacing.xxs,
     },
     rowTitle: {
       ...theme.typography.body,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     dangerText: {
-      color: theme.colors.danger
+      color: theme.colors.danger,
     },
     rowSubtitle: {
       ...theme.typography.caption,
-      color: theme.colors.muted
+      color: theme.colors.muted,
     },
     chipWrap: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: theme.spacing.xs
-    }
+      gap: theme.spacing.xs,
+    },
   });

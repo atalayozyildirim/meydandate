@@ -13,10 +13,19 @@ ile başlayan secret anahtarları `EXPO_PUBLIC_*` değişkenlerine koyma.
    entitlement'ına bağla.
 6. Current offering içinde aylık ve annual paketlerini bu içe aktarılan ürünlere bağla.
 7. Android yayınlanacaksa aynı işlemi Google Play uygulaması için yap.
-8. RevenueCat Webhooks entegrasyonunda Supabase Edge Function URL'ini ekle:
+8. Rozet ürünlerini App Store Connect/Google Play tarafında consumable veya
+   non-consumable olarak oluşturup current offering içine ekle.
+9. RevenueCat Webhooks entegrasyonunda Supabase Edge Function URL'ini ekle:
    `https://<project-ref>.supabase.co/functions/v1/revenuecat-webhook`.
-9. Webhook Authorization Header Value alanına güçlü bir secret koy. Aynı değeri
-   Supabase secret olarak `REVENUECAT_WEBHOOK_AUTH_TOKEN` adıyla tanımla.
+10. Webhook Authorization Header Value alanına güçlü bir secret koy. Aynı değeri
+    Supabase secret olarak `REVENUECAT_WEBHOOK_AUTH_TOKEN` adıyla tanımla.
+
+Rozet product id listesi:
+
+- `ehlibyte.badge.muharrem_follower` - ₺49
+- `ehlibyte.badge.cem_room_supporter` - ₺79
+- `ehlibyte.badge.culture_guardian` - ₺99
+- `ehlibyte.badge.zulfiqar_sword` - ₺499
 
 ## Environment
 
@@ -43,7 +52,7 @@ olarak güvenilir kabul edilmemelidir.
 Supabase secrets:
 
 ```bash
-supabase secrets set REVENUECAT_WEBHOOK_AUTH_TOKEN='Bearer güçlü-secret'
+supabase secrets set REVENUECAT_WEBHOOK_AUTH_TOKEN='Bearer e90fc88d4a7cf000457a16d7a38a59bbe2f40200aa49bcc46bf72f74662f228c'
 supabase secrets set REVENUECAT_ENTITLEMENT_ID=premium
 ```
 
@@ -79,6 +88,7 @@ konfigürasyonu hizalanmalıdır.
 - iOS In-App Purchase capability açık
 - RevenueCat offering current durumda
 - Aylık ve yıllık paketler `premium` entitlement'ına bağlı
+- Rozet product id'leri current offering içinde ve mağaza ürünleriyle birebir aynı
 - Offering'deki product id listesi App Store Connect ve Google Play ile birebir aynı
 - RevenueCat webhook Supabase Edge Function'a bağlı ve Authorization header doğrulanıyor
 - Sandbox satın alma ve restore akışı test edilmiş

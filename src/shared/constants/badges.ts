@@ -31,6 +31,13 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     priceLabel: "₺99",
     revenueCatProductId: "ehlibyte.badge.culture_guardian",
   },
+  {
+    badge: "zulfiqar_sword",
+    title: "Zülfikar Kılıcı",
+    description: "Hz. Ali'nin çift uçlu kılıcından ilham alan özel destek rozeti.",
+    priceLabel: "₺499",
+    revenueCatProductId: "ehlibyte.badge.zulfiqar_sword",
+  },
 ];
 
 export const paidBadgeProductByBadge = paidBadgeProducts.reduce(

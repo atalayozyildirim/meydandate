@@ -1,13 +1,42 @@
-// Session durumuna gore kullaniciyi auth, onay testi, onboarding veya ana taba yonlendirir.
+// Ilk acilis ve session durumuna gore kullaniciyi dogru akisa yonlendirir.
+import { useEffect, useState } from "react";
 import { Redirect } from "expo-router";
 import { Loading } from "@/shared/components/Loading";
 import { useSession } from "@/features/auth/hooks/useSession";
+import { container } from "@/infrastructure/config/Container";
+import { env } from "@/infrastructure/config/env";
 
 export default function IndexScreen() {
   const { currentUser, isHydrated } = useSession();
+  const [hasSeenIntro, setHasSeenIntro] = useState<boolean | null>(null);
 
-  if (!isHydrated) {
-    return <Loading label="Oturum hazirlaniyor" />;
+  useEffect(() => {
+    let mounted = true;
+
+    void container.tokenStorage
+      .getItem(env.introSeenKey)
+      .then((value) => {
+        if (mounted) {
+          setHasSeenIntro(value === "true");
+        }
+      })
+      .catch(() => {
+        if (mounted) {
+          setHasSeenIntro(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  if (!isHydrated || hasSeenIntro === null) {
+    return <Loading label="Ehlibyte hazırlanıyor" />;
+  }
+
+  if (!hasSeenIntro) {
+    return <Redirect href="/intro" />;
   }
 
   if (!currentUser) {

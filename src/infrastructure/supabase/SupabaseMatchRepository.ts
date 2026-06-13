@@ -27,6 +27,94 @@ type PendingSpecialInviteRow = {
 };
 
 export class SupabaseMatchRepository implements MatchRepository {
+  private async getExistingMatchBetween(
+    userId: string,
+    targetUserId: string,
+  ): Promise<Match | null> {
+    const { data } = await supabase
+      .from("matches")
+      .select("id,user1Id,user2Id,matchedAt")
+      .or(`user1Id.eq.${userId},user2Id.eq.${userId}`)
+      .order("matchedAt", { ascending: false });
+
+    const existing = (data ?? []).find((row) => {
+      const matchRow = row as unknown as SupabaseMatchRow;
+      return (
+        (matchRow.user1Id === userId && matchRow.user2Id === targetUserId) ||
+        (matchRow.user1Id === targetUserId && matchRow.user2Id === userId)
+      );
+    });
+
+    return existing ? this.buildMatch(existing as unknown as SupabaseMatchRow) : null;
+  }
+
+  private async ensureConversationBetween(
+    userId: string,
+    targetUserId: string,
+    matchId: string,
+  ): Promise<void> {
+    const { data: existingConversations } = await supabase
+      .from("conversations")
+      .select("id,participant1Id,participant2Id")
+      .or(`participant1Id.eq.${userId},participant2Id.eq.${userId}`)
+      .limit(20);
+
+    const hasExistingConversation = (existingConversations ?? []).some((row) => {
+      const conversation = row as unknown as {
+        participant1Id?: string;
+        participant2Id?: string;
+      };
+      return (
+        (conversation.participant1Id === userId && conversation.participant2Id === targetUserId) ||
+        (conversation.participant1Id === targetUserId && conversation.participant2Id === userId)
+      );
+    });
+
+    if (hasExistingConversation) {
+      return;
+    }
+
+    await supabase.from("conversations").insert({
+      participant1Id: userId,
+      participant2Id: targetUserId,
+      matchId,
+    });
+  }
+
+  private async createMatchBetween(userId: string, targetUserId: string): Promise<Match> {
+    const existingMatch = await this.getExistingMatchBetween(userId, targetUserId);
+
+    if (existingMatch) {
+      return existingMatch;
+    }
+
+    const { data: match, error: matchError } = await supabase
+      .from("matches")
+      .insert({
+        user1Id: userId,
+        user2Id: targetUserId,
+        matchedAt: new Date().toISOString(),
+      })
+      .select()
+      .single();
+
+    if (matchError?.code === "23505") {
+      const duplicateMatch = await this.getExistingMatchBetween(userId, targetUserId);
+
+      if (duplicateMatch) {
+        return duplicateMatch;
+      }
+    }
+
+    if (matchError || !match) {
+      throw new Error("Eşleşme oluşturulamadı");
+    }
+
+    await this.ensureConversationBetween(userId, targetUserId, match.id);
+
+    return this.buildMatch(match as unknown as SupabaseMatchRow);
+  }
+
   private async buildMatch(row: SupabaseMatchRow): Promise<Match> {
     const { data, error } = await supabase
       .from("users")
@@ -85,6 +173,24 @@ export class SupabaseMatchRepository implements MatchRepository {
 
     // Check if there's a mutual positive action. Super Like also counts as intent to match.
     if (action !== "pass") {
+      const { data: targetProfile } = await supabase
+        .from("users")
+        .select("profileKind")
+        .eq("id", targetUserId)
+        .maybeSingle();
+
+      if (
+        targetProfile &&
+        ["starter", "ai_starter"].includes(
+          String((targetProfile as { profileKind?: string }).profileKind ?? "member"),
+        )
+      ) {
+        return {
+          action,
+          match: await this.createMatchBetween(userId, targetUserId),
+        };
+      }
+
       const { data: reverseSwipe } = await supabase
         .from("swipes")
         .select("*")
@@ -94,31 +200,9 @@ export class SupabaseMatchRepository implements MatchRepository {
         .single();
 
       if (reverseSwipe) {
-        // Create a match
-        const { data: match, error: matchError } = await supabase
-          .from("matches")
-          .insert({
-            user1Id: userId,
-            user2Id: targetUserId,
-            matchedAt: new Date().toISOString(),
-          })
-          .select()
-          .single();
-
-        if (matchError || !match) {
-          throw new Error("Eşleşme oluşturulamadı");
-        }
-
-        // Create conversation
-        await supabase.from("conversations").insert({
-          participant1Id: userId,
-          participant2Id: targetUserId,
-          matchId: match.id,
-        });
-
         return {
           action,
-          match: await this.buildMatch(match as unknown as SupabaseMatchRow),
+          match: await this.createMatchBetween(userId, targetUserId),
         };
       }
     }

@@ -2,10 +2,17 @@
 import { useState } from "react";
 import * as ImagePicker from "expo-image-picker";
 
+interface PickImageOptions {
+  allowsEditing?: boolean;
+  aspect?: [number, number];
+  base64?: boolean;
+  quality?: number;
+}
+
 export const useImagePicker = () => {
   const [isPicking, setIsPicking] = useState(false);
 
-  const pickImage = async () => {
+  const pickImageAsset = async (options: PickImageOptions = {}) => {
     setIsPicking(true);
 
     try {
@@ -16,21 +23,25 @@ export const useImagePicker = () => {
       }
 
       const result = await ImagePicker.launchImageLibraryAsync({
-        allowsEditing: true,
-        aspect: [1, 1],
+        allowsEditing: options.allowsEditing ?? true,
+        aspect: options.aspect ?? [1, 1],
+        base64: options.base64 ?? false,
         mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        quality: 0.82
+        quality: options.quality ?? 0.82,
       });
 
       if (result.canceled) {
         return null;
       }
 
-      return result.assets[0]?.uri ?? null;
+      return result.assets[0] ?? null;
     } finally {
       setIsPicking(false);
     }
   };
 
-  return { isPicking, pickImage };
+  const pickImage = async (options: PickImageOptions = {}) =>
+    (await pickImageAsset(options))?.uri ?? null;
+
+  return { isPicking, pickImage, pickImageAsset };
 };

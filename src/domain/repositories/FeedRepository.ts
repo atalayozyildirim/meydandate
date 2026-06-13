@@ -1,4 +1,4 @@
-// Akış postları, yorumları ve etkileşimleri için repository sözleşmesi.
+// Akış postları, yorumları, anketler ve etkileşimleri için repository sözleşmesi.
 import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 
 export interface FeedPageOptions {
@@ -22,6 +22,15 @@ export interface CreateFeedPostPayload {
   authorId: string;
   body: string;
   tags: FeedTag[];
+  image?: {
+    uri: string;
+    base64?: string | null;
+  };
+  poll?: {
+    question: string;
+    options: string[]; // seçenek metinleri
+    endsAt?: string;
+  };
 }
 
 export interface CreateFeedCommentPayload {
@@ -34,13 +43,42 @@ export interface CreateFeedReplyPayload extends CreateFeedCommentPayload {
   commentId: string;
 }
 
+export interface BotFeedPostPayload {
+  body: string;
+  tags: FeedTag[];
+  ctaLabel: string;
+  isActive: boolean;
+  showAdMob: boolean;
+  sortOrder?: number;
+  startsAt?: string;
+  endsAt?: string | null;
+}
+
 export interface FeedRepository {
-  listFeed(userId: string, tag?: FeedTag | "all", options?: FeedPageOptions): Promise<FeedPage>;
-  listComments(postId: string, options?: FeedPageOptions): Promise<FeedCommentsPage>;
+  listFeed(
+    userId: string,
+    tag?: FeedTag | "all",
+    options?: FeedPageOptions,
+  ): Promise<FeedPage>;
+  listComments(
+    postId: string,
+    options?: FeedPageOptions,
+  ): Promise<FeedCommentsPage>;
   createPost(payload: CreateFeedPostPayload): Promise<FeedPost>;
+  listBotPosts(
+    tag?: FeedTag | "all",
+    includeInactive?: boolean,
+  ): Promise<FeedPost[]>;
+  createBotPost(
+    adminUserId: string,
+    payload: BotFeedPostPayload,
+  ): Promise<FeedPost>;
+  updateBotPost(postId: string, payload: BotFeedPostPayload): Promise<FeedPost>;
+  deleteBotPost(postId: string): Promise<void>;
   togglePostLike(postId: string, userId: string): Promise<FeedPost>;
   addComment(payload: CreateFeedCommentPayload): Promise<FeedPost>;
   addReply(payload: CreateFeedReplyPayload): Promise<FeedPost>;
   reportPost(postId: string, reporterId: string): Promise<FeedPost>;
   deletePost(postId: string, requesterId: string): Promise<void>;
+  votePoll(pollId: string, optionId: string, userId: string): Promise<void>;
 }

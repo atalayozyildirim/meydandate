@@ -181,7 +181,7 @@ export class SupabaseModerationRepository implements ModerationRepository {
       .select("*")
       .eq("userId", userId)
       .or(`banType.eq.permanent,expiresAt.gt.${now}`)
-      .single();
+      .maybeSingle();
 
     if (error) return null;
     return data;
@@ -223,11 +223,14 @@ export class SupabaseModerationRepository implements ModerationRepository {
     if (error) throw new Error("Kullanıcı yasaklanamadı");
 
     // Update user status
-    await supabase.rpc("set_user_active", { target_user_id: userId, active: false });
+    await supabase.rpc("set_user_active", {
+      target_user_id: userId,
+      active: false,
+    });
 
     // Log action
     await this.logAction({
-      userId: "",
+      userId: authData.user?.id ?? "",
       action: banType === "permanent" ? "permanent_ban" : "temporary_ban",
       targetType: "ban",
       targetId: data.id,
@@ -238,6 +241,7 @@ export class SupabaseModerationRepository implements ModerationRepository {
   }
 
   async unbanUser(userId: string): Promise<void> {
+    const { data: authData } = await supabase.auth.getUser();
     const { error } = await supabase
       .from("banned_users")
       .delete()
@@ -246,11 +250,14 @@ export class SupabaseModerationRepository implements ModerationRepository {
     if (error) throw new Error("Yasaklama kaldırılamadı");
 
     // Update user status
-    await supabase.rpc("set_user_active", { target_user_id: userId, active: true });
+    await supabase.rpc("set_user_active", {
+      target_user_id: userId,
+      active: true,
+    });
 
     // Log action
     await this.logAction({
-      userId: "",
+      userId: authData.user?.id ?? "",
       action: "user_unbanned",
       targetType: "user",
       targetId: userId,
@@ -356,7 +363,7 @@ export class SupabaseModerationRepository implements ModerationRepository {
 
     await this.logAction({
       userId: assignedBy,
-      action: "role_assigned",
+      action: "role_removed",
       targetType: "user",
       targetId: userId,
       details: { newRole: "user" },

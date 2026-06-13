@@ -10,6 +10,7 @@
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
     "validate:prod": "node scripts/validate-production-env.js",
+    "postinstall": "patch-package",
     "eject": "expo eject"
   },
   "dependencies": {
@@ -22,11 +23,14 @@
     "expo-image-picker": "~14.3.2",
     "expo-linear-gradient": "~12.3.0",
     "expo-linking": "~5.0.2",
+    "expo-location": "~16.1.0",
     "expo-notifications": "~0.20.1",
     "expo-router": "^2.0.15",
     "expo-secure-store": "~12.3.1",
     "expo-splash-screen": "~0.20.5",
     "expo-status-bar": "~1.6.0",
+    "expo-web-browser": "~12.3.2",
+    "lottie-react-native": "^7.3.8",
     "react": "18.2.0",
     "react-dom": "18.2.0",
     "react-hook-form": "^7.50.0",
@@ -39,14 +43,13 @@
     "react-native-screens": "~3.22.0",
     "react-native-url-polyfill": "^3.0.0",
     "zod": "^3.25.0",
-    "zustand": "^4.5.0",
-    "expo-web-browser": "~12.3.2",
-    "expo-location": "~16.1.0"
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@babel/core": "^7.20.0",
     "@types/react": "~18.2.14",
     "babel-plugin-module-resolver": "^5.0.0",
+    "patch-package": "^8.0.1",
     "typescript": "^5.5.0"
   },
   "expo": {

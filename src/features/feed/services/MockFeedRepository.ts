@@ -1,6 +1,12 @@
 // Mock akış repository'si post, yorum, yanıt ve beğeni akışını yönetir.
-import type { FeedComment, FeedPost, FeedReply, FeedTag } from "@/domain/entities/Feed";
 import type {
+  FeedComment,
+  FeedPost,
+  FeedReply,
+  FeedTag,
+} from "@/domain/entities/Feed";
+import type {
+  BotFeedPostPayload,
   CreateFeedCommentPayload,
   CreateFeedPostPayload,
   CreateFeedReplyPayload,
@@ -9,6 +15,7 @@ import type {
   FeedPageOptions,
   FeedRepository,
 } from "@/domain/repositories/FeedRepository";
+import { ehlibyteBotUser } from "@/shared/constants/ehlibyteBot";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { createId } from "@/shared/utils/id";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
@@ -69,6 +76,81 @@ const feedPosts: FeedPost[] = [
   ),
 ];
 
+const createBotPostFromPayload = (
+  id: string,
+  payload: BotFeedPostPayload,
+  timestamp = new Date().toISOString(),
+): FeedPost => ({
+  id: `bot-${id}`,
+  authorId: ehlibyteBotUser.id,
+  author: ehlibyteBotUser,
+  body: sanitizePlainText(payload.body, 2000),
+  tags: payload.tags,
+  likedByUserIds: [],
+  comments: [],
+  reportCount: 0,
+  isPinned: true,
+  isSponsored: true,
+  sponsorLabel: "Resmi rehber",
+  ctaLabel: sanitizePlainText(payload.ctaLabel, 40) || "İncele",
+  showAdMob: payload.showAdMob,
+  botPostId: id,
+  isActive: payload.isActive,
+  createdAt: timestamp,
+  updatedAt: timestamp,
+});
+
+const botFeedPosts: FeedPost[] = [
+  createBotPostFromPayload(
+    "starter-welcome",
+    {
+      body: "Hoş geldin. Profilini canlı göstermek için bugün üç küçük şey yeterli: net bir fotoğraf, kısa bir niyet cümlesi ve sevdiğin bir deyiş ya da ozan.",
+      tags: ["gundem", "soru"],
+      ctaLabel: "Profili güçlendir",
+      isActive: true,
+      showAdMob: false,
+      sortOrder: 400,
+    },
+    now,
+  ),
+  createBotPostFromPayload(
+    "starter-question",
+    {
+      body: "Tanışmayı kolaylaştıran soru: Bir cem, deyiş ya da aile sofrasından aklında kalan en güzel cümle neydi?",
+      tags: ["soru", "deyis"],
+      ctaLabel: "Sohbete katıl",
+      isActive: true,
+      showAdMob: false,
+      sortOrder: 300,
+    },
+    now,
+  ),
+  createBotPostFromPayload(
+    "starter-safety",
+    {
+      body: "Güvenli hatırlatma: İlk mesajlarda telefon, adres ve özel fotoğraf paylaşma. Şüpheli bir durum olursa bildir; moderasyon kuyruğu hızlıca kontrol eder.",
+      tags: ["gundem"],
+      ctaLabel: "Güvenlik",
+      isActive: true,
+      showAdMob: false,
+      sortOrder: 200,
+    },
+    now,
+  ),
+  createBotPostFromPayload(
+    "zulfiqar-sword-default",
+    {
+      body: "Zülfikar Kılıcı özel rozeti mağazada. Hz. Ali'nin çift uçlu kılıcından ilham alan bu rozet profilinde özel destekçi işareti olarak görünür. Fiyat: ₺499.",
+      tags: ["gundem"],
+      ctaLabel: "Mağazada ₺499",
+      isActive: true,
+      showAdMob: true,
+      sortOrder: 100,
+    },
+    now,
+  ),
+];
+
 const findPost = (postId: string) => {
   const post = feedPosts.find((candidate) => candidate.id === postId);
 
@@ -97,16 +179,82 @@ export class MockFeedRepository implements FeedRepository {
       .sort((first, second) => {
         if (first.isPinned && !second.isPinned) return -1;
         if (!first.isPinned && second.isPinned) return 1;
-        return new Date(second.updatedAt).getTime() - new Date(first.updatedAt).getTime();
+        return (
+          new Date(second.updatedAt).getTime() -
+          new Date(first.updatedAt).getTime()
+        );
       })
       .map((post) => ({ ...post, comments: [] }));
     const rows = filteredPosts.slice(offset, offset + limit);
+    const activeBotPosts =
+      offset === 0 ? await this.listBotPosts(tag, false) : [];
 
     return {
-      posts: rows,
+      posts: [...activeBotPosts, ...rows],
       nextOffset: offset + rows.length,
       hasMore: offset + limit < filteredPosts.length,
     };
+  }
+
+  async listBotPosts(
+    tag: FeedTag | "all" = "all",
+    includeInactive = false,
+  ): Promise<FeedPost[]> {
+    return botFeedPosts
+      .filter((post) => includeInactive || post.isActive !== false)
+      .filter((post) => tag === "all" || post.tags.includes(tag))
+      .sort(
+        (first, second) =>
+          new Date(second.updatedAt).getTime() -
+          new Date(first.updatedAt).getTime(),
+      );
+  }
+
+  async createBotPost(
+    _adminUserId: string,
+    payload: BotFeedPostPayload,
+  ): Promise<FeedPost> {
+    const id = createId("bot_feed_post");
+    const post = createBotPostFromPayload(id, payload);
+    botFeedPosts.unshift(post);
+    return post;
+  }
+
+  async updateBotPost(
+    postId: string,
+    payload: BotFeedPostPayload,
+  ): Promise<FeedPost> {
+    const index = botFeedPosts.findIndex(
+      (post) => post.botPostId === postId || post.id === postId,
+    );
+
+    if (index === -1) {
+      throw new Error("Rehber paylaşımı bulunamadı.");
+    }
+
+    const existingPost = botFeedPosts[index] as FeedPost;
+    const updatedPost = {
+      ...createBotPostFromPayload(
+        existingPost.botPostId ?? postId,
+        payload,
+        existingPost.createdAt,
+      ),
+      updatedAt: new Date().toISOString(),
+    };
+    botFeedPosts[index] = updatedPost;
+    return updatedPost;
+  }
+
+  async deleteBotPost(postId: string): Promise<void> {
+    const index = botFeedPosts.findIndex(
+      (post) => post.botPostId === postId || post.id === postId,
+    );
+
+    if (index === -1) {
+      throw new Error("Rehber paylaşımı bulunamadı.");
+    }
+
+    botFeedPosts.splice(index, 1);
   }
 
   async listComments(
@@ -132,6 +280,7 @@ export class MockFeedRepository implements FeedRepository {
       authorId: payload.authorId,
       author: getUser(payload.authorId),
       body: sanitizePlainText(payload.body, 2000),
+      imageUrl: payload.image?.uri,
       tags: payload.tags,
       likedByUserIds: [],
       comments: [],
@@ -172,7 +321,9 @@ export class MockFeedRepository implements FeedRepository {
 
   async addReply(payload: CreateFeedReplyPayload): Promise<FeedPost> {
     const post = findPost(payload.postId);
-    const comment = post.comments.find((candidate) => candidate.id === payload.commentId);
+    const comment = post.comments.find(
+      (candidate) => candidate.id === payload.commentId,
+    );
 
     if (!comment) {
       throw new Error("Yorum bulunamadı.");
@@ -203,7 +354,9 @@ export class MockFeedRepository implements FeedRepository {
   }
 
   async deletePost(postId: string, requesterId: string): Promise<void> {
-    const postIndex = feedPosts.findIndex((candidate) => candidate.id === postId);
+    const postIndex = feedPosts.findIndex(
+      (candidate) => candidate.id === postId,
+    );
 
     if (postIndex === -1) {
       throw new Error("Post bulunamadı.");
@@ -216,5 +369,13 @@ export class MockFeedRepository implements FeedRepository {
     }
 
     feedPosts.splice(postIndex, 1);
+  }
+
+  async votePoll(
+    _pollId: string,
+    _optionId: string,
+    _userId: string,
+  ): Promise<void> {
+    // Mock: anket oyu uygulamada kalıcı değil
   }
 }

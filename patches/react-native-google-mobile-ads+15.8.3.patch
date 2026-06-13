@@ -1,0 +1,15 @@
+diff --git a/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/RNGoogleMobileAdsNativeModule.mm b/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/RNGoogleMobileAdsNativeModule.mm
+index 422480f..214cbae 100644
+--- a/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/RNGoogleMobileAdsNativeModule.mm
++++ b/node_modules/react-native-google-mobile-ads/ios/RNGoogleMobileAds/RNGoogleMobileAdsNativeModule.mm
+@@ -48,6 +48,10 @@ RCT_EXPORT_MODULE();
+   return dispatch_get_main_queue();
+ }
+ 
+++ (BOOL)requiresMainQueueSetup {
++  return YES;
++}
++
+ #ifdef RCT_NEW_ARCH_ENABLED
+ - (std::shared_ptr<facebook::react::TurboModule>)getTurboModule:
+     (const facebook::react::ObjCTurboModule::InitParams &)params {

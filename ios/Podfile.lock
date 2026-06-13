@@ -15,6 +15,8 @@ PODS:
   - EXImageLoader (4.3.0):
     - ExpoModulesCore
     - React-Core
+  - EXLocation (16.1.0):
+    - ExpoModulesCore
   - EXNotifications (0.20.1):
     - ExpoModulesCore
   - Expo (49.0.23):
@@ -34,6 +36,8 @@ PODS:
     - React-RCTAppDelegate
     - ReactCommon/turbomodule/core
   - ExpoSecureStore (12.3.1):
+    - ExpoModulesCore
+  - ExpoWebBrowser (12.3.2):
     - ExpoModulesCore
   - EXSplashScreen (0.20.5):
     - ExpoModulesCore
@@ -529,6 +533,7 @@ DEPENDENCIES:
   - EXFileSystem (from `../node_modules/expo-file-system/ios`)
   - EXFont (from `../node_modules/expo-font/ios`)
   - EXImageLoader (from `../node_modules/expo-image-loader/ios`)
+  - EXLocation (from `../node_modules/expo-location/ios`)
   - EXNotifications (from `../node_modules/expo-notifications/ios`)
   - Expo (from `../node_modules/expo`)
   - ExpoHead (from `../node_modules/expo-head/ios`)
@@ -537,6 +542,7 @@ DEPENDENCIES:
   - ExpoLinearGradient (from `../node_modules/expo-linear-gradient/ios`)
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
+  - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - EXSplashScreen (from `../node_modules/expo-splash-screen/ios`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
   - FBReactNativeSpec (from `../node_modules/react-native/React/FBReactNativeSpec`)
@@ -611,6 +617,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-font/ios"
   EXImageLoader:
     :path: "../node_modules/expo-image-loader/ios"
+  EXLocation:
+    :path: "../node_modules/expo-location/ios"
   EXNotifications:
     :path: "../node_modules/expo-notifications/ios"
   Expo:
@@ -627,6 +635,8 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-modules-core"
   ExpoSecureStore:
     :path: "../node_modules/expo-secure-store/ios"
+  ExpoWebBrowser:
+    :path: "../node_modules/expo-web-browser/ios"
   EXSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
   FBLazyVector:
@@ -725,6 +735,7 @@ SPEC CHECKSUMS:
   EXFileSystem: 1aeed803248e2b62c5cde8b8d8c6cb1525fc40c1
   EXFont: aa39b3f790e2b3188986ac5e8684cf6003c00a18
   EXImageLoader: 2c79db9355756be7494a2257648235ee47dc0f9c
+  EXLocation: a1f00cc5db80e6e159a1bea8de3147dedb5d60b6
   EXNotifications: aa416a5772ee7db622c3cd1ac4b258a30002c273
   Expo: 7bde63b84d4f6502de1e7963182333f39bedbf94
   ExpoHead: c7b5eb54105bc827b247eeef1738e011df732cf4
@@ -733,6 +744,7 @@ SPEC CHECKSUMS:
   ExpoLinearGradient: 1db30c60fe141f185b0ca5556cc85deb3ee9f245
   ExpoModulesCore: 3312621274fbba06fe382a37d8218a43cd522823
   ExpoSecureStore: 4682182dd6bdbd73dde41e91d0a4e205a96b819f
+  ExpoWebBrowser: 025c51f93c6a04beb169388877918de64ccae171
   EXSplashScreen: 84a7d9a965a2203e138528326fc3a511818e3fd1
   FBLazyVector: f91d538f197fa71a7d5b77ec2069d49550c0eb96
   FBReactNativeSpec: b13d1c23d6ed82d6b66aad7a253edf8ba76c4a4c

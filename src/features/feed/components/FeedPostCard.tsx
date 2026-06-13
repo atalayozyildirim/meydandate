@@ -1,14 +1,26 @@
 // Akış post kartını, yorumları ve yanıt formunu gösterir.
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+  ActivityIndicator,
+  Alert,
+  Image,
+  Pressable,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
+import { PollCard } from "./PollCard";
 import type { User } from "@/domain/entities/User";
 import { useFeedComments } from "@/features/feed/hooks/useFeed";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
 import { Button } from "@/shared/components/Button";
+import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
+import { AdMobBanner } from "@/features/ads";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { formatDateTime } from "@/shared/utils/date";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
@@ -19,12 +31,21 @@ interface FeedPostCardProps {
   currentUser: User;
   onLike: (postId: string) => Promise<unknown>;
   onComment: (postId: string, body: string) => Promise<unknown>;
-  onReply: (postId: string, commentId: string, body: string) => Promise<unknown>;
+  onReply: (
+    postId: string,
+    commentId: string,
+    body: string,
+  ) => Promise<unknown>;
   onReport: (postId: string) => Promise<unknown>;
   onDelete: (postId: string) => Promise<unknown>;
+  onVote?: (pollId: string, optionId: string) => void;
   onPermanentBan: (error: unknown) => void;
   canDelete?: boolean;
   disabled?: boolean;
+  isSponsored?: boolean;
+  sponsorLabel?: string;
+  ctaLabel?: string;
+  onCtaPress?: () => void;
 }
 
 const feedTagDisplayLabels: Record<FeedTag, string> = {
@@ -42,9 +63,14 @@ export const FeedPostCard = ({
   onReply,
   onReport,
   onDelete,
+  onVote,
   onPermanentBan,
   canDelete = false,
   disabled = false,
+  isSponsored = false,
+  sponsorLabel = "Sponsorlu",
+  ctaLabel = "İncele",
+  onCtaPress,
 }: FeedPostCardProps) => {
   const router = useRouter();
   const theme = useTheme();
@@ -60,9 +86,14 @@ export const FeedPostCard = ({
     isFetchingMoreComments,
   } = useFeedComments(post.id, isCommentsOpen);
   const liked = post.likedByUserIds.includes(currentUser.id);
-  const replyCount = comments.reduce((total, comment) => total + comment.replies.length, 0);
+  const replyCount = comments.reduce(
+    (total, comment) => total + comment.replies.length,
+    0,
+  );
   const commentActionLabel =
-    comments.length > 0 ? `${comments.length}${hasMoreComments ? "+" : ""}` : "Yorum";
+    comments.length > 0
+      ? `${comments.length}${hasMoreComments ? "+" : ""}`
+      : "Yorum";
   const openProfile = (userId: string) => {
     router.push({ pathname: "/tabs/profile/[userId]", params: { userId } });
   };
@@ -84,7 +115,10 @@ export const FeedPostCard = ({
         return;
       }
 
-      Alert.alert("Yorum gönderilemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
+      Alert.alert(
+        "Yorum gönderilemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
     }
   };
 
@@ -104,38 +138,55 @@ export const FeedPostCard = ({
         return;
       }
 
-      Alert.alert("Yanıt gönderilemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
+      Alert.alert(
+        "Yanıt gönderilemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
     }
   };
 
   const reportPost = () => {
-    Alert.alert("Post bildirilsin mi?", "Bu post moderasyon kuyruğuna alınacak.", [
-      { text: "Vazgeç", style: "cancel" },
-      {
-        text: "Bildir",
-        style: "destructive",
-        onPress: () => {
-          void onReport(post.id).catch((error) => {
-            Alert.alert("Bildirim alınamadı", error instanceof Error ? error.message : "Tekrar deneyin.");
-          });
+    Alert.alert(
+      "Post bildirilsin mi?",
+      "Bu post moderasyon kuyruğuna alınacak.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Bildir",
+          style: "destructive",
+          onPress: () => {
+            void onReport(post.id).catch((error) => {
+              Alert.alert(
+                "Bildirim alınamadı",
+                error instanceof Error ? error.message : "Tekrar deneyin.",
+              );
+            });
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   const deletePost = () => {
-    Alert.alert("Post silinsin mi?", "Bu post ve bağlı yorumları akıştan kaldırılacak.", [
-      { text: "Vazgeç", style: "cancel" },
-      {
-        text: "Sil",
-        style: "destructive",
-        onPress: () => {
-          void onDelete(post.id).catch((error) => {
-            Alert.alert("Post silinemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
-          });
+    Alert.alert(
+      "Post silinsin mi?",
+      "Bu post ve bağlı yorumları akıştan kaldırılacak.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Sil",
+          style: "destructive",
+          onPress: () => {
+            void onDelete(post.id).catch((error) => {
+              Alert.alert(
+                "Post silinemedi",
+                error instanceof Error ? error.message : "Tekrar deneyin.",
+              );
+            });
+          },
         },
-      },
-    ]);
+      ],
+    );
   };
 
   return (
@@ -143,58 +194,128 @@ export const FeedPostCard = ({
       <View style={styles.postRow}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} profilini aç`}
-          onPress={() => openProfile(post.authorId)}
-          style={({ pressed }) => [styles.avatarButton, pressed && styles.pressed]}
+          accessibilityLabel={
+            isSponsored
+              ? `${sanitizePlainText(post.author.name, 80)} paylaşımını aç`
+              : `${sanitizePlainText(post.author.name, 80)} profilini aç`
+          }
+          onPress={() =>
+            isSponsored ? onCtaPress?.() : openProfile(post.authorId)
+          }
+          style={({ pressed }) => [
+            styles.avatarButton,
+            pressed && styles.pressed,
+          ]}
         >
-          <Avatar name={post.author.name} uri={post.author.photos[0]?.uri} size={44} />
+          <Avatar
+            name={post.author.name}
+            uri={post.author.photos[0]?.uri}
+            size={44}
+          />
         </Pressable>
 
         <View style={styles.postContent}>
           <View style={styles.header}>
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} profilini aç`}
-              onPress={() => openProfile(post.authorId)}
-              style={({ pressed }) => [styles.authorButton, pressed && styles.pressed]}
+              accessibilityLabel={
+                isSponsored
+                  ? `${sanitizePlainText(post.author.name, 80)} paylaşımını aç`
+                  : `${sanitizePlainText(post.author.name, 80)} profilini aç`
+              }
+              onPress={() =>
+                isSponsored ? onCtaPress?.() : openProfile(post.authorId)
+              }
+              style={({ pressed }) => [
+                styles.authorButton,
+                pressed && styles.pressed,
+              ]}
             >
               <View style={styles.headerBody}>
                 <View style={styles.nameRow}>
                   <Text style={styles.name} numberOfLines={1}>
                     {sanitizePlainText(post.author.name, 80)}
                   </Text>
-                  {post.isPinned ? (
+                  {isSponsored ? (
+                    <View style={styles.sponsoredBadge}>
+                      <Ionicons
+                        name="megaphone-outline"
+                        size={11}
+                        color={theme.colors.primary}
+                      />
+                      <Text style={styles.sponsoredText}>{sponsorLabel}</Text>
+                    </View>
+                  ) : post.isPinned ? (
                     <View style={styles.pinnedBadge}>
-                      <Ionicons name="pin" size={11} color={theme.colors.primary} />
+                      <Ionicons
+                        name="pin"
+                        size={11}
+                        color={theme.colors.primary}
+                      />
                       <Text style={styles.pinnedText}>Sabit</Text>
                     </View>
                   ) : null}
                 </View>
-                <Text style={styles.meta}>{formatDateTime(post.createdAt)}</Text>
+                <Text style={styles.meta}>
+                  {formatDateTime(post.createdAt)}
+                </Text>
               </View>
             </Pressable>
-            <View style={styles.headerActions}>
-              {canDelete ? (
+            {isSponsored ? null : (
+              <View style={styles.headerActions}>
+                {canDelete ? (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={disabled}
+                    onPress={deletePost}
+                    style={({ pressed }) => [
+                      styles.iconButton,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Ionicons
+                      name="trash-outline"
+                      size={18}
+                      color={theme.colors.danger}
+                    />
+                  </Pressable>
+                ) : null}
                 <Pressable
                   accessibilityRole="button"
-                  disabled={disabled}
-                  onPress={deletePost}
-                  style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
+                  onPress={reportPost}
+                  style={({ pressed }) => [
+                    styles.iconButton,
+                    pressed && styles.pressed,
+                  ]}
                 >
-                  <Ionicons name="trash-outline" size={18} color={theme.colors.danger} />
+                  <Ionicons
+                    name="flag-outline"
+                    size={18}
+                    color={theme.colors.muted}
+                  />
                 </Pressable>
-              ) : null}
-              <Pressable
-                accessibilityRole="button"
-                onPress={reportPost}
-                style={({ pressed }) => [styles.iconButton, pressed && styles.pressed]}
-              >
-                <Ionicons name="flag-outline" size={18} color={theme.colors.muted} />
-              </Pressable>
-            </View>
+              </View>
+            )}
           </View>
 
           <Text style={styles.body}>{sanitizePlainText(post.body, 2000)}</Text>
+
+          {post.poll && !isSponsored ? (
+            <PollCard
+              poll={post.poll}
+              onVote={(optionId) => onVote?.(post.poll!.id, optionId)}
+              disabled={disabled}
+            />
+          ) : null}
+
+          {post.imageUrl ? (
+            <Image
+              accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} post fotoğrafı`}
+              source={{ uri: post.imageUrl }}
+              resizeMode="cover"
+              style={styles.postImage}
+            />
+          ) : null}
 
           <View style={styles.tagRow}>
             {post.tags.map((tag) => (
@@ -204,122 +325,194 @@ export const FeedPostCard = ({
             ))}
           </View>
 
-          <View style={styles.actionRow}>
-            <Pressable
-              accessibilityRole="button"
-              disabled={disabled}
-              onPress={() => void onLike(post.id)}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-            >
-              <Ionicons
-                name={liked ? "heart" : "heart-outline"}
-                size={19}
-                color={liked ? theme.colors.primary : theme.colors.muted}
-              />
-              <Text style={[styles.actionText, liked && styles.actionTextActive]}>
-                {post.likedByUserIds.length}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setIsCommentsOpen((current) => !current)}
-              style={({ pressed }) => [styles.action, pressed && styles.pressed]}
-            >
-              <Ionicons name="chatbubble-outline" size={18} color={theme.colors.muted} />
-              <Text style={styles.actionText}>{commentActionLabel}</Text>
-            </Pressable>
-            <View style={styles.action}>
-              <Ionicons name="return-down-back-outline" size={18} color={theme.colors.muted} />
-              <Text style={styles.actionText}>{replyCount}</Text>
-            </View>
-          </View>
-
-          {isCommentsOpen ? (
-            <View style={styles.comments}>
-          <View style={styles.commentComposer}>
-            <TextInput
-              value={commentText}
-              onChangeText={setCommentText}
-              maxLength={1000}
-              placeholder="Yorum yaz..."
-              placeholderTextColor={theme.colors.muted}
-              style={styles.commentInput}
-              multiline
-            />
-            <Button
-              label="Gönder"
-              disabled={disabled || !commentText.trim()}
-              style={styles.smallButton}
-              onPress={() => void submitComment()}
-            />
-          </View>
-
-          {isLoadingComments ? (
-            <View style={styles.commentsLoading}>
-              <ActivityIndicator color={theme.colors.primary} />
-            </View>
-          ) : comments.length === 0 ? (
-            <Text style={styles.emptyComments}>Henüz yorum yok. İlk yorumu sen yaz.</Text>
-          ) : null}
-
-          {comments.map((comment) => (
-            <View key={comment.id} style={styles.commentBlock}>
+          {isSponsored ? (
+            <>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => openProfile(comment.authorId)}
-                style={({ pressed }) => [styles.commentHeader, pressed && styles.pressed]}
+                onPress={onCtaPress}
+                style={({ pressed }) => [
+                  styles.sponsoredCta,
+                  pressed && styles.pressed,
+                ]}
               >
-                <Avatar name={comment.author.name} uri={comment.author.photos[0]?.uri} size={32} />
-                <View style={styles.commentBody}>
-                  <Text style={styles.commentName}>{sanitizePlainText(comment.author.name, 80)}</Text>
-                  <Text style={styles.commentText}>{sanitizePlainText(comment.body, 1000)}</Text>
+                <ZulfiqarBadgeIcon size={38} />
+                <View style={styles.sponsoredCtaText}>
+                  <Text style={styles.sponsoredCtaTitle}>
+                    Ehlibyte Bot reklamı
+                  </Text>
+                  <Text style={styles.sponsoredCtaMeta}>{ctaLabel}</Text>
                 </View>
-              </Pressable>
-              {comment.replies.map((reply) => (
-                <Pressable
-                  key={reply.id}
-                  accessibilityRole="button"
-                  onPress={() => openProfile(reply.authorId)}
-                  style={({ pressed }) => [styles.replyRow, pressed && styles.pressed]}
-                >
-                  <Avatar name={reply.author.name} uri={reply.author.photos[0]?.uri} size={26} />
-                  <View style={styles.replyBody}>
-                    <Text style={styles.replyName}>{sanitizePlainText(reply.author.name, 80)}</Text>
-                    <Text style={styles.replyText}>{sanitizePlainText(reply.body, 1000)}</Text>
-                  </View>
-                </Pressable>
-              ))}
-              <View style={styles.replyComposer}>
-                <TextInput
-                  value={replyInputs[comment.id] ?? ""}
-                  onChangeText={(value) =>
-                    setReplyInputs((current) => ({ ...current, [comment.id]: value }))
-                  }
-                  maxLength={1000}
-                  placeholder="Yanıt yaz..."
-                  placeholderTextColor={theme.colors.muted}
-                  style={styles.replyInput}
+                <Ionicons
+                  name="chevron-forward"
+                  size={18}
+                  color={theme.colors.primary}
                 />
-                <Pressable
-                  accessibilityRole="button"
-                  disabled={disabled || !replyInputs[comment.id]?.trim()}
-                  onPress={() => void submitReply(comment.id)}
-                  style={styles.replyButton}
+              </Pressable>
+              {post.showAdMob ? (
+                <AdMobBanner style={styles.sponsoredAd} />
+              ) : null}
+            </>
+          ) : (
+            <View style={styles.actionRow}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={disabled}
+                onPress={() => void onLike(post.id)}
+                style={({ pressed }) => [
+                  styles.action,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name={liked ? "heart" : "heart-outline"}
+                  size={19}
+                  color={liked ? theme.colors.primary : theme.colors.muted}
+                />
+                <Text
+                  style={[styles.actionText, liked && styles.actionTextActive]}
                 >
-                  <Ionicons name="send" size={16} color="#FFFFFF" />
-                </Pressable>
+                  {post.likedByUserIds.length}
+                </Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setIsCommentsOpen((current) => !current)}
+                style={({ pressed }) => [
+                  styles.action,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="chatbubble-outline"
+                  size={18}
+                  color={theme.colors.muted}
+                />
+                <Text style={styles.actionText}>{commentActionLabel}</Text>
+              </Pressable>
+              <View style={styles.action}>
+                <Ionicons
+                  name="return-down-back-outline"
+                  size={18}
+                  color={theme.colors.muted}
+                />
+                <Text style={styles.actionText}>{replyCount}</Text>
               </View>
             </View>
-          ))}
-          {hasMoreComments ? (
-            <Button
-              label="Daha fazla yorum"
-              variant="ghost"
-              loading={isFetchingMoreComments}
-              style={styles.loadMoreCommentsButton}
-              onPress={() => void fetchMoreComments()}
-            />
-          ) : null}
+          )}
+
+          {isCommentsOpen && !isSponsored ? (
+            <View style={styles.comments}>
+              <View style={styles.commentComposer}>
+                <TextInput
+                  value={commentText}
+                  onChangeText={setCommentText}
+                  maxLength={1000}
+                  placeholder="Yorum yaz..."
+                  placeholderTextColor={theme.colors.muted}
+                  style={styles.commentInput}
+                  multiline
+                />
+                <Button
+                  label="Gönder"
+                  disabled={disabled || !commentText.trim()}
+                  style={styles.smallButton}
+                  onPress={() => void submitComment()}
+                />
+              </View>
+
+              {isLoadingComments ? (
+                <View style={styles.commentsLoading}>
+                  <ActivityIndicator color={theme.colors.primary} />
+                </View>
+              ) : comments.length === 0 ? (
+                <Text style={styles.emptyComments}>
+                  Henüz yorum yok. İlk yorumu sen yaz.
+                </Text>
+              ) : null}
+
+              {comments.map((comment) => (
+                <View key={comment.id} style={styles.commentBlock}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => openProfile(comment.authorId)}
+                    style={({ pressed }) => [
+                      styles.commentHeader,
+                      pressed && styles.pressed,
+                    ]}
+                  >
+                    <Avatar
+                      name={comment.author.name}
+                      uri={comment.author.photos[0]?.uri}
+                      size={32}
+                    />
+                    <View style={styles.commentBody}>
+                      <Text style={styles.commentName}>
+                        {sanitizePlainText(comment.author.name, 80)}
+                      </Text>
+                      <Text style={styles.commentText}>
+                        {sanitizePlainText(comment.body, 1000)}
+                      </Text>
+                    </View>
+                  </Pressable>
+                  {comment.replies.map((reply) => (
+                    <Pressable
+                      key={reply.id}
+                      accessibilityRole="button"
+                      onPress={() => openProfile(reply.authorId)}
+                      style={({ pressed }) => [
+                        styles.replyRow,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Avatar
+                        name={reply.author.name}
+                        uri={reply.author.photos[0]?.uri}
+                        size={26}
+                      />
+                      <View style={styles.replyBody}>
+                        <Text style={styles.replyName}>
+                          {sanitizePlainText(reply.author.name, 80)}
+                        </Text>
+                        <Text style={styles.replyText}>
+                          {sanitizePlainText(reply.body, 1000)}
+                        </Text>
+                      </View>
+                    </Pressable>
+                  ))}
+                  <View style={styles.replyComposer}>
+                    <TextInput
+                      value={replyInputs[comment.id] ?? ""}
+                      onChangeText={(value) =>
+                        setReplyInputs((current) => ({
+                          ...current,
+                          [comment.id]: value,
+                        }))
+                      }
+                      maxLength={1000}
+                      placeholder="Yanıt yaz..."
+                      placeholderTextColor={theme.colors.muted}
+                      style={styles.replyInput}
+                    />
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={disabled || !replyInputs[comment.id]?.trim()}
+                      onPress={() => void submitReply(comment.id)}
+                      style={styles.replyButton}
+                    >
+                      <Ionicons name="send" size={16} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                </View>
+              ))}
+              {hasMoreComments ? (
+                <Button
+                  label="Daha fazla yorum"
+                  variant="ghost"
+                  loading={isFetchingMoreComments}
+                  style={styles.loadMoreCommentsButton}
+                  onPress={() => void fetchMoreComments()}
+                />
+              ) : null}
             </View>
           ) : null}
         </View>
@@ -408,11 +601,38 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "700",
       color: theme.colors.primary,
     },
+    sponsoredBadge: {
+      minHeight: 20,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 7,
+      backgroundColor: theme.isDark
+        ? "rgba(248, 216, 120, 0.12)"
+        : "rgba(233, 64, 87, 0.08)",
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(248, 216, 120, 0.24)"
+        : "rgba(233, 64, 87, 0.10)",
+    },
+    sponsoredText: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "700",
+      color: theme.colors.primary,
+    },
     body: {
       ...theme.typography.body,
       color: theme.colors.text,
       fontSize: 16,
       lineHeight: 23,
+    },
+    postImage: {
+      width: "100%",
+      aspectRatio: 4 / 3,
+      borderRadius: 18,
+      backgroundColor: theme.colors.elevated,
     },
     tagRow: {
       flexDirection: "row",
@@ -454,6 +674,39 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     actionTextActive: {
       color: theme.colors.primary,
+    },
+    sponsoredCta: {
+      minHeight: 54,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(248, 216, 120, 0.30)"
+        : "rgba(233, 64, 87, 0.14)",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      marginTop: theme.spacing.xs,
+      backgroundColor: theme.isDark ? "#1C212D" : "#FFF8E7",
+    },
+    sponsoredCtaText: {
+      flex: 1,
+      gap: 1,
+    },
+    sponsoredCtaTitle: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontSize: 13,
+      lineHeight: 17,
+    },
+    sponsoredCtaMeta: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+    },
+    sponsoredAd: {
+      marginTop: theme.spacing.xs,
+      backgroundColor: theme.isDark ? "#171923" : "rgba(255, 255, 255, 0.74)",
     },
     pressed: {
       opacity: 0.78,

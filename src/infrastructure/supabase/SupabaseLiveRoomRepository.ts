@@ -1,7 +1,16 @@
-import type { LiveChatMessage, LiveParticipant, LiveRoom, LiveRoomStatus } from "@/domain/entities/LiveRoom";
-import type { LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
+import type {
+  LiveChatMessage,
+  LiveParticipant,
+  LiveRoom,
+  LiveRoomStatus,
+} from "@/domain/entities/LiveRoom";
+import type {
+  LiveRoomRepository,
+  StartLiveRoomPayload,
+} from "@/domain/repositories/LiveRoomRepository";
 import type { User } from "@/domain/entities/User";
 import { supabase } from "./client";
+import { createSupabaseRepositoryError } from "./errors";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 
 type LiveRoomRow = {
@@ -47,7 +56,16 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
       .in("id", uniqueIds);
 
     if (error) {
-      throw new Error("Canlı oda kullanıcıları yüklenemedi");
+      if (__DEV__) {
+        console.info(
+          createSupabaseRepositoryError(
+            "Canlı oda kullanıcıları yüklenemedi",
+            error,
+          ).message,
+        );
+      }
+
+      return new Map();
     }
 
     return new Map(
@@ -66,7 +84,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
       .maybeSingle();
 
     if (roomError) {
-      throw new Error("Canlı oda yüklenemedi");
+      throw createSupabaseRepositoryError("Canlı oda yüklenemedi", roomError);
     }
 
     const room = roomData as LiveRoomRow | null;
@@ -97,26 +115,35 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     ]);
 
     if (participantError || messageError) {
-      throw new Error("Canlı oda detayları yüklenemedi");
+      throw createSupabaseRepositoryError(
+        "Canlı oda detayları yüklenemedi",
+        participantError ?? messageError,
+      );
     }
 
     const participantRows = (participantData || []) as LiveParticipantRow[];
-    const messageRows = ((messageData || []) as LiveMessageRow[]).slice().reverse();
+    const messageRows = ((messageData || []) as LiveMessageRow[])
+      .slice()
+      .reverse();
     const usersById = await this.getUsersById([
       ...participantRows.map((participant) => participant.user_id),
       ...messageRows.map((message) => message.sender_id),
     ]);
 
-    const participants: LiveParticipant[] = participantRows.map((participant) => {
-      const user = usersById.get(participant.user_id);
+    const participants: LiveParticipant[] = participantRows.map(
+      (participant) => {
+        const user = usersById.get(participant.user_id);
 
-      return {
-        id: participant.user_id,
-        name: user?.name ?? "Üye",
-        role: participant.role,
-        isCurrentUser: participant.user_id === currentUserId,
-      };
-    });
+        return {
+          id: participant.user_id,
+          name: user?.name ?? "Üye",
+          role: participant.role,
+          photoUri: user?.photos?.[0]?.uri,
+          isPremium: user?.isPremium ?? false,
+          isCurrentUser: participant.user_id === currentUserId,
+        };
+      },
+    );
 
     const messages: LiveChatMessage[] = messageRows.map((message) => {
       const sender = usersById.get(message.sender_id);
@@ -126,6 +153,8 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
         roomId: message.room_id,
         senderId: message.sender_id,
         senderName: sender?.name ?? "Üye",
+        senderPhotoUri: sender?.photos?.[0]?.uri,
+        senderIsPremium: sender?.isPremium ?? false,
         body: message.body,
         createdAt: message.created_at,
         isCurrentUser: message.sender_id === currentUserId,
@@ -147,19 +176,17 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
   }
 
   async joinRoom(roomId: string, userId: string): Promise<LiveRoom> {
-    const { error } = await supabase
-      .from("live_room_participants")
-      .upsert(
-        {
-          room_id: roomId,
-          user_id: userId,
-          role: "Izleyici",
-        },
-        { onConflict: "room_id,user_id", ignoreDuplicates: true },
-      );
+    const { error } = await supabase.from("live_room_participants").upsert(
+      {
+        room_id: roomId,
+        user_id: userId,
+        role: "Izleyici",
+      },
+      { onConflict: "room_id,user_id", ignoreDuplicates: true },
+    );
 
     if (error) {
-      throw new Error("Canlı odaya katılınamadı");
+      throw createSupabaseRepositoryError("Canlı odaya katılınamadı", error);
     }
 
     return this.getRoom(roomId);
@@ -173,13 +200,17 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
       .eq("user_id", userId);
 
     if (error) {
-      throw new Error("Canlı odadan çıkılamadı");
+      throw createSupabaseRepositoryError("Canlı odadan çıkılamadı", error);
     }
 
     return this.getRoom(roomId);
   }
 
-  async sendMessage(roomId: string, userId: string, body: string): Promise<LiveRoom> {
+  async sendMessage(
+    roomId: string,
+    userId: string,
+    body: string,
+  ): Promise<LiveRoom> {
     const { error } = await supabase.from("live_room_messages").insert({
       room_id: roomId,
       sender_id: userId,
@@ -187,13 +218,17 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     });
 
     if (error) {
-      throw new Error("Sohbet mesajı gönderilemedi");
+      throw createSupabaseRepositoryError("Sohbet mesajı gönderilemedi", error);
     }
 
     return this.getRoom(roomId);
   }
 
-  async startRoom(_roomId: string, _userId: string, payload: StartLiveRoomPayload): Promise<LiveRoom> {
+  async startRoom(
+    _roomId: string,
+    _userId: string,
+    payload: StartLiveRoomPayload,
+  ): Promise<LiveRoom> {
     const { data, error } = await supabase.rpc("admin_start_live_room", {
       target_description: payload.description,
       target_room_id: _roomId,
@@ -202,7 +237,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     });
 
     if (error || !data) {
-      throw new Error("Canlı yayın başlatılamadı");
+      throw createSupabaseRepositoryError("Canlı yayın başlatılamadı", error);
     }
 
     return this.getRoom((data as LiveRoomRow).id);
@@ -214,7 +249,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     });
 
     if (error || !data) {
-      throw new Error("Canlı yayın durdurulamadı");
+      throw createSupabaseRepositoryError("Canlı yayın durdurulamadı", error);
     }
 
     return this.getRoom((data as LiveRoomRow).id);

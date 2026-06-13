@@ -1,12 +1,23 @@
-// Topluluk akışı için post, yorum, yanıt ve etiket modellerini tanımlar.
+// Topluluk akışı için post, yorum, yanıt, anket ve etiket modellerini tanımlar.
 import type { User } from "@/domain/entities/User";
 
-export const feedTagValues = [
-  "muharrem",
-  "deyis",
-  "soru",
-  "gundem",
-] as const;
+export interface FeedPollOption {
+  id: string;
+  text: string;
+  voteCount: number;
+}
+
+export interface FeedPoll {
+  id: string;
+  postId: string;
+  question: string;
+  options: FeedPollOption[];
+  totalVotes: number;
+  votedOptionId?: string | null; // mevcut kullanıcının oy verdiği seçenek
+  endsAt?: string | null;
+}
+
+export const feedTagValues = ["muharrem", "deyis", "soru", "gundem"] as const;
 
 export type FeedTag = (typeof feedTagValues)[number];
 
@@ -37,11 +48,19 @@ export interface FeedPost {
   authorId: string;
   author: User;
   body: string;
+  imageUrl?: string;
   tags: FeedTag[];
   likedByUserIds: string[];
   comments: FeedComment[];
   reportCount: number;
   isPinned?: boolean;
+  isSponsored?: boolean;
+  sponsorLabel?: string;
+  ctaLabel?: string;
+  showAdMob?: boolean;
+  botPostId?: string;
+  isActive?: boolean;
+  poll?: FeedPoll | null;
   createdAt: string;
   updatedAt: string;
 }

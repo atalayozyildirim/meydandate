@@ -2,14 +2,14 @@
 export const culturalIdentityValues = [
   "alevi",
   "close_to_alevi_culture",
-  "prefer_not_to_say"
+  "prefer_not_to_say",
 ] as const;
 
 export const cultureImportanceValues = [
   "very_important",
   "important",
   "somewhat_important",
-  "not_important"
+  "not_important",
 ] as const;
 
 export const interestValues = [
@@ -22,7 +22,7 @@ export const interestValues = [
   "literature",
   "travel",
   "sports",
-  "nature"
+  "nature",
 ] as const;
 
 export const badgeValues = [
@@ -32,13 +32,20 @@ export const badgeValues = [
   "premium_member",
   "muharrem_follower",
   "cem_room_supporter",
-  "culture_guardian"
+  "culture_guardian",
+  "zulfiqar_sword",
+  // Yeni ozel tasarim rozet buraya eklenir:
+  // "haci_bektas_veli",
+  // "dede_korkut",
 ] as const;
+
+export const profileKindValues = ["member", "starter", "ai_starter"] as const;
 
 export type CulturalIdentity = (typeof culturalIdentityValues)[number];
 export type CultureImportance = (typeof cultureImportanceValues)[number];
 export type Interest = (typeof interestValues)[number];
 export type Badge = (typeof badgeValues)[number];
+export type ProfileKind = (typeof profileKindValues)[number];
 
 export interface ProfilePhoto {
   id: string;
@@ -63,6 +70,7 @@ export interface User {
   interests: Interest[];
   photos: ProfilePhoto[];
   badges: Badge[];
+  profileKind?: ProfileKind;
   isPremium: boolean;
   isDiscoverable?: boolean;
   matchByLocation?: boolean;

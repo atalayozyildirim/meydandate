@@ -99,7 +99,9 @@ export async function messageFilteringMiddleware(
       action: filterResult.violations.length > 0 ? "warn" : "allow",
     };
   } catch (error) {
-    console.error("Message filtering middleware error:", error);
+    if (__DEV__) {
+      console.error("Message filtering middleware error:", error);
+    }
 
     return {
       filteredBody: sanitizedBody,

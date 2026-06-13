@@ -9,6 +9,7 @@ import { useTheme } from "@/shared/theme";
 type TabIconName =
   | "newspaper-outline"
   | "flame-outline"
+  | "cart-outline"
   | "heart-outline"
   | "chatbubbles-outline"
   | "radio-outline"
@@ -49,18 +50,21 @@ export default function TabsLayout() {
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.muted,
         tabBarLabelStyle: {
-          fontSize: 11,
-          fontWeight: "700",
+          fontSize: 10,
+          fontWeight: "800",
+        },
+        tabBarItemStyle: {
+          paddingTop: 3,
         },
         tabBarStyle: {
           position: "absolute",
-          left: 14,
-          right: 14,
-          bottom: 12,
-          minHeight: 66,
+          left: 18,
+          right: 18,
+          bottom: 14,
+          minHeight: 62,
           paddingTop: 8,
-          paddingBottom: 10,
-          borderRadius: 28,
+          paddingBottom: 8,
+          borderRadius: 26,
           backgroundColor: theme.colors.surface,
           borderTopWidth: 0,
           borderColor: "rgba(233, 64, 87, 0.10)",
@@ -88,6 +92,13 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="store/index"
+        options={{
+          title: "Mağaza",
+          tabBarIcon: createTabIcon("cart-outline"),
+        }}
+      />
+      <Tabs.Screen
         name="matches/index"
         options={{
           href: null,
@@ -103,15 +114,13 @@ export default function TabsLayout() {
       <Tabs.Screen
         name="meydan/index"
         options={{
-          title: "Meydan",
-          tabBarIcon: createTabIcon("radio-outline"),
+          href: null,
         }}
       />
       <Tabs.Screen
         name="muharrem/index"
         options={{
-          title: "Oruç",
-          tabBarIcon: createTabIcon("calendar-outline"),
+          href: null,
         }}
       />
       <Tabs.Screen

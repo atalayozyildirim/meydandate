@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import { createId } from "@/shared/utils/id";
 import { env } from "@/infrastructure/config/env";
-import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
+import { supabase } from "@/infrastructure/supabase/client";
 import { paidBadgeProductByBadge } from "@/shared/constants/badges";
 import type { Badge } from "@/domain/entities/User";
 import type {
@@ -26,7 +26,10 @@ const getRevenueCatApiKey = () => {
     return env.revenueCatIosApiKey;
   }
 
-  if (Platform.OS === "android" && env.revenueCatAndroidApiKey.startsWith("goog_")) {
+  if (
+    Platform.OS === "android" &&
+    env.revenueCatAndroidApiKey.startsWith("goog_")
+  ) {
     return env.revenueCatAndroidApiKey;
   }
 
@@ -180,8 +183,7 @@ export class RevenueCatPaymentService implements PaymentService {
               type.includes("yearly") ||
               productId.includes("annual") ||
               productId.includes("yearly")
-            : type.includes("lifetime") ||
-              productId.includes("lifetime");
+            : type.includes("lifetime") || productId.includes("lifetime");
       })
     );
   }
@@ -228,7 +230,9 @@ export class RevenueCatPaymentService implements PaymentService {
     const current = await this.getCurrentOffering({ required: true });
     const availablePackages = current?.availablePackages ?? [];
 
-    return availablePackages.find((pkg) => pkg?.product?.identifier === productId);
+    return availablePackages.find(
+      (pkg) => pkg?.product?.identifier === productId,
+    );
   }
 
   async getSubscription(userId: string): Promise<Subscription> {
@@ -302,7 +306,9 @@ export class RevenueCatPaymentService implements PaymentService {
     const packageItem = await this.selectPackage(plan);
 
     if (!packageItem) {
-      throw new Error("RevenueCat paketleri yüklenemedi. Current offering içinde aylık ve yıllık paketleri kontrol edin.");
+      throw new Error(
+        "RevenueCat paketleri yüklenemedi. Current offering içinde aylık ve yıllık paketleri kontrol edin.",
+      );
     }
 
     const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
@@ -312,27 +318,46 @@ export class RevenueCatPaymentService implements PaymentService {
     );
     const receiptId = customerInfo?.originalAppUserId ?? createId("receipt");
 
-    const existingIndex = mockDatabase.subscriptions.findIndex(
-      (candidate) => candidate.userId === userId,
-    );
-    if (existingIndex >= 0) {
-      mockDatabase.subscriptions[existingIndex] = subscription;
-    } else {
-      mockDatabase.subscriptions.push(subscription);
-    }
+    try {
+      // isPremium güncelle
+      const { error: premiumUpdateError } = await supabase
+        .from("users")
+        .update({ isPremium: true })
+        .eq("id", userId);
 
-    const user = mockDatabase.users.find(
-      (candidate) => candidate.id === userId,
-    );
-    if (user) {
-      user.isPremium = true;
-      user.badges = Array.from(new Set([...user.badges, "premium_member"]));
+      if (premiumUpdateError && __DEV__) {
+        console.warn("Premium sync hatası:", premiumUpdateError.message);
+      }
+
+      // Mevcut badge'leri al ve premium_member ekle
+      const { data: userData } = await supabase
+        .from("users")
+        .select("badges")
+        .eq("id", userId)
+        .single();
+
+      if (userData) {
+        const updatedBadges = Array.from(
+          new Set([...(userData.badges ?? []), "premium_member"]),
+        );
+        await supabase
+          .from("users")
+          .update({ badges: updatedBadges })
+          .eq("id", userId);
+      }
+    } catch (syncError) {
+      if (__DEV__) {
+        console.warn("RevenueCat purchase Supabase sync hatası:", syncError);
+      }
     }
 
     return { subscription, receiptId };
   }
 
-  async purchaseBadge(userId: string, badge: Badge): Promise<BadgePurchaseResult> {
+  async purchaseBadge(
+    userId: string,
+    badge: Badge,
+  ): Promise<BadgePurchaseResult> {
     if (!getRevenueCatApiKey() || Platform.OS === "web") {
       if (__DEV__) {
         return new MockPaymentService().purchaseBadge(userId, badge);
@@ -357,20 +382,47 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Rozet urunu bulunamadi.");
     }
 
-    const packageItem = await this.selectProductPackage(product.revenueCatProductId);
+    const packageItem = await this.selectProductPackage(
+      product.revenueCatProductId,
+    );
 
     if (!packageItem) {
-      throw new Error("RevenueCat rozet paketi bulunamadı. Rozet ürününü current offering içine ekleyin.");
+      throw new Error(
+        "RevenueCat rozet paketi bulunamadı. Rozet ürününü current offering içine ekleyin.",
+      );
     }
 
     const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
-    const receiptId = customerInfo?.originalAppUserId ?? createId("badge_receipt");
-    const user = mockDatabase.users.find(
-      (candidate) => candidate.id === userId,
-    );
+    const receiptId =
+      customerInfo?.originalAppUserId ?? createId("badge_receipt");
 
-    if (user) {
-      user.badges = Array.from(new Set([...user.badges, badge]));
+    try {
+      const { data: badgeUserData } = await supabase
+        .from("users")
+        .select("badges")
+        .eq("id", userId)
+        .single();
+
+      if (badgeUserData) {
+        const updatedBadges = Array.from(
+          new Set([...(badgeUserData.badges ?? []), badge]),
+        );
+        const { error: badgeUpdateError } = await supabase
+          .from("users")
+          .update({ badges: updatedBadges })
+          .eq("id", userId);
+
+        if (badgeUpdateError && __DEV__) {
+          console.warn("Badge sync hatası:", badgeUpdateError.message);
+        }
+      }
+    } catch (syncError) {
+      if (__DEV__) {
+        console.warn(
+          "RevenueCat purchaseBadge Supabase sync hatası:",
+          syncError,
+        );
+      }
     }
 
     return { badge, receiptId };
@@ -392,6 +444,28 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     const customerInfo = await this.Purchases.restorePurchases();
-    return this.mapCustomerInfoToSubscription(customerInfo, userId);
+    const restored = this.mapCustomerInfoToSubscription(customerInfo, userId);
+
+    if (restored.status === "active") {
+      try {
+        const { error: syncError } = await supabase
+          .from("users")
+          .update({ isPremium: true })
+          .eq("id", userId);
+
+        if (syncError && __DEV__) {
+          console.warn("Restore premium sync hatası:", syncError.message);
+        }
+      } catch (syncError) {
+        if (__DEV__) {
+          console.warn(
+            "RevenueCat restorePurchases Supabase sync hatası:",
+            syncError,
+          );
+        }
+      }
+    }
+
+    return restored;
   }
 }

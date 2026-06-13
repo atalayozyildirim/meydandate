@@ -20,14 +20,23 @@ interface SwipeProfileCardProps {
 export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: SwipeProfileCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const primaryPhoto = user.photos.find((photo) => photo.isPrimary)?.uri;
+  const primaryPhoto =
+    user.photos.find((photo) => photo.isPrimary)?.uri ??
+    "https://images.unsplash.com/photo-1524504388940-b1c1722653e1?auto=format&fit=crop&w=900&q=80";
   const hasActiveBoost = isProfileBoostActive(user.boostedUntil);
   const distanceLabel = formatDistanceKm(user.distanceKm);
+  const isStarterProfile = (user.profileKind ?? "member") !== "member";
 
   return (
     <Card style={[styles.card, { height }]}>
       <ImageBackground source={{ uri: primaryPhoto }} style={styles.photo} imageStyle={styles.photoImage}>
         <View pointerEvents="none" style={styles.topBadges}>
+          {isStarterProfile ? (
+            <View style={[styles.statusPill, styles.guidePill]}>
+              <Ionicons name={"sparkles" as any} size={13} color="#FFFFFF" />
+              <Text style={styles.statusPillText}>Rehber</Text>
+            </View>
+          ) : null}
           {hasActiveBoost ? (
             <View style={[styles.statusPill, styles.boostPill]}>
               <Ionicons name="flash" size={13} color="#FFFFFF" />
@@ -130,6 +139,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     premiumPill: {
       backgroundColor: "rgba(138, 35, 135, 0.88)"
+    },
+    guidePill: {
+      backgroundColor: "rgba(15, 23, 42, 0.72)"
     },
     statusPillText: {
       ...theme.typography.caption,

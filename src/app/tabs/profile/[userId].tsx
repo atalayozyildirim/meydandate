@@ -1,6 +1,7 @@
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { BadgeIcon } from "@/shared/components/BadgeIcon";
 import { Card } from "@/shared/components/Card";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
@@ -24,10 +25,17 @@ export default function PublicProfileScreen() {
   if (isError || !profile) {
     return (
       <Screen>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
         </Pressable>
-        <EmptyState title="Profil bulunamadı" description="Bu kullanıcı artık görüntülenemiyor olabilir." />
+        <EmptyState
+          title="Profil bulunamadı"
+          description="Bu kullanıcı artık görüntülenemiyor olabilir."
+        />
       </Screen>
     );
   }
@@ -37,13 +45,19 @@ export default function PublicProfileScreen() {
   return (
     <Screen>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
         </Pressable>
         <Text style={styles.kicker}>Topluluk profili</Text>
       </View>
 
-      {primaryPhoto ? <Image source={{ uri: primaryPhoto }} style={styles.photo} /> : null}
+      {primaryPhoto ? (
+        <Image source={{ uri: primaryPhoto }} style={styles.photo} />
+      ) : null}
       <Text style={styles.name}>
         {sanitizePlainText(profile.name, 80)}, {profile.age}
       </Text>
@@ -52,13 +66,20 @@ export default function PublicProfileScreen() {
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Rozetler</Text>
-        <View style={styles.chipWrap}>
-          {profile.badges.map((badge) => (
-            <View key={badge} style={styles.badge}>
-              <Text style={styles.badgeText}>{badgeLabels[badge]}</Text>
-            </View>
-          ))}
-        </View>
+        {profile.badges.length === 0 ? (
+          <Text style={styles.emptyBadgeText}>Henüz rozet kazanılmadı.</Text>
+        ) : (
+          <View style={styles.badgeGrid}>
+            {profile.badges.map((badge) => (
+              <View key={badge} style={styles.badgeItem}>
+                <BadgeIcon badge={badge} size={52} />
+                <Text style={styles.badgeLabel} numberOfLines={2}>
+                  {badgeLabels[badge]}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
       </Card>
 
       <Card style={styles.section}>
@@ -67,7 +88,8 @@ export default function PublicProfileScreen() {
           {profile.interests.map((interest) => (
             <View key={interest} style={styles.interest}>
               <Text style={styles.interestText}>
-                {interestOptions.find((option) => option.value === interest)?.label ?? interest}
+                {interestOptions.find((option) => option.value === interest)
+                  ?.label ?? interest}
               </Text>
             </View>
           ))}
@@ -80,10 +102,12 @@ export default function PublicProfileScreen() {
           Memleket: {sanitizePlainText(profile.hometown || "Belirtilmedi", 80)}
         </Text>
         <Text style={styles.detail}>
-          Favori türkü: {sanitizePlainText(profile.favoriteSong || "Belirtilmedi", 120)}
+          Favori türkü:{" "}
+          {sanitizePlainText(profile.favoriteSong || "Belirtilmedi", 120)}
         </Text>
         <Text style={styles.detail}>
-          Favori ozan: {sanitizePlainText(profile.favoritePoet || "Belirtilmedi", 120)}
+          Favori ozan:{" "}
+          {sanitizePlainText(profile.favoritePoet || "Belirtilmedi", 120)}
         </Text>
       </Card>
     </Screen>
@@ -145,15 +169,25 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexWrap: "wrap",
       gap: theme.spacing.xs,
     },
-    badge: {
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.xs,
-      backgroundColor: theme.colors.primary,
+    badgeGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
     },
-    badgeText: {
+    badgeItem: {
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      width: 72,
+    },
+    badgeLabel: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.colors.muted,
+      textAlign: "center",
+      fontSize: 10,
+    },
+    emptyBadgeText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
     },
     interest: {
       borderRadius: theme.radius.pill,
@@ -170,4 +204,3 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
     },
   });
-

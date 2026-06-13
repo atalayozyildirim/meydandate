@@ -16,6 +16,9 @@ const supabasePublishableKey =
   readEnv(process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY) ||
   readEnv(process.env.EXPO_PUBLIC_SUPABASE_KEY);
 
+const tenorApiKey = readEnv(process.env.EXPO_PUBLIC_TENOR_API_KEY);
+const giphyApiKey = readEnv(process.env.EXPO_PUBLIC_GIPHY_API_KEY);
+
 const isPlaceholder = (value: string, fragments: string[]) =>
   !value || fragments.some((fragment) => value.includes(fragment));
 const hasSafeIdentifierFormat = (value: string) => /^[A-Za-z0-9_.-]+$/.test(value);
@@ -45,6 +48,7 @@ export const env = {
   secureRefreshTokenKey: "ehlibyte-refresh-token",
   permanentBanKey: "ehlibyte-permanent-ban",
   knowledgeTestAttemptKey: "ehlibyte-knowledge-test-attempt",
+  introSeenKey: "ehlibyte-intro-seen-v1",
   revenueCatIosApiKey: readEnv(process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY),
   revenueCatAndroidApiKey:
     readEnv(process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY),

@@ -1,7 +1,15 @@
 // Akış verisini, post oluşturmayı ve yorum/yanıt etkileşimlerini yönetir.
-import { useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+} from "@tanstack/react-query";
 import type { FeedTag } from "@/domain/entities/Feed";
-import type { FeedCommentsPage, FeedPage } from "@/domain/repositories/FeedRepository";
+import type {
+  BotFeedPostPayload,
+  FeedCommentsPage,
+  FeedPage,
+} from "@/domain/repositories/FeedRepository";
 import { messageFilteringMiddleware } from "@/features/moderation/middleware/messageFilteringMiddleware";
 import { PermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useAuthStore } from "@/features/auth/stores/authStore";
@@ -10,13 +18,19 @@ import { queryKeys } from "@/shared/constants/queryKeys";
 
 const FEED_PAGE_SIZE = 8;
 const COMMENT_PAGE_SIZE = 4;
+const EMPTY_FEED_PAGE: FeedPage = {
+  posts: [],
+  hasMore: false,
+};
 
 const moderateFeedText = async (authorId: string, body: string) => {
   const moderation = await messageFilteringMiddleware("feed", authorId, body);
 
   if (moderation.isBlocked) {
     if (moderation.action === "ban") {
-      throw new PermanentBanError("Bu içerik ağır güvenlik ihlali nedeniyle engellendi. Hesap kalıcı olarak banlandı.");
+      throw new PermanentBanError(
+        "Bu içerik ağır güvenlik ihlali nedeniyle engellendi. Hesap kalıcı olarak banlandı.",
+      );
     }
 
     throw new Error("İçerik güvenlik filtresinden geçemedi.");
@@ -32,11 +46,21 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
   const query = useInfiniteQuery<FeedPage, Error>({
     queryKey: [queryKeys.feed, tag, currentUser?.id],
     enabled: Boolean(currentUser),
-    queryFn: ({ pageParam = 0 }) =>
-      container.feedRepository.listFeed(currentUser?.id ?? "", tag, {
-        offset: Number(pageParam),
-        limit: FEED_PAGE_SIZE,
-      }),
+    retry: false,
+    queryFn: async ({ pageParam = 0 }) => {
+      try {
+        return await container.feedRepository.listFeed(
+          currentUser?.id ?? "",
+          tag,
+          {
+            offset: Number(pageParam),
+            limit: FEED_PAGE_SIZE,
+          },
+        );
+      } catch {
+        return EMPTY_FEED_PAGE;
+      }
+    },
     getNextPageParam: (lastPage) =>
       lastPage.hasMore ? lastPage.nextOffset : undefined,
   });
@@ -46,16 +70,43 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
   };
 
   const createPostMutation = useMutation({
-    mutationFn: async ({ body, tags }: { body: string; tags: FeedTag[] }) => {
+    mutationFn: async (payload: {
+      body: string;
+      tags: FeedTag[];
+      image?: { uri: string; base64?: string | null };
+      poll?: { question: string; options: string[]; endsAt?: string };
+    }) => {
       if (!currentUser) {
         throw new Error("Post paylaşmak için oturum gerekli.");
       }
 
-      const filteredBody = await moderateFeedText(currentUser.id, body);
+      const filteredBody = await moderateFeedText(currentUser.id, payload.body);
+
+      let filteredPoll: { question: string; options: string[]; endsAt?: string } | undefined;
+
+      if (payload.poll) {
+        const filteredQuestion = await moderateFeedText(
+          currentUser.id,
+          payload.poll.question,
+        );
+        const filteredOptions = await Promise.all(
+          (payload.poll.options ?? []).map((opt) =>
+            moderateFeedText(currentUser.id, opt),
+          ),
+        );
+        filteredPoll = {
+          question: filteredQuestion,
+          options: filteredOptions,
+          endsAt: payload.poll.endsAt,
+        };
+      }
+
       return container.feedRepository.createPost({
         authorId: currentUser.id,
         body: filteredBody,
-        tags,
+        tags: payload.tags,
+        image: payload.image,
+        ...(filteredPoll ? { poll: filteredPoll } : {}),
       });
     },
     onSuccess: invalidateFeed,
@@ -135,6 +186,27 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
     onSuccess: invalidateFeed,
   });
 
+  const votePollMutation = useMutation({
+    mutationFn: ({
+      pollId,
+      optionId,
+    }: {
+      pollId: string;
+      optionId: string;
+    }) => {
+      if (!currentUser) {
+        throw new Error("Oy vermek için oturum gerekli.");
+      }
+
+      return container.feedRepository.votePoll(
+        pollId,
+        optionId,
+        currentUser.id,
+      );
+    },
+    onSuccess: invalidateFeed,
+  });
+
   return {
     posts: query.data?.pages.flatMap((page) => page.posts) ?? [],
     currentUser,
@@ -151,13 +223,15 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
     addReply: replyMutation.mutateAsync,
     reportPost: reportMutation.mutateAsync,
     deletePost: deletePostMutation.mutateAsync,
+    votePoll: votePollMutation.mutateAsync,
     isMutating:
       createPostMutation.isPending ||
       likeMutation.isPending ||
       commentMutation.isPending ||
       replyMutation.isPending ||
       reportMutation.isPending ||
-      deletePostMutation.isPending,
+      deletePostMutation.isPending ||
+      votePollMutation.isPending,
   };
 };
 
@@ -165,6 +239,7 @@ export const useFeedComments = (postId: string, enabled: boolean) => {
   const query = useInfiniteQuery<FeedCommentsPage, Error>({
     queryKey: [queryKeys.feed, "comments", postId],
     enabled,
+    retry: false,
     queryFn: ({ pageParam = 0 }) =>
       container.feedRepository.listComments(postId, {
         offset: Number(pageParam),
@@ -180,5 +255,70 @@ export const useFeedComments = (postId: string, enabled: boolean) => {
     fetchMoreComments: query.fetchNextPage,
     hasMoreComments: Boolean(query.hasNextPage),
     isFetchingMoreComments: query.isFetchingNextPage,
+  };
+};
+
+export const useBotFeedAdmin = (enabled: boolean) => {
+  const queryClient = useQueryClient();
+  const currentUser = useAuthStore((state) => state.currentUser);
+
+  const botPostsQuery = useInfiniteQuery<FeedPage, Error>({
+    queryKey: [queryKeys.feed, "bot-admin", currentUser?.id],
+    enabled: Boolean(enabled && currentUser),
+    retry: false,
+    queryFn: async () => ({
+      posts: await container.feedRepository.listBotPosts("all", true),
+      hasMore: false,
+    }),
+    getNextPageParam: () => undefined,
+  });
+
+  const invalidateBotPosts = async () => {
+    await Promise.all([
+      queryClient.invalidateQueries({ queryKey: [queryKeys.feed] }),
+      queryClient.invalidateQueries({
+        queryKey: [queryKeys.feed, "bot-admin"],
+      }),
+    ]);
+  };
+
+  const createBotPostMutation = useMutation({
+    mutationFn: (payload: BotFeedPostPayload) => {
+      if (!currentUser) {
+        throw new Error("Rehber paylaşımı için admin oturumu gerekli.");
+      }
+
+      return container.feedRepository.createBotPost(currentUser.id, payload);
+    },
+    onSuccess: invalidateBotPosts,
+  });
+
+  const updateBotPostMutation = useMutation({
+    mutationFn: ({
+      postId,
+      payload,
+    }: {
+      postId: string;
+      payload: BotFeedPostPayload;
+    }) => container.feedRepository.updateBotPost(postId, payload),
+    onSuccess: invalidateBotPosts,
+  });
+
+  const deleteBotPostMutation = useMutation({
+    mutationFn: (postId: string) =>
+      container.feedRepository.deleteBotPost(postId),
+    onSuccess: invalidateBotPosts,
+  });
+
+  return {
+    botPosts: botPostsQuery.data?.pages.flatMap((page) => page.posts) ?? [],
+    isLoadingBotPosts: botPostsQuery.isLoading,
+    createBotPost: createBotPostMutation.mutateAsync,
+    updateBotPost: updateBotPostMutation.mutateAsync,
+    deleteBotPost: deleteBotPostMutation.mutateAsync,
+    isSavingBotPost:
+      createBotPostMutation.isPending ||
+      updateBotPostMutation.isPending ||
+      deleteBotPostMutation.isPending,
   };
 };

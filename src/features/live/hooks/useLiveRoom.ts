@@ -16,6 +16,7 @@ export const useLiveRoom = (roomId: string) => {
     queryKey: [queryKeys.liveRoom, roomId],
     enabled: Boolean(currentUser),
     refetchInterval: 3000,
+    retry: false,
     queryFn: () => container.liveRoomRepository.getRoom(roomId, accessToken),
   });
 
