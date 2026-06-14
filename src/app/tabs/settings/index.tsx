@@ -506,11 +506,6 @@ export default function SettingsScreen() {
             selected={language === "tr"}
             onPress={() => handleLanguageChange("tr")}
           />
-          <OptionChip
-            label="English"
-            selected={language === "en"}
-            onPress={() => handleLanguageChange("en")}
-          />
         </View>
       </Card>
 

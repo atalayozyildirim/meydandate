@@ -88,6 +88,19 @@ export class MockUserRepository implements UserRepository {
     return updatedUser;
   }
 
+  async claimMuharrem2026Badge(userId: string): Promise<User> {
+    const currentUser = findUser(userId);
+    const updatedUser = mergeUser(currentUser, {
+      badges: Array.from(
+        new Set([...currentUser.badges, "muharrem_orucu_2026"]),
+      ),
+    });
+    const index = mockDatabase.users.findIndex((user) => user.id === userId);
+    mockDatabase.users[index] = updatedUser;
+
+    return updatedUser;
+  }
+
   async activatePremiumBoost(userId: string): Promise<User> {
     const currentUser = findUser(userId);
     const updatedUser = mergeUser(currentUser, {
@@ -131,6 +144,40 @@ export class MockUserRepository implements UserRepository {
     mockDatabase.users[index] = updatedUser;
 
     return updatedUser;
+  }
+
+  async getFireBalance(userId: string): Promise<number> {
+    return mockDatabase.fireWallets[userId] ?? 0;
+  }
+
+  async purchaseFirePackage(
+    userId: string,
+    amount: 100 | 500 | 1500,
+  ): Promise<number> {
+    const nextBalance = (mockDatabase.fireWallets[userId] ?? 0) + amount;
+    mockDatabase.fireWallets[userId] = nextBalance;
+    return nextBalance;
+  }
+
+  async sendProfileFire(
+    userId: string,
+    targetUserId: string,
+    amount = 1,
+  ): Promise<{ balance: number; targetFireScore: number }> {
+    const currentBalance = mockDatabase.fireWallets[userId] ?? 0;
+
+    if (currentBalance < amount) {
+      throw new Error("Fire bakiyen yetersiz.");
+    }
+
+    const target = findUser(targetUserId);
+    mockDatabase.fireWallets[userId] = currentBalance - amount;
+    target.fireScore = (target.fireScore ?? 0) + amount;
+
+    return {
+      balance: mockDatabase.fireWallets[userId],
+      targetFireScore: target.fireScore,
+    };
   }
 
   async listDiscoverCandidates(userId: string): Promise<User[]> {
@@ -206,6 +253,12 @@ export class MockUserRepository implements UserRepository {
           if (distanceRank !== 0) {
             return distanceRank;
           }
+        }
+
+        const fireRank = (second.fireScore ?? 0) - (first.fireScore ?? 0);
+
+        if (fireRank !== 0) {
+          return fireRank;
         }
 
         if (first.isPremium !== second.isPremium) {

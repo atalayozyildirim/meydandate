@@ -152,7 +152,11 @@ const botFeedPosts: FeedPost[] = [
 ];
 
 const findPost = (postId: string) => {
-  const post = feedPosts.find((candidate) => candidate.id === postId);
+  const post =
+    feedPosts.find((candidate) => candidate.id === postId) ??
+    botFeedPosts.find(
+      (candidate) => candidate.id === postId || candidate.botPostId === postId,
+    );
 
   if (!post) {
     throw new Error("Post bulunamadı.");
@@ -167,6 +171,10 @@ const toggleUserId = (ids: string[], userId: string) =>
   ids.includes(userId) ? ids.filter((id) => id !== userId) : [...ids, userId];
 
 export class MockFeedRepository implements FeedRepository {
+  async getPost(postId: string): Promise<FeedPost> {
+    return findPost(postId);
+  }
+
   async listFeed(
     _userId: string,
     tag: FeedTag | "all" = "all",
@@ -187,7 +195,7 @@ export class MockFeedRepository implements FeedRepository {
       .map((post) => ({ ...post, comments: [] }));
     const rows = filteredPosts.slice(offset, offset + limit);
     const activeBotPosts =
-      offset === 0 ? await this.listBotPosts(tag, false) : [];
+      offset === 0 ? await this.listFeaturedBotPosts(tag) : [];
 
     return {
       posts: [...activeBotPosts, ...rows],
@@ -208,6 +216,19 @@ export class MockFeedRepository implements FeedRepository {
           new Date(second.updatedAt).getTime() -
           new Date(first.updatedAt).getTime(),
       );
+  }
+
+  private async listFeaturedBotPosts(
+    tag: FeedTag | "all" = "all",
+  ): Promise<FeedPost[]> {
+    const botPosts = await this.listBotPosts(tag, false);
+
+    if (botPosts.length <= 1) {
+      return botPosts;
+    }
+
+    const featuredPost = botPosts[Math.floor(Math.random() * botPosts.length)];
+    return featuredPost ? [featuredPost] : [];
   }
 
   async createBotPost(

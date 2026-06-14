@@ -10,6 +10,7 @@ import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 import { getProfileBoostRank } from "@/shared/utils/profileBoost";
 import { clampMatchRadiusKm } from "@/shared/utils/location";
 import { createSupabaseRepositoryError } from "./errors";
+import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 
 type PrivateProfile = Partial<User> & {
   blockedUsers?: string[];
@@ -19,6 +20,49 @@ type PrivateProfile = Partial<User> & {
 const hasStoredLocation = (profile: Partial<User>) =>
   typeof profile.locationLatitude === "number" &&
   typeof profile.locationLongitude === "number";
+
+const getDailyCandidateJitter = (userId: string, candidateId: string) => {
+  const dayKey = Math.floor(Date.now() / 86_400_000);
+  const value = `${userId}:${candidateId}:${dayKey}`;
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) % 9973;
+  }
+
+  return hash / 9973;
+};
+
+const getDiscoveryRank = (currentUser: User, candidate: User, nowMs: number) => {
+  const compatibility = calculateCulturalMatchScore(currentUser, candidate);
+  const compatibilityScore =
+    compatibility.cultural * 0.42 +
+    compatibility.interests * 0.36 +
+    compatibility.lifestyle * 0.22;
+  const boostScore = getProfileBoostRank(candidate.boostedUntil, nowMs) * 34;
+  const fireScore = Math.min(28, Math.log1p(candidate.fireScore ?? 0) * 5.5);
+  const premiumScore = candidate.isPremium ? 8 : 0;
+  const distanceScore =
+    typeof candidate.distanceKm === "number"
+      ? Math.max(0, 14 - Math.min(candidate.distanceKm, 70) / 5)
+      : 0;
+  const freshScore = Math.max(
+    0,
+    10 -
+      (nowMs - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 14),
+  );
+  const jitter = getDailyCandidateJitter(currentUser.id, candidate.id) * 4;
+
+  return (
+    compatibilityScore +
+    boostScore +
+    fireScore +
+    premiumScore +
+    distanceScore +
+    freshScore +
+    jitter
+  );
+};
 
 const getErrorField = (
   error: unknown,
@@ -120,6 +164,19 @@ export class SupabaseUserRepository implements UserRepository {
     return this.getCurrentUser(userId);
   }
 
+  async claimMuharrem2026Badge(userId: string): Promise<User> {
+    const { data, error } = await supabase
+      .rpc("claim_muharrem_2026_badge")
+      .maybeSingle();
+    const profile = data as Partial<User> | null;
+
+    if (error || !profile || profile.id !== userId) {
+      throw createSupabaseRepositoryError("Muharrem rozeti eklenemedi", error);
+    }
+
+    return mapSupabaseUser(profile);
+  }
+
   async activatePremiumBoost(userId: string): Promise<User> {
     const { data, error } = await supabase
       .rpc("activate_premium_boost")
@@ -215,6 +272,57 @@ export class SupabaseUserRepository implements UserRepository {
     }
 
     return this.getCurrentUser(userId);
+  }
+
+  async getFireBalance(userId: string): Promise<number> {
+    const { data, error } = await supabase.rpc("get_fire_balance");
+
+    if (error) {
+      throw createSupabaseRepositoryError("Fire bakiyesi yüklenemedi", error);
+    }
+
+    return Number(data ?? 0);
+  }
+
+  async purchaseFirePackage(
+    _userId: string,
+    amount: 100 | 500 | 1500,
+  ): Promise<number> {
+    const { data, error } = await supabase.rpc("purchase_fire_package", {
+      package_amount: amount,
+    });
+
+    if (error) {
+      throw createSupabaseRepositoryError("Fire paketi alınamadı", error);
+    }
+
+    return Number(data ?? 0);
+  }
+
+  async sendProfileFire(
+    _userId: string,
+    targetUserId: string,
+    amount = 1,
+  ): Promise<{ balance: number; targetFireScore: number }> {
+    const { data, error } = await supabase
+      .rpc("send_profile_fire", {
+        target_user_id: targetUserId,
+        fire_amount: amount,
+      })
+      .maybeSingle();
+
+    const result = data as
+      | { balance?: number; target_fire_score?: number }
+      | null;
+
+    if (error || !result) {
+      throw createSupabaseRepositoryError("Fire gönderilemedi", error);
+    }
+
+    return {
+      balance: Number(result.balance ?? 0),
+      targetFireScore: Number(result.target_fire_score ?? 0),
+    };
   }
 
   private async listStarterMatchProfiles(
@@ -355,6 +463,7 @@ export class SupabaseUserRepository implements UserRepository {
     }
 
     const { data, error } = await query
+      .order("fireScore", { ascending: false })
       .order("boostedUntil", { ascending: false, nullsFirst: false })
       .order("createdAt", { ascending: false });
 
@@ -364,24 +473,13 @@ export class SupabaseUserRepository implements UserRepository {
 
     const nowMs = Date.now();
 
+    const mappedCurrentUser = mapSupabaseUser(currentProfile);
     const candidates = (data || [])
       .map((row) => mapSupabaseUser(row as unknown as Partial<User>))
       .sort((first, second) => {
-        const boostRank =
-          getProfileBoostRank(second.boostedUntil, nowMs) -
-          getProfileBoostRank(first.boostedUntil, nowMs);
-
-        if (boostRank !== 0) {
-          return boostRank;
-        }
-
-        if (first.isPremium !== second.isPremium) {
-          return second.isPremium ? 1 : -1;
-        }
-
         return (
-          new Date(second.createdAt).getTime() -
-          new Date(first.createdAt).getTime()
+          getDiscoveryRank(mappedCurrentUser, second, nowMs) -
+          getDiscoveryRank(mappedCurrentUser, first, nowMs)
         );
       });
 

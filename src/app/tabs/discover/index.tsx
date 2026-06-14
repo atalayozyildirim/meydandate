@@ -4,7 +4,6 @@ import {
   Alert,
   Pressable,
   StyleSheet,
-  Switch,
   Text,
   useWindowDimensions,
   View,
@@ -17,21 +16,21 @@ import Animated, {
   runOnJS,
   useAnimatedStyle,
   useSharedValue,
+  withSequence,
   withSpring,
+  withTiming,
 } from "react-native-reanimated";
 import type { LikeAction, Match } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { SwipeProfileCard } from "@/features/discover/components/SwipeProfileCard";
 import { useDiscoverDeck } from "@/features/discover/hooks/useDiscoverDeck";
+import { useFire } from "@/features/fire/hooks/useFire";
 import { AdMobBanner } from "@/features/ads";
 import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
-import { useBotProfiles } from "@/features/profile/hooks/useBotProfiles";
-import { useUserRole } from "@/features/moderation/hooks/useModerationService";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
-import { Card } from "@/shared/components/Card";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
@@ -60,18 +59,17 @@ export default function DiscoverScreen() {
     acceptSpecialInvite,
     declineSpecialInvite,
   } = useDiscoverDeck();
+  const { fireBalance, sendFire, isSendingFire } = useFire();
   const [activeSafetyUser, setActiveSafetyUser] = useState<User | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [isMatchVisible, setIsMatchVisible] = useState(false);
 
-  const { data: userRole } = useUserRole(currentUser?.id ?? "");
-  const isAdmin = userRole === "admin";
-  const { bots, toggleActive } = useBotProfiles();
   const activeCard = deck[0];
   const nextCard = deck[1];
   const cardHeight = Math.min(Math.max(height * 0.58, 430), 540);
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
+  const fireScale = useSharedValue(1);
 
   useEffect(() => {
     translateX.value = 0;
@@ -216,6 +214,37 @@ export default function DiscoverScreen() {
     ),
   }));
 
+  const fireButtonStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: fireScale.value }],
+  }));
+
+  const sendFireToActiveCard = async () => {
+    if (!activeCard) {
+      return;
+    }
+
+    if (fireBalance < 1) {
+      Alert.alert("Fire bakiyesi yok", "Mağazadan Fire paketi alabilirsin.", [
+        { text: "Vazgeç", style: "cancel" },
+        { text: "Mağaza", onPress: () => router.push("/tabs/store") },
+      ]);
+      return;
+    }
+
+    try {
+      fireScale.value = withSequence(
+        withTiming(1.18, { duration: 110 }),
+        withSpring(1),
+      );
+      await sendFire({ targetUserId: activeCard.user.id, amount: 1 });
+    } catch (error) {
+      Alert.alert(
+        "Fire gönderilemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
   if (isLoading) {
     return <Loading label="Profiller hazırlanıyor" />;
   }
@@ -230,7 +259,7 @@ export default function DiscoverScreen() {
         <View style={styles.headerActions}>
           <View style={styles.countBadge}>
             <Ionicons name="flame" size={15} color={theme.colors.primary} />
-            <Text style={styles.count}>{deck.length}</Text>
+            <Text style={styles.count}>{fireBalance}</Text>
           </View>
           <Pressable
             accessibilityRole="button"
@@ -385,6 +414,20 @@ export default function DiscoverScreen() {
               />
             </Pressable>
             <Pressable
+              disabled={isSendingFire}
+              style={({ pressed }) => [
+                styles.roundAction,
+                styles.fireAction,
+                pressed && styles.pressed,
+              ]}
+              onPress={() => void sendFireToActiveCard()}
+            >
+              <Animated.View style={fireButtonStyle}>
+                <Ionicons name="flame" size={25} color={theme.colors.primary} />
+              </Animated.View>
+              <Text style={styles.fireActionText}>Fire</Text>
+            </Pressable>
+            <Pressable
               disabled={isSwiping}
               style={({ pressed }) => [
                 styles.roundAction,
@@ -419,42 +462,6 @@ export default function DiscoverScreen() {
           }
         />
       )}
-
-      {isAdmin ? (
-        <Card style={styles.adminBotPanel}>
-          <View style={styles.adminBotHeader}>
-            <Ionicons
-              name="person-add"
-              size={18}
-              color={theme.colors.primary}
-            />
-            <Text style={styles.sectionTitle}>Eşleştirme Botları</Text>
-            <Text style={styles.botCount}>{bots.length} bot</Text>
-          </View>
-          {bots.map((bot) => (
-            <View key={bot.id} style={styles.botRow}>
-              <Avatar name={bot.name} uri={bot.photos[0]?.uri} size={36} />
-              <View style={styles.botInfo}>
-                <Text style={styles.botName}>{bot.name}</Text>
-                <Text style={styles.botMeta}>
-                  {bot.profileKind} · {bot.city}
-                </Text>
-              </View>
-              <Switch
-                value={bot.isActive}
-                onValueChange={(isActive) =>
-                  void toggleActive({ userId: bot.id, isActive })
-                }
-                trackColor={{
-                  true: theme.colors.primary,
-                  false: theme.colors.border,
-                }}
-                thumbColor="#FFFFFF"
-              />
-            </View>
-          ))}
-        </Card>
-      ) : null}
 
       <SafetySheet
         visible={Boolean(activeSafetyUser)}
@@ -676,46 +683,23 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       height: 46,
       borderColor: theme.colors.border,
     },
+    fireAction: {
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.isDark ? "#241A22" : "#FFF1F4",
+    },
+    fireActionText: {
+      position: "absolute",
+      bottom: 6,
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "900",
+    },
     likeAction: {
       borderColor: theme.colors.primary,
     },
     pressed: {
       opacity: 0.76,
-    },
-    adminBotPanel: {
-      gap: theme.spacing.sm,
-      marginTop: theme.spacing.lg,
-    },
-    adminBotHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    sectionTitle: {
-      ...theme.typography.subheading,
-      color: theme.colors.text,
-    },
-    botCount: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      marginLeft: "auto" as const,
-    },
-    botRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-    },
-    botInfo: {
-      flex: 1,
-    },
-    botName: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-      fontWeight: "600" as const,
-    },
-    botMeta: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
     },
   });

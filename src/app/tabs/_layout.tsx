@@ -85,6 +85,18 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="feed/[postId]"
+        options={{
+          tabBarButton: () => null,
+          tabBarItemStyle: {
+            display: "none",
+          },
+          tabBarStyle: {
+            display: "none",
+          },
+        }}
+      />
+      <Tabs.Screen
         name="discover/index"
         options={{
           title: "Keşfet",

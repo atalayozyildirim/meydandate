@@ -4,10 +4,33 @@ import {
   mapSupabaseUser,
   publicUserColumns,
 } from "@/infrastructure/supabase/userMapper";
-import type { User } from "@/domain/entities/User";
+import type {
+  CulturalIdentity,
+  CultureImportance,
+  Interest,
+  ProfileKind,
+  User,
+} from "@/domain/entities/User";
 
 // Bot profilleri isActive alanını da taşır (DB kolonu, User tipinde opsiyonel)
 export interface BotProfile extends User {
+  isActive: boolean;
+}
+
+export interface CreateBotProfilePayload {
+  name: string;
+  age: number;
+  city: string;
+  bio: string;
+  photoUri?: string;
+  occupation?: string;
+  hometown?: string;
+  favoriteSong?: string;
+  favoritePoet?: string;
+  culturalIdentity: CulturalIdentity;
+  cultureImportance: CultureImportance;
+  interests: Interest[];
+  profileKind: Exclude<ProfileKind, "member">;
   isActive: boolean;
 }
 
@@ -58,6 +81,37 @@ export const useBotProfiles = () => {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: BOT_QUERY_KEY }),
   });
 
+  const createBotMutation = useMutation({
+    mutationFn: async (payload: CreateBotProfilePayload) => {
+      const { data, error } = await supabase
+        .rpc("admin_create_bot_profile", {
+          bot_name: payload.name,
+          bot_age: payload.age,
+          bot_city: payload.city,
+          bot_bio: payload.bio,
+          bot_photo_uri: payload.photoUri ?? null,
+          bot_occupation: payload.occupation ?? null,
+          bot_hometown: payload.hometown ?? null,
+          bot_favorite_song: payload.favoriteSong ?? null,
+          bot_favorite_poet: payload.favoritePoet ?? null,
+          bot_cultural_identity: payload.culturalIdentity,
+          bot_culture_importance: payload.cultureImportance,
+          bot_interests: payload.interests,
+          bot_profile_kind: payload.profileKind,
+          bot_is_active: payload.isActive,
+        })
+        .maybeSingle();
+
+      if (error || !data) throw new Error("Bot profili oluşturulamadı");
+
+      return {
+        ...mapSupabaseUser(data as Partial<User>),
+        isActive: payload.isActive,
+      };
+    },
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: BOT_QUERY_KEY }),
+  });
+
   const updateBotMutation = useMutation({
     mutationFn: async ({
       userId,
@@ -80,7 +134,9 @@ export const useBotProfiles = () => {
     bots: query.data ?? [],
     isLoading: query.isLoading,
     toggleActive: toggleActiveMutation.mutateAsync,
+    createBot: createBotMutation.mutateAsync,
     updateBot: updateBotMutation.mutateAsync,
     isUpdating: toggleActiveMutation.isPending || updateBotMutation.isPending,
+    isCreatingBot: createBotMutation.isPending,
   };
 };

@@ -1,6 +1,14 @@
 // Premium, boost ve rozet alımlarını sade bir mağaza ekranında toplar.
+import { useEffect } from "react";
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import Animated, {
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 import type { Badge } from "@/domain/entities/User";
 import type { SubscriptionPlan } from "@/domain/entities/Subscription";
 import { Button } from "@/shared/components/Button";
@@ -11,6 +19,11 @@ import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
 import { paidBadgeProducts } from "@/shared/constants/badges";
 import { badgeLabels, premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
+import {
+  firePackageValues,
+  type FirePackageAmount,
+  useFire,
+} from "@/features/fire/hooks/useFire";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { env } from "@/infrastructure/config/env";
 import { useTheme } from "@/shared/theme";
@@ -48,6 +61,27 @@ export default function StoreScreen() {
     activateBoost,
     isActivatingBoost,
   } = usePremium();
+  const {
+    fireBalance,
+    purchaseFirePackage,
+    isPurchasingFirePackage,
+  } = useFire();
+  const firePulse = useSharedValue(1);
+
+  const fireIconStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: firePulse.value }],
+  }));
+
+  useEffect(() => {
+    firePulse.value = withRepeat(
+      withSequence(
+        withTiming(1.08, { duration: 900 }),
+        withTiming(1, { duration: 900 }),
+      ),
+      -1,
+      true,
+    );
+  }, [firePulse]);
 
   const buyPlan = async (plan: SubscriptionPlan) => {
     try {
@@ -115,6 +149,21 @@ export default function StoreScreen() {
     }
   };
 
+  const buyFirePackage = async (amount: FirePackageAmount) => {
+    try {
+      const nextBalance = await purchaseFirePackage(amount);
+      Alert.alert(
+        "Fire yüklendi",
+        `${amount} Fire hesabına eklendi. Yeni bakiye: ${nextBalance}.`,
+      );
+    } catch (error) {
+      Alert.alert(
+        "Fire alınamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
   if (isProfileLoading || isSubscriptionLoading || !profile) {
     return <Loading label="Mağaza yükleniyor" />;
   }
@@ -146,6 +195,40 @@ export default function StoreScreen() {
         {isMockPaymentMode ? (
           <Text style={styles.notice}>Demo mod: gerçek ödeme alınmaz.</Text>
         ) : null}
+      </Card>
+
+      <Card style={styles.fireCard}>
+        <View style={styles.fireHeader}>
+          <Animated.View style={[styles.fireIcon, fireIconStyle]}>
+            <Ionicons name="flame" size={25} color="#FFFFFF" />
+          </Animated.View>
+          <View style={styles.fireCopy}>
+            <Text style={styles.sectionTitle}>Fire bakiyesi</Text>
+            <Text style={styles.mutedText}>
+              Kartlara Fire gönder, keşfet sıralamasında öne taşı.
+            </Text>
+          </View>
+          <Text style={styles.fireBalance}>{fireBalance}</Text>
+        </View>
+        <View style={styles.firePackages}>
+          {firePackageValues.map((amount) => (
+            <Button
+              key={amount}
+              label={`${amount}`}
+              variant={amount === 500 ? "secondary" : "ghost"}
+              loading={isPurchasingFirePackage}
+              style={styles.firePackageButton}
+              icon={
+                <Ionicons
+                  name="flame"
+                  size={15}
+                  color={amount === 500 ? "#FFFFFF" : theme.colors.primary}
+                />
+              }
+              onPress={() => void buyFirePackage(amount)}
+            />
+          ))}
+        </View>
       </Card>
 
       <View style={styles.planList}>
@@ -299,6 +382,43 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     hero: {
       gap: theme.spacing.md,
       backgroundColor: theme.isDark ? "#171A24" : "#FFF7F8",
+    },
+    fireCard: {
+      gap: theme.spacing.md,
+      borderColor: "rgba(233, 64, 87, 0.18)",
+      backgroundColor: theme.isDark ? "#171A24" : "#FFF7F8",
+    },
+    fireHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    fireIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+    },
+    fireCopy: {
+      flex: 1,
+      gap: theme.spacing.xxs,
+    },
+    fireBalance: {
+      ...theme.typography.heading,
+      color: theme.colors.primary,
+      fontSize: 28,
+      lineHeight: 34,
+    },
+    firePackages: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+    },
+    firePackageButton: {
+      flex: 1,
+      minHeight: 42,
+      paddingHorizontal: theme.spacing.sm,
     },
     heroTop: {
       flexDirection: "row",

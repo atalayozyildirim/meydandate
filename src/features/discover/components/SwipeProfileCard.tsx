@@ -43,6 +43,12 @@ export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: 
               <Text style={styles.statusPillText}>Boost</Text>
             </View>
           ) : null}
+          {(user.fireScore ?? 0) > 0 ? (
+            <View style={[styles.statusPill, styles.firePill]}>
+              <Ionicons name="flame" size={13} color="#FFFFFF" />
+              <Text style={styles.statusPillText}>{user.fireScore} Fire</Text>
+            </View>
+          ) : null}
           {user.isPremium ? (
             <View style={[styles.statusPill, styles.premiumPill]}>
               <Ionicons name="star" size={13} color="#FFFFFF" />
@@ -136,6 +142,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     boostPill: {
       backgroundColor: "rgba(245, 158, 11, 0.88)"
+    },
+    firePill: {
+      backgroundColor: "rgba(233, 64, 87, 0.90)"
     },
     premiumPill: {
       backgroundColor: "rgba(138, 35, 135, 0.88)"

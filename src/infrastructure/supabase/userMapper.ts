@@ -36,6 +36,7 @@ export const publicUserColumns = [
   "locationLongitude",
   "locationUpdatedAt",
   "boostedUntil",
+  "fireScore",
   "hasPassedEntryTest",
   "hasCompletedOnboarding",
   "createdAt",
@@ -121,6 +122,9 @@ export const mapSupabaseUser = (row: SupabaseUserRow): User => ({
     ? { distanceKm: finiteNumber(row.distanceKm ?? row.distance_km) }
     : {}),
   ...(row.boostedUntil ? { boostedUntil: row.boostedUntil } : {}),
+  ...(finiteNumber(row.fireScore) !== undefined
+    ? { fireScore: finiteNumber(row.fireScore) }
+    : {}),
   ...(row.blockedUsers ? { blockedUsers: row.blockedUsers } : {}),
   ...(row.mutedUsers ? { mutedUsers: row.mutedUsers } : {}),
   hasPassedEntryTest: row.hasPassedEntryTest ?? false,

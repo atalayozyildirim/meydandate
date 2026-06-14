@@ -20,6 +20,7 @@ export interface MockDatabase {
   blockedUsers: BlockedUser[];
   mutedUsers: MutedUser[];
   subscriptions: Subscription[];
+  fireWallets: Record<string, number>;
   tokenToUserId: Map<string, string>;
   bannedIdentifiers: {
     userIds: Set<string>;
@@ -92,6 +93,7 @@ const candidates: User[] = [
     badges: ["verified_profile", "community_member"],
     profileKind: "member",
     isPremium: true,
+    fireScore: 42,
     locationLatitude: 41.0422,
     locationLongitude: 29.0083,
     locationUpdatedAt: now,
@@ -392,6 +394,9 @@ export const mockDatabase: MockDatabase = {
       status: "inactive",
     },
   ],
+  fireWallets: {
+    "user-current": 100,
+  },
   tokenToUserId: new Map([["demo-token", "user-current"]]),
   bannedIdentifiers: {
     userIds: new Set(),

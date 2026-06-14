@@ -2,6 +2,9 @@
 import { useMemo, useState } from "react";
 import { Alert, Pressable, StyleSheet, Switch, Text, TextInput, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import type { Badge } from "@/domain/entities/User";
+import { useAuthStore } from "@/features/auth/stores/authStore";
+import { container } from "@/infrastructure/config/Container";
 import { Screen } from "@/shared/components/Screen";
 import { useTheme } from "@/shared/theme";
 
@@ -11,6 +14,7 @@ const muharremYear = 1448;
 const muharremStart = new Date(2026, 5, 16);
 const ashuraDay = 10;
 const fastingDayCount = 12;
+const muharrem2026Badge: Badge = "muharrem_orucu_2026";
 
 const startOfDay = (date: Date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
 const addDays = (date: Date, days: number) =>
@@ -60,11 +64,14 @@ const loadNotifications = async (): Promise<NotificationsModule | null> => {
 export default function MuharremTrackerScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
   const today = startOfDay(new Date());
   const [completedDays, setCompletedDays] = useState<number[]>([]);
   const [note, setNote] = useState("");
   const [reminderEnabled, setReminderEnabled] = useState(false);
   const [notificationIds, setNotificationIds] = useState<string[]>([]);
+  const [isAwardingBadge, setIsAwardingBadge] = useState(false);
   const daysUntilStart = diffDays(muharremStart, today);
   const daysSinceStart = diffDays(today, muharremStart);
   const isUpcoming = today < startOfDay(muharremStart);
@@ -89,12 +96,47 @@ export default function MuharremTrackerScreen() {
     ? `${formatDate(nextReminderDay.gregorianDate)} 07:30`
     : "2026 takvimi tamamlandı";
 
+  const awardMuharrem2026Badge = async () => {
+    if (
+      !currentUser ||
+      currentUser.badges.includes(muharrem2026Badge) ||
+      isAwardingBadge
+    ) {
+      return;
+    }
+
+    try {
+      setIsAwardingBadge(true);
+      const updatedUser = await container.userRepository.claimMuharrem2026Badge(
+        currentUser.id,
+      );
+      setCurrentUser(updatedUser);
+      Alert.alert(
+        "Rozet kazanıldı",
+        "Muharrem Orucu 2026 rozeti profiline eklendi.",
+      );
+    } catch (error) {
+      Alert.alert(
+        "Rozet eklenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    } finally {
+      setIsAwardingBadge(false);
+    }
+  };
+
   const toggleDay = (day: number) => {
-    setCompletedDays((current) =>
-      current.includes(day)
+    setCompletedDays((current) => {
+      const nextDays = current.includes(day)
         ? current.filter((completedDay) => completedDay !== day)
-        : [...current, day].sort((first, second) => first - second),
-    );
+        : [...current, day].sort((first, second) => first - second);
+
+      if (nextDays.length === fastingDayCount) {
+        void awardMuharrem2026Badge();
+      }
+
+      return nextDays;
+    });
   };
 
   const toggleReminder = async (nextValue: boolean) => {

@@ -55,6 +55,7 @@ export interface BotFeedPostPayload {
 }
 
 export interface FeedRepository {
+  getPost(postId: string, currentUserId?: string): Promise<FeedPost>;
   listFeed(
     userId: string,
     tag?: FeedTag | "all",

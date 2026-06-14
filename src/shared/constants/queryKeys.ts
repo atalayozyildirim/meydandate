@@ -8,6 +8,7 @@ export const queryKeys = {
   publicProfile: "publicProfile",
   specialInvite: "specialInvite",
   subscription: "subscription",
+  fireBalance: "fireBalance",
   liveRoom: "liveRoom",
   feed: "feed"
 } as const;

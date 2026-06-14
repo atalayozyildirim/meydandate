@@ -28,9 +28,17 @@ export interface UserRepository {
   getUserById(userId: string): Promise<User>;
   updateProfile(userId: string, update: UserProfileUpdate): Promise<User>;
   completeOnboarding(userId: string, profile: OnboardingProfile): Promise<User>;
+  claimMuharrem2026Badge(userId: string): Promise<User>;
   activatePremiumBoost(userId: string): Promise<User>;
   setProfileDiscoverability(userId: string, isDiscoverable: boolean): Promise<User>;
   setLocationMatching(userId: string, update: LocationMatchingUpdate): Promise<User>;
+  getFireBalance(userId: string): Promise<number>;
+  purchaseFirePackage(userId: string, amount: 100 | 500 | 1500): Promise<number>;
+  sendProfileFire(
+    userId: string,
+    targetUserId: string,
+    amount?: number,
+  ): Promise<{ balance: number; targetFireScore: number }>;
   listDiscoverCandidates(userId: string): Promise<User[]>;
   reportUser(userId: string, payload: ReportPayload): Promise<void>;
   blockUser(userId: string, blockedUserId: string): Promise<void>;

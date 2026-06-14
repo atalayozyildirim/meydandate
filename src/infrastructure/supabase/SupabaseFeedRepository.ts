@@ -329,7 +329,7 @@ const botPayloadToRow = (
 });
 
 export class SupabaseFeedRepository implements FeedRepository {
-  private async getPost(postId: string): Promise<FeedPost> {
+  async getPost(postId: string, currentUserId = ""): Promise<FeedPost> {
     const { data, error } = await supabase
       .from("feed_posts")
       .select(postSelect)
@@ -340,7 +340,7 @@ export class SupabaseFeedRepository implements FeedRepository {
       throw createSupabaseRepositoryError("Post yüklenemedi.", error);
     }
 
-    return mapPost(data as unknown as PostRow);
+    return mapPost(data as unknown as PostRow, currentUserId);
   }
 
   async listFeed(
@@ -370,7 +370,8 @@ export class SupabaseFeedRepository implements FeedRepository {
 
     const rows = (data ?? []).slice(0, limit);
     const posts = rows.map((row) => mapPost(row as unknown as PostRow, userId));
-    const botPosts = offset === 0 ? await this.listBotPosts(tag, false) : [];
+    const botPosts =
+      offset === 0 ? await this.listFeaturedBotPosts(tag) : [];
 
     return {
       posts: [...botPosts, ...posts].sort((first, second) => {
@@ -419,6 +420,21 @@ export class SupabaseFeedRepository implements FeedRepository {
     }
 
     return (data ?? []).map((row) => mapBotPost(row as unknown as BotPostRow));
+  }
+
+  private async listFeaturedBotPosts(
+    tag: FeedTag | "all" = "all",
+  ): Promise<FeedPost[]> {
+    const botPosts = await this.listBotPosts(tag, false);
+
+    if (botPosts.length <= 1) {
+      return botPosts;
+    }
+
+    const featuredIndex = Math.floor(Math.random() * botPosts.length);
+    const featuredPost = botPosts[featuredIndex];
+
+    return featuredPost ? [featuredPost] : [];
   }
 
   async createBotPost(
@@ -623,27 +639,24 @@ export class SupabaseFeedRepository implements FeedRepository {
       throw createSupabaseRepositoryError("Post paylaşılamadı.", error);
     }
 
-    // If payload contains a poll, create it and its options
     if (payload.poll && data.id) {
-      try {
-        const pollRow = await supabase
-          .from("feed_polls")
-          .insert({ post_id: data.id, question: sanitizePlainText(payload.poll.question, 1000), ends_at: payload.poll.endsAt ?? null })
-          .select("id")
-          .single();
+      const sanitizedOptions = (payload.poll.options ?? [])
+        .map((text) => sanitizePlainText(text, 200).trim())
+        .filter(Boolean);
 
-        if (!pollRow.data || pollRow.error) {
-          // non-fatal: continue without poll
-        } else {
-          const pollId = pollRow.data.id;
-          const options = (payload.poll.options ?? []).map((text: string, idx: number) => ({ poll_id: pollId, text: sanitizePlainText(text, 200), display_order: idx }));
+      const { error: pollError } = await supabase.rpc(
+        "create_feed_poll_for_post",
+        {
+          target_post_id: data.id,
+          poll_question: sanitizePlainText(payload.poll.question, 1000).trim(),
+          poll_options: sanitizedOptions,
+          poll_ends_at: payload.poll.endsAt ?? null,
+        },
+      );
 
-          if (options.length > 0) {
-            await supabase.from("feed_poll_options").insert(options);
-          }
-        }
-      } catch (e) {
-        // ignore poll creation errors
+      if (pollError) {
+        await this.deletePost(data.id, payload.authorId).catch(() => undefined);
+        throw createSupabaseRepositoryError("Anket oluşturulamadı.", pollError);
       }
     }
 

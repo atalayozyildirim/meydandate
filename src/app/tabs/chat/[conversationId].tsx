@@ -34,8 +34,8 @@ const loveJson = require("../../../../assets/lottie/love.json");
 interface FloatingHeart {
   id: string;
   animated: Animated.Value;
-  xOffset: number;  // rastgele yatay konum (sag alt)
-  drift: number;    // yukari cikis sirasindaki yatay sapma
+  xOffset: number; // rastgele yatay konum (sag alt)
+  drift: number; // yukari cikis sirasindaki yatay sapma
 }
 
 export default function ConversationScreen() {
@@ -48,10 +48,15 @@ export default function ConversationScreen() {
   const [message, setMessage] = useState("");
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const lastAnimatedHeartIdRef = useRef<string | null>(null);
-  const [showGifInput, setShowGifInput] = useState(false);
-  const [gifUrl, setGifUrl] = useState("");
-  const { conversation, currentUser, isLoading, sendMessage, isSending } =
-    useConversation(conversationId);
+  const {
+    conversation,
+    currentUser,
+    isLoading,
+    sendMessage,
+    isSending,
+    deleteMessage,
+    isDeletingMessage,
+  } = useConversation(conversationId);
 
   // spawnHeart - X canli yayin efekti: alt sagdan yukari yukseliyor
   const spawnHeart = useCallback((_isOwn: boolean) => {
@@ -61,7 +66,10 @@ export default function ConversationScreen() {
     const xOffset = Math.floor(Math.random() * 72) + 8;
     // Yukari cikista hafif sola/saga sapma: -20 ile +20
     const drift = Math.floor(Math.random() * 40) - 20;
-    setFloatingHearts((current) => [...current, { id, animated, xOffset, drift }]);
+    setFloatingHearts((current) => [
+      ...current,
+      { id, animated, xOffset, drift },
+    ]);
 
     Animated.timing(animated, {
       toValue: 1,
@@ -137,21 +145,6 @@ export default function ConversationScreen() {
     }
   };
 
-  const submitGif = async () => {
-    const trimmed = gifUrl.trim();
-    if (!trimmed) return;
-    try {
-      await sendMessage(trimmed);
-      setGifUrl("");
-      setShowGifInput(false);
-    } catch (error) {
-      Alert.alert(
-        "GIF gönderilemedi",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
-  };
-
   const sendHeart = async () => {
     try {
       await sendMessage(HEART_MESSAGE);
@@ -159,6 +152,17 @@ export default function ConversationScreen() {
     } catch (error) {
       Alert.alert(
         "Kalp gönderilemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const removeMessage = async (messageId: string) => {
+    try {
+      await deleteMessage(messageId);
+    } catch (error) {
+      Alert.alert(
+        "Mesaj silinemedi",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -202,6 +206,12 @@ export default function ConversationScreen() {
             </View>
           </Pressable>
         </View>
+        <View style={styles.encryptionNotice}>
+          <Ionicons name="lock-closed" size={13} color={theme.colors.muted} />
+          <Text style={styles.encryptionNoticeText}>
+            Mesajlar güvenli bağlantı üzerinden aktarılır
+          </Text>
+        </View>
         <ScrollView
           style={styles.messageList}
           contentContainerStyle={styles.messages}
@@ -212,6 +222,8 @@ export default function ConversationScreen() {
               key={item.id}
               message={item}
               isOwn={item.senderId === currentUser.id}
+              disabled={isDeletingMessage}
+              onDelete={(messageId) => void removeMessage(messageId)}
             />
           ))}
           {conversation.messages.length === 0 ? (
@@ -249,17 +261,6 @@ export default function ConversationScreen() {
             <Ionicons name="heart" size={22} color={theme.colors.primary} />
           </Pressable>
           <Pressable
-            accessibilityRole="button"
-            disabled={isSending}
-            onPress={() => setShowGifInput(true)}
-            style={({ pressed }) => [
-              styles.heartButton,
-              pressed && styles.buttonPressed,
-            ]}
-          >
-            <Ionicons name="image-outline" size={22} color={theme.colors.primary} />
-          </Pressable>
-          <Pressable
             disabled={isSending}
             onPress={() => void submitMessage(message)}
             style={styles.sendButton}
@@ -267,49 +268,26 @@ export default function ConversationScreen() {
             <Ionicons name="send" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
-        {showGifInput ? (
-          <View style={{ padding: 12, borderTopWidth: 1, borderTopColor: theme.colors.border, backgroundColor: theme.colors.surface }}>
-            <TextInput
-              value={gifUrl}
-              onChangeText={setGifUrl}
-              placeholder="GIF URL yapıştır"
-              placeholderTextColor={theme.colors.muted}
-              style={[styles.input, { minHeight: 46 }]}
-            />
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
-              <Pressable onPress={() => void submitGif()} style={styles.sendButton}>
-                <Text style={{ color: '#FFFFFF' }}>Gönder</Text>
-              </Pressable>
-              <Pressable onPress={() => setShowGifInput(false)} style={[styles.heartButton, { backgroundColor: theme.colors.elevated }]}>
-                <Text>İptal</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
         <View pointerEvents="none" style={styles.heartLayer}>
           {floatingHearts.map((heart) => {
-            // Giris: hizlica buyur, cikis: yukari ciktikca kucul ve kaybol
             const opacity = heart.animated.interpolate({
               inputRange: [0, 0.08, 0.75, 1],
               outputRange: [0, 1, 1, 0],
             });
 
-            // Yukari yukselme - X canli yayin gibi yuksek mesafe
             const translateY = heart.animated.interpolate({
               inputRange: [0, 1],
               outputRange: [0, -340],
             });
 
-            // Hafif yatay sapma (sola veya saga)
             const translateX = heart.animated.interpolate({
               inputRange: [0, 0.5, 1],
               outputRange: [0, heart.drift * 0.5, heart.drift],
             });
 
-            // Girise bur buyur, yukselirken kucul
             const scale = heart.animated.interpolate({
               inputRange: [0, 0.12, 0.4, 1],
-              outputRange: [0.3, 1.25, 1.05, 0.7],
+              outputRange: [0.45, 1.65, 1.35, 0.85],
             });
 
             return (
@@ -318,7 +296,10 @@ export default function ConversationScreen() {
                 style={[
                   styles.lottieWrapper,
                   { right: heart.xOffset },
-                  { opacity, transform: [{ translateY }, { translateX }, { scale }] },
+                  {
+                    opacity,
+                    transform: [{ translateY }, { translateX }, { scale }],
+                  },
                 ]}
               >
                 <LottieView
@@ -351,6 +332,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingBottom: theme.spacing.md,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
+    },
+    encryptionNotice: {
+      minHeight: 28,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xxs,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+    },
+    encryptionNoticeText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontSize: 11,
     },
     iconButton: {
       width: 38,
@@ -458,11 +453,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       position: "absolute",
       // composer'in uzerinde, ekranin sag alt kosesinde spawn olur
       bottom: 90,
-      width: 100,
-      height: 100,
+      width: 136,
+      height: 136,
     },
     lottie: {
-      width: 100,
-      height: 100,
+      width: 136,
+      height: 136,
     },
   });

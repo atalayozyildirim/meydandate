@@ -102,6 +102,22 @@ export class MockChatRepository implements ChatRepository {
     };
   }
 
+  async deleteMessage(conversationId: string, messageId: string): Promise<void> {
+    const conversation = findConversation(conversationId);
+    const index = conversation.messages.findIndex(
+      (message) => message.id === messageId,
+    );
+
+    if (index === -1) {
+      throw new Error("Mesaj bulunamadı.");
+    }
+
+    conversation.messages.splice(index, 1);
+    conversation.updatedAt =
+      conversation.messages[conversation.messages.length - 1]?.createdAt ??
+      conversation.updatedAt;
+  }
+
   async deleteConversation(conversationId: string): Promise<void> {
     const idx = mockDatabase.conversations.findIndex((c) => c.id === conversationId);
     if (idx !== -1) {

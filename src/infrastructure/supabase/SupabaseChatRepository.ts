@@ -141,6 +141,15 @@ export class SupabaseChatRepository implements ChatRepository {
       .update({ lastMessageAt: new Date().toISOString() })
       .eq("id", payload.conversationId);
 
+    await supabase.functions
+      .invoke("send-message-push", {
+        body: {
+          conversationId: payload.conversationId,
+          messageId: data.id,
+        },
+      })
+      .catch(() => undefined);
+
     return data;
   }
 
@@ -163,11 +172,21 @@ export class SupabaseChatRepository implements ChatRepository {
     });
   }
 
+  async deleteMessage(conversationId: string, messageId: string): Promise<void> {
+    const { error } = await supabase.rpc("delete_conversation_message", {
+      target_conversation_id: conversationId,
+      target_message_id: messageId,
+    });
+
+    if (error) {
+      throw new Error("Mesaj silinemedi.");
+    }
+  }
+
   async deleteConversation(conversationId: string): Promise<void> {
-    const { error } = await supabase
-      .from("conversations")
-      .delete()
-      .eq("id", conversationId);
+    const { error } = await supabase.rpc("delete_user_conversation", {
+      target_conversation_id: conversationId,
+    });
 
     if (error) {
       throw new Error("Sohbet silinemedi.");

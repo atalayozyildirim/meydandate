@@ -17,15 +17,13 @@ import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { FeedTag } from "@/domain/entities/Feed";
 import { feedTagValues } from "@/domain/entities/Feed";
-import type { BotFeedPostPayload } from "@/domain/repositories/FeedRepository";
 import { Avatar } from "@/shared/components/Avatar";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
 import { FeedPostCard } from "@/features/feed/components/FeedPostCard";
+import { FeedAdminPanel } from "@/features/feed/screens/FeedAdminPanel";
 import { AdMobBanner } from "@/features/ads";
-import { useBotFeedAdmin, useFeed } from "@/features/feed/hooks/useFeed";
-import { useGifSearch } from "@/shared/hooks/useGifSearch";
-import { supabase } from "@/infrastructure/supabase/client";
+import { useFeed } from "@/features/feed/hooks/useFeed";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useUserRole } from "@/features/moderation/hooks/useModerationService";
@@ -40,7 +38,6 @@ const feedTagLabels: Record<FeedTag | "all", string> = {
   gundem: "Gündem",
 };
 
-const defaultBotCtaLabel = "İncele";
 const MAX_FEED_IMAGE_BYTES = 6 * 1024 * 1024;
 
 export default function FeedScreen() {
@@ -55,22 +52,13 @@ export default function FeedScreen() {
     uri: string;
     base64?: string | null;
   } | null>(null);
-  const [showGifPicker, setShowGifPicker] = useState(false);
-  const [gifQuery, setGifQuery] = useState("");
-  const [gifResults, setGifResults] = useState<Array<{ id: string; url: string; preview?: string }>>([]);
-  const [isSearchingGifs, setIsSearchingGifs] = useState(false);
-  const gifSearch = useGifSearch();
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
   const [selectedPostTags, setSelectedPostTags] = useState<FeedTag[]>([
     "gundem",
   ]);
-  const [botBody, setBotBody] = useState("");
-  const [botCtaLabel, setBotCtaLabel] = useState(defaultBotCtaLabel);
-  const [botIsActive, setBotIsActive] = useState(true);
-  const [botShowAdMob, setBotShowAdMob] = useState(true);
-  const [editingBotPostId, setEditingBotPostId] = useState<string | null>(null);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
   const {
     posts,
     currentUser,
@@ -92,14 +80,6 @@ export default function FeedScreen() {
   } = useFeed(selectedTag);
   const { data: currentUserRole = "user" } = useUserRole(currentUser?.id ?? "");
   const isAdmin = currentUserRole === "admin";
-  const {
-    botPosts,
-    createBotPost,
-    updateBotPost,
-    deleteBotPost,
-    isSavingBotPost,
-  } = useBotFeedAdmin(isAdmin);
-
   const togglePostTag = (tag: FeedTag) => {
     setSelectedPostTags((current) => {
       if (current.includes(tag)) {
@@ -114,22 +94,28 @@ export default function FeedScreen() {
 
   const submitPost = async () => {
     const trimmedBody = body.trim();
+    const trimmedPollQuestion = pollQuestion.trim();
+    const trimmedPollOptions = pollOptions
+      .map((option) => option.trim())
+      .filter(Boolean);
+    const hasValidPoll =
+      trimmedPollQuestion.length > 0 && trimmedPollOptions.length >= 2;
 
-    if (!trimmedBody) {
+    if (!trimmedBody && !hasValidPoll) {
       return;
     }
 
     try {
       const payload: any = {
-        body: trimmedBody,
+        body: trimmedBody || trimmedPollQuestion,
         tags: selectedPostTags,
         ...(selectedImage ? { image: selectedImage } : {}),
       };
 
-      if (pollQuestion.trim() && pollOptions.filter(Boolean).length >= 2) {
+      if (hasValidPoll) {
         payload.poll = {
-          question: pollQuestion.trim(),
-          options: pollOptions.filter(Boolean),
+          question: trimmedPollQuestion,
+          options: trimmedPollOptions,
         };
       }
 
@@ -180,82 +166,6 @@ export default function FeedScreen() {
     setSelectedImage({ uri: asset.uri, base64: asset.base64 });
   };
 
-  const resetBotForm = () => {
-    setBotBody("");
-    setBotCtaLabel(defaultBotCtaLabel);
-    setBotIsActive(true);
-    setBotShowAdMob(true);
-    setEditingBotPostId(null);
-  };
-
-  const buildBotPayload = (): BotFeedPostPayload => ({
-    body: botBody.trim(),
-    tags: ["gundem"],
-    ctaLabel: botCtaLabel.trim() || "İncele",
-    isActive: botIsActive,
-    showAdMob: botShowAdMob,
-    sortOrder: 100,
-  });
-
-  const submitBotPost = async () => {
-    if (!botBody.trim()) {
-      return;
-    }
-
-    try {
-      const payload = buildBotPayload();
-
-      if (editingBotPostId) {
-        await updateBotPost({ postId: editingBotPostId, payload });
-      } else {
-        await createBotPost(payload);
-      }
-
-      resetBotForm();
-    } catch (error) {
-      Alert.alert(
-        "Rehber paylaşımı kaydedilemedi",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
-  };
-
-  const editBotPost = (postId: string) => {
-    const botPost = botPosts.find((post) => post.botPostId === postId);
-
-    if (!botPost) {
-      return;
-    }
-
-    setEditingBotPostId(postId);
-    setBotBody(botPost.body);
-    setBotCtaLabel(botPost.ctaLabel ?? "İncele");
-    setBotIsActive(botPost.isActive !== false);
-    setBotShowAdMob(botPost.showAdMob !== false);
-  };
-
-  const removeBotPost = (postId: string) => {
-    Alert.alert(
-      "Rehber paylaşımı silinsin mi?",
-      "Bu paylaşım feed'den kalkacak.",
-      [
-        { text: "Vazgeç", style: "cancel" },
-        {
-          text: "Sil",
-          style: "destructive",
-          onPress: () => {
-            void deleteBotPost(postId).catch((error) => {
-              Alert.alert(
-                "Rehber paylaşımı silinemedi",
-                error instanceof Error ? error.message : "Tekrar deneyin.",
-              );
-            });
-          },
-        },
-      ],
-    );
-  };
-
   const handlePermanentBan = (error: unknown) => {
     Alert.alert(
       "Kalıcı ban",
@@ -275,6 +185,10 @@ export default function FeedScreen() {
 
   if (isLoading || !currentUser) {
     return <Loading label="Akış hazırlanıyor" />;
+  }
+
+  if (showAdminPanel && isAdmin) {
+    return <FeedAdminPanel onClose={() => setShowAdminPanel(false)} />;
   }
 
   const feedHeader = (
@@ -314,8 +228,25 @@ export default function FeedScreen() {
             size={17}
             color={theme.colors.primary}
           />
-          <Text style={styles.quickLinkText}>Oruç</Text>
+          <Text style={styles.quickLinkText}>Muharrem</Text>
         </Pressable>
+        {isAdmin ? (
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setShowAdminPanel(true)}
+            style={({ pressed }) => [
+              styles.quickLink,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="shield-checkmark-outline"
+              size={17}
+              color={theme.colors.primary}
+            />
+            <Text style={styles.quickLinkText}>Admin</Text>
+          </Pressable>
+        ) : null}
       </View>
 
       <View style={styles.composer}>
@@ -365,7 +296,11 @@ export default function FeedScreen() {
                   pressed && styles.pressed,
                 ]}
               >
-                <Ionicons name="image-outline" size={19} color={theme.colors.primary} />
+                <Ionicons
+                  name="image-outline"
+                  size={19}
+                  color={theme.colors.primary}
+                />
               </Pressable>
 
               <Pressable
@@ -418,11 +353,23 @@ export default function FeedScreen() {
               </ScrollView>
               <Pressable
                 accessibilityRole="button"
-                disabled={!body.trim() || isCreatingPost}
+                disabled={
+                  (!body.trim() &&
+                    !(
+                      pollQuestion.trim() &&
+                      pollOptions.filter((option) => option.trim()).length >= 2
+                    )) ||
+                  isCreatingPost
+                }
                 onPress={() => void submitPost()}
                 style={({ pressed }) => [
                   styles.shareButton,
-                  (!body.trim() || isCreatingPost) &&
+                  ((!body.trim() &&
+                    !(
+                      pollQuestion.trim() &&
+                      pollOptions.filter((option) => option.trim()).length >= 2
+                    )) ||
+                    isCreatingPost) &&
                     styles.shareButtonDisabled,
                   pressed && styles.pressed,
                 ]}
@@ -443,10 +390,18 @@ export default function FeedScreen() {
       {showPollComposer ? (
         <View style={styles.pollComposerBox}>
           <View style={styles.pollComposerHeader}>
-            <Ionicons name="bar-chart-outline" size={16} color={theme.colors.primary} />
+            <Ionicons
+              name="bar-chart-outline"
+              size={16}
+              color={theme.colors.primary}
+            />
             <Text style={styles.pollComposerTitle}>Anket Oluştur</Text>
             <Pressable
-              onPress={() => { setShowPollComposer(false); setPollQuestion(""); setPollOptions(["", ""]); }}
+              onPress={() => {
+                setShowPollComposer(false);
+                setPollQuestion("");
+                setPollOptions(["", ""]);
+              }}
               style={styles.pollComposerClose}
             >
               <Ionicons name="close" size={18} color={theme.colors.muted} />
@@ -466,17 +421,27 @@ export default function FeedScreen() {
               </View>
               <TextInput
                 value={opt}
-                onChangeText={(v) => setPollOptions((cur) => cur.map((c, i) => i === idx ? v : c))}
+                onChangeText={(v) =>
+                  setPollOptions((cur) =>
+                    cur.map((c, i) => (i === idx ? v : c)),
+                  )
+                }
                 placeholder={`Seçenek ${idx + 1}`}
                 placeholderTextColor={theme.colors.muted}
                 style={styles.pollOptionInput}
               />
               {pollOptions.length > 2 ? (
                 <Pressable
-                  onPress={() => setPollOptions((cur) => cur.filter((_, i) => i !== idx))}
+                  onPress={() =>
+                    setPollOptions((cur) => cur.filter((_, i) => i !== idx))
+                  }
                   style={styles.pollRemoveButton}
                 >
-                  <Ionicons name="close-circle" size={20} color={theme.colors.muted} />
+                  <Ionicons
+                    name="close-circle"
+                    size={20}
+                    color={theme.colors.muted}
+                  />
                 </Pressable>
               ) : null}
             </View>
@@ -486,165 +451,16 @@ export default function FeedScreen() {
               onPress={() => setPollOptions((cur) => [...cur, ""])}
               style={styles.pollAddOptionButton}
             >
-              <Ionicons name="add-circle-outline" size={16} color={theme.colors.primary} />
+              <Ionicons
+                name="add-circle-outline"
+                size={16}
+                color={theme.colors.primary}
+              />
               <Text style={styles.pollAddOptionText}>Seçenek Ekle</Text>
             </Pressable>
           ) : null}
         </View>
       ) : null}
-      {isAdmin ? (
-        <View style={styles.botPanel}>
-          <View style={styles.botPanelHeader}>
-            <View style={styles.botPanelTitleRow}>
-              <Ionicons
-                name="megaphone-outline"
-                size={17}
-                color={theme.colors.primary}
-              />
-              <Text style={styles.botPanelTitle}>Ehlibyte Rehberi</Text>
-            </View>
-            {editingBotPostId ? (
-              <Pressable
-                accessibilityRole="button"
-                onPress={resetBotForm}
-                style={({ pressed }) => [
-                  styles.botGhostButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.botGhostButtonText}>Yeni</Text>
-              </Pressable>
-            ) : null}
-          </View>
-          <TextInput
-            value={botBody}
-            onChangeText={setBotBody}
-            maxLength={2000}
-            placeholder="Rehber paylaşımı yaz..."
-            placeholderTextColor={theme.colors.muted}
-            style={styles.botInput}
-            multiline
-          />
-          <TextInput
-            value={botCtaLabel}
-            onChangeText={setBotCtaLabel}
-            maxLength={40}
-            placeholder="CTA etiketi"
-            placeholderTextColor={theme.colors.muted}
-            style={styles.botCtaInput}
-          />
-          <View style={styles.botActions}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setBotIsActive((value) => !value)}
-              style={({ pressed }) => [
-                styles.botToggle,
-                botIsActive && styles.botToggleActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.botToggleText,
-                  botIsActive && styles.botToggleTextActive,
-                ]}
-              >
-                {botIsActive ? "Aktif" : "Pasif"}
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              onPress={() => setBotShowAdMob((value) => !value)}
-              style={({ pressed }) => [
-                styles.botToggle,
-                botShowAdMob && styles.botToggleActive,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.botToggleText,
-                  botShowAdMob && styles.botToggleTextActive,
-                ]}
-              >
-                AdMob
-              </Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              disabled={!botBody.trim() || isSavingBotPost}
-              onPress={() => void submitBotPost()}
-              style={({ pressed }) => [
-                styles.botSubmitButton,
-                (!botBody.trim() || isSavingBotPost) &&
-                  styles.shareButtonDisabled,
-                pressed && styles.pressed,
-              ]}
-            >
-              {isSavingBotPost ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
-              ) : (
-                <Text style={styles.botSubmitText}>
-                  {editingBotPostId ? "Güncelle" : "Rehber paylaş"}
-                </Text>
-              )}
-            </Pressable>
-          </View>
-          {botPosts.length > 0 ? (
-            <View style={styles.botList}>
-              {botPosts.slice(0, 3).map((post) => (
-                <View
-                  key={post.botPostId ?? post.id}
-                  style={styles.botListItem}
-                >
-                  <View style={styles.botListText}>
-                    <Text style={styles.botListTitle} numberOfLines={1}>
-                      {post.body}
-                    </Text>
-                    <Text style={styles.botListMeta}>
-                      {post.isActive === false ? "Pasif" : "Aktif"} ·{" "}
-                      {post.showAdMob === false ? "AdMob kapalı" : "AdMob açık"}
-                    </Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      post.botPostId && editBotPost(post.botPostId)
-                    }
-                    style={({ pressed }) => [
-                      styles.botIconButton,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="create-outline"
-                      size={17}
-                      color={theme.colors.primary}
-                    />
-                  </Pressable>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() =>
-                      post.botPostId && removeBotPost(post.botPostId)
-                    }
-                    style={({ pressed }) => [
-                      styles.botIconButton,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Ionicons
-                      name="trash-outline"
-                      size={17}
-                      color={theme.colors.danger}
-                    />
-                  </Pressable>
-                </View>
-              ))}
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-
       <View style={styles.filtersFrame}>
         <ScrollView
           horizontal
@@ -1007,140 +823,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: "#FFFFFF",
       fontSize: 13,
       lineHeight: 18,
-    },
-    botPanel: {
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: "rgba(17, 24, 39, 0.08)",
-      backgroundColor: theme.isDark ? "#151922" : "#FFF7F8",
-    },
-    botPanelHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: theme.spacing.sm,
-    },
-    botPanelTitleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    botPanelTitle: {
-      ...theme.typography.subheading,
-      color: theme.colors.text,
-    },
-    botGhostButton: {
-      minHeight: 30,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.sm,
-    },
-    botGhostButtonText: {
-      ...theme.typography.caption,
-      color: theme.colors.primary,
-    },
-    botInput: {
-      minHeight: 68,
-      maxHeight: 126,
-      borderRadius: theme.radius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      textAlignVertical: "top",
-      backgroundColor: theme.colors.surface,
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    botCtaInput: {
-      minHeight: 42,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingHorizontal: theme.spacing.md,
-      backgroundColor: theme.colors.surface,
-      ...theme.typography.caption,
-      color: theme.colors.text,
-    },
-    botActions: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    botToggle: {
-      minHeight: 34,
-      borderRadius: theme.radius.pill,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-    },
-    botToggleActive: {
-      borderColor: theme.colors.primary,
-      backgroundColor: "rgba(233, 64, 87, 0.10)",
-    },
-    botToggleText: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
-    botToggleTextActive: {
-      color: theme.colors.primary,
-    },
-    botSubmitButton: {
-      minHeight: 34,
-      borderRadius: theme.radius.pill,
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.sm,
-      backgroundColor: theme.colors.primary,
-    },
-    botSubmitText: {
-      ...theme.typography.caption,
-      color: "#FFFFFF",
-    },
-    botList: {
-      gap: theme.spacing.xs,
-    },
-    botListItem: {
-      minHeight: 48,
-      borderRadius: theme.radius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-      paddingHorizontal: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-    },
-    botListText: {
-      flex: 1,
-      minWidth: 0,
-    },
-    botListTitle: {
-      ...theme.typography.caption,
-      color: theme.colors.text,
-    },
-    botListMeta: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      fontSize: 11,
-      lineHeight: 14,
-    },
-    botIconButton: {
-      width: 34,
-      height: 34,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
     },
     filtersFrame: {
       borderBottomWidth: 1,

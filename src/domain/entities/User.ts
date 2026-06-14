@@ -31,6 +31,7 @@ export const badgeValues = [
   "active_user",
   "premium_member",
   "muharrem_follower",
+  "muharrem_orucu_2026",
   "cem_room_supporter",
   "culture_guardian",
   "zulfiqar_sword",
@@ -80,6 +81,7 @@ export interface User {
   locationUpdatedAt?: string;
   distanceKm?: number;
   boostedUntil?: string;
+  fireScore?: number;
   blockedUsers?: string[];
   mutedUsers?: string[];
   hasPassedEntryTest: boolean;

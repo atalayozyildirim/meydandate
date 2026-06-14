@@ -76,11 +76,26 @@ export const useConversation = (conversationId: string) => {
     }
   });
 
+  const deleteMessageMutation = useMutation({
+    mutationFn: (messageId: string) =>
+      container.chatRepository.deleteMessage(conversationId, messageId),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({
+          queryKey: [queryKeys.conversation, conversationId],
+        }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.conversations] }),
+      ]);
+    },
+  });
+
   return {
     conversation: query.data,
     currentUser,
     isLoading: query.isLoading,
     sendMessage: sendMutation.mutateAsync,
-    isSending: sendMutation.isPending
+    isSending: sendMutation.isPending,
+    deleteMessage: deleteMessageMutation.mutateAsync,
+    isDeletingMessage: deleteMessageMutation.isPending,
   };
 };

@@ -8,12 +8,14 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider, useTheme } from "@/shared/theme";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { initializeAdMob } from "@/features/ads";
+import { registerPushNotifications } from "@/features/notifications/services/pushNotifications";
 
 const queryClient = new QueryClient();
 
 const RootNavigator = () => {
   const theme = useTheme();
   const initializeSession = useAuthStore((state) => state.initializeSession);
+  const currentUser = useAuthStore((state) => state.currentUser);
 
   useEffect(() => {
     void initializeSession();
@@ -22,6 +24,16 @@ const RootNavigator = () => {
   useEffect(() => {
     void initializeAdMob();
   }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return;
+    }
+
+    void registerPushNotifications(currentUser.id).catch((error) => {
+      if (__DEV__) console.info("Push token kaydedilemedi:", error);
+    });
+  }, [currentUser?.id]);
 
   return (
     <>

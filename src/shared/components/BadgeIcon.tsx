@@ -64,6 +64,12 @@ const iconBadgeConfig: Record<
     bgColor: "rgba(129,140,248,0.15)",
     borderColor: "rgba(129,140,248,0.35)",
   },
+  muharrem_orucu_2026: {
+    icon: "calendar",
+    color: "#14B8A6",
+    bgColor: "rgba(20,184,166,0.15)",
+    borderColor: "rgba(20,184,166,0.35)",
+  },
   cem_room_supporter: {
     icon: "radio",
     color: "#F472B6",

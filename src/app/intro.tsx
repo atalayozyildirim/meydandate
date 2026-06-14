@@ -104,6 +104,7 @@ export default function IntroScreen() {
         horizontal
         pagingEnabled
         bounces={false}
+        style={styles.slides}
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(event) => {
           setActiveIndex(Math.round(event.nativeEvent.contentOffset.x / slideWidth));
@@ -129,7 +130,12 @@ export default function IntroScreen() {
               </View>
             </LinearGradient>
 
-            <View style={styles.copy}>
+            <ScrollView
+              style={styles.copyScroll}
+              contentContainerStyle={styles.copy}
+              showsVerticalScrollIndicator={false}
+              bounces={false}
+            >
               <Text style={styles.eyebrow}>{slide.eyebrow}</Text>
               <Text style={styles.title}>{slide.title}</Text>
               <Text style={styles.description}>{slide.description}</Text>
@@ -143,7 +149,7 @@ export default function IntroScreen() {
                   </View>
                 ))}
               </View>
-            </View>
+            </ScrollView>
           </View>
         ))}
       </ScrollView>
@@ -224,8 +230,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
     },
     slide: {
+      flex: 1,
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.sm,
+    },
+    slides: {
+      flex: 1,
     },
     hero: {
       minHeight: 300,
@@ -281,8 +291,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: "#FFFFFF",
     },
     copy: {
-      paddingTop: theme.spacing.xl,
+      paddingTop: theme.spacing.lg,
+      paddingBottom: theme.spacing.md,
       gap: theme.spacing.sm,
+    },
+    copyScroll: {
+      flex: 1,
+      minHeight: 0,
     },
     eyebrow: {
       ...theme.typography.caption,
@@ -327,8 +342,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     footer: {
       paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.sm,
-      paddingBottom: theme.spacing.lg,
+      paddingTop: theme.spacing.xs,
+      paddingBottom: theme.spacing.md,
       gap: theme.spacing.md,
       backgroundColor: theme.colors.background,
     },

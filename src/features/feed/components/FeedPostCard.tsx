@@ -1,5 +1,4 @@
 // Akış post kartını, yorumları ve yanıt formunu gösterir.
-import { useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -7,7 +6,6 @@ import {
   Pressable,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -15,10 +13,8 @@ import { useRouter } from "expo-router";
 import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 import { PollCard } from "./PollCard";
 import type { User } from "@/domain/entities/User";
-import { useFeedComments } from "@/features/feed/hooks/useFeed";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
-import { Button } from "@/shared/components/Button";
 import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
 import { AdMobBanner } from "@/features/ads";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
@@ -46,6 +42,7 @@ interface FeedPostCardProps {
   sponsorLabel?: string;
   ctaLabel?: string;
   onCtaPress?: () => void;
+  onOpenDetail?: (postId: string) => void;
 }
 
 const feedTagDisplayLabels: Record<FeedTag, string> = {
@@ -71,78 +68,27 @@ export const FeedPostCard = ({
   sponsorLabel = "Sponsorlu",
   ctaLabel = "İncele",
   onCtaPress,
+  onOpenDetail,
 }: FeedPostCardProps) => {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
-  const [isCommentsOpen, setIsCommentsOpen] = useState(false);
-  const [commentText, setCommentText] = useState("");
-  const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
-  const {
-    comments,
-    isLoadingComments,
-    fetchMoreComments,
-    hasMoreComments,
-    isFetchingMoreComments,
-  } = useFeedComments(post.id, isCommentsOpen);
   const liked = post.likedByUserIds.includes(currentUser.id);
-  const replyCount = comments.reduce(
-    (total, comment) => total + comment.replies.length,
-    0,
-  );
-  const commentActionLabel =
-    comments.length > 0
-      ? `${comments.length}${hasMoreComments ? "+" : ""}`
-      : "Yorum";
   const openProfile = (userId: string) => {
     router.push({ pathname: "/tabs/profile/[userId]", params: { userId } });
   };
-
-  const submitComment = async () => {
-    const body = commentText.trim();
-
-    if (!body) {
+  const openDetail = () => {
+    if (isSponsored) {
+      onCtaPress?.();
       return;
     }
 
-    try {
-      await onComment(post.id, body);
-      setCommentText("");
-      setIsCommentsOpen(true);
-    } catch (error) {
-      if (isPermanentBanError(error)) {
-        onPermanentBan(error);
-        return;
-      }
-
-      Alert.alert(
-        "Yorum gönderilemedi",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
-  };
-
-  const submitReply = async (commentId: string) => {
-    const body = replyInputs[commentId]?.trim();
-
-    if (!body) {
+    if (onOpenDetail) {
+      onOpenDetail(post.id);
       return;
     }
 
-    try {
-      await onReply(post.id, commentId, body);
-      setReplyInputs((current) => ({ ...current, [commentId]: "" }));
-    } catch (error) {
-      if (isPermanentBanError(error)) {
-        onPermanentBan(error);
-        return;
-      }
-
-      Alert.alert(
-        "Yanıt gönderilemedi",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
+    router.push({ pathname: "/tabs/feed/[postId]", params: { postId: post.id } });
   };
 
   const reportPost = () => {
@@ -190,7 +136,12 @@ export const FeedPostCard = ({
   };
 
   return (
-    <Card style={styles.card}>
+    <Pressable
+      accessibilityRole="button"
+      onPress={openDetail}
+      style={({ pressed }) => [pressed && styles.pressed]}
+    >
+      <Card style={styles.card}>
       <View style={styles.postRow}>
         <Pressable
           accessibilityRole="button"
@@ -376,7 +327,7 @@ export const FeedPostCard = ({
               </Pressable>
               <Pressable
                 accessibilityRole="button"
-                onPress={() => setIsCommentsOpen((current) => !current)}
+                onPress={openDetail}
                 style={({ pressed }) => [
                   styles.action,
                   pressed && styles.pressed,
@@ -387,7 +338,7 @@ export const FeedPostCard = ({
                   size={18}
                   color={theme.colors.muted}
                 />
-                <Text style={styles.actionText}>{commentActionLabel}</Text>
+                <Text style={styles.actionText}>Yorum</Text>
               </Pressable>
               <View style={styles.action}>
                 <Ionicons
@@ -395,129 +346,14 @@ export const FeedPostCard = ({
                   size={18}
                   color={theme.colors.muted}
                 />
-                <Text style={styles.actionText}>{replyCount}</Text>
+                <Text style={styles.actionText}>Yanıt</Text>
               </View>
             </View>
           )}
-
-          {isCommentsOpen && !isSponsored ? (
-            <View style={styles.comments}>
-              <View style={styles.commentComposer}>
-                <TextInput
-                  value={commentText}
-                  onChangeText={setCommentText}
-                  maxLength={1000}
-                  placeholder="Yorum yaz..."
-                  placeholderTextColor={theme.colors.muted}
-                  style={styles.commentInput}
-                  multiline
-                />
-                <Button
-                  label="Gönder"
-                  disabled={disabled || !commentText.trim()}
-                  style={styles.smallButton}
-                  onPress={() => void submitComment()}
-                />
-              </View>
-
-              {isLoadingComments ? (
-                <View style={styles.commentsLoading}>
-                  <ActivityIndicator color={theme.colors.primary} />
-                </View>
-              ) : comments.length === 0 ? (
-                <Text style={styles.emptyComments}>
-                  Henüz yorum yok. İlk yorumu sen yaz.
-                </Text>
-              ) : null}
-
-              {comments.map((comment) => (
-                <View key={comment.id} style={styles.commentBlock}>
-                  <Pressable
-                    accessibilityRole="button"
-                    onPress={() => openProfile(comment.authorId)}
-                    style={({ pressed }) => [
-                      styles.commentHeader,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Avatar
-                      name={comment.author.name}
-                      uri={comment.author.photos[0]?.uri}
-                      size={32}
-                    />
-                    <View style={styles.commentBody}>
-                      <Text style={styles.commentName}>
-                        {sanitizePlainText(comment.author.name, 80)}
-                      </Text>
-                      <Text style={styles.commentText}>
-                        {sanitizePlainText(comment.body, 1000)}
-                      </Text>
-                    </View>
-                  </Pressable>
-                  {comment.replies.map((reply) => (
-                    <Pressable
-                      key={reply.id}
-                      accessibilityRole="button"
-                      onPress={() => openProfile(reply.authorId)}
-                      style={({ pressed }) => [
-                        styles.replyRow,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Avatar
-                        name={reply.author.name}
-                        uri={reply.author.photos[0]?.uri}
-                        size={26}
-                      />
-                      <View style={styles.replyBody}>
-                        <Text style={styles.replyName}>
-                          {sanitizePlainText(reply.author.name, 80)}
-                        </Text>
-                        <Text style={styles.replyText}>
-                          {sanitizePlainText(reply.body, 1000)}
-                        </Text>
-                      </View>
-                    </Pressable>
-                  ))}
-                  <View style={styles.replyComposer}>
-                    <TextInput
-                      value={replyInputs[comment.id] ?? ""}
-                      onChangeText={(value) =>
-                        setReplyInputs((current) => ({
-                          ...current,
-                          [comment.id]: value,
-                        }))
-                      }
-                      maxLength={1000}
-                      placeholder="Yanıt yaz..."
-                      placeholderTextColor={theme.colors.muted}
-                      style={styles.replyInput}
-                    />
-                    <Pressable
-                      accessibilityRole="button"
-                      disabled={disabled || !replyInputs[comment.id]?.trim()}
-                      onPress={() => void submitReply(comment.id)}
-                      style={styles.replyButton}
-                    >
-                      <Ionicons name="send" size={16} color="#FFFFFF" />
-                    </Pressable>
-                  </View>
-                </View>
-              ))}
-              {hasMoreComments ? (
-                <Button
-                  label="Daha fazla yorum"
-                  variant="ghost"
-                  loading={isFetchingMoreComments}
-                  style={styles.loadMoreCommentsButton}
-                  onPress={() => void fetchMoreComments()}
-                />
-              ) : null}
-            </View>
-          ) : null}
         </View>
       </View>
-    </Card>
+      </Card>
+    </Pressable>
   );
 };
 

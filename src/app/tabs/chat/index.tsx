@@ -30,38 +30,16 @@ export default function ChatListScreen() {
     (conversation) => conversation.messages.length > 0,
   ).length;
 
-  const handleDelete = (conversationId: string) => {
-    Alert.alert(
-      "Sohbeti Sil",
-      "Bu sohbeti ve tüm mesajları silmek istediğinize emin misiniz? Bu işlem geri alınamaz.",
-      [
-        {
-          text: "Vazgeç",
-          style: "cancel",
-          onPress: () => {
-            swipeableRefs.current[conversationId]?.close();
-          },
-        },
-        {
-          text: "Sil",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await deleteConversation(conversationId);
-            } catch (error) {
-              Alert.alert("Hata", "Sohbet silinemedi.");
-              swipeableRefs.current[conversationId]?.close();
-            }
-          },
-        },
-      ],
-      {
-        cancelable: true,
-        onDismiss: () => {
-          swipeableRefs.current[conversationId]?.close();
-        },
-      }
-    );
+  const handleDelete = async (conversationId: string) => {
+    try {
+      await deleteConversation(conversationId);
+    } catch (error) {
+      Alert.alert(
+        "Sohbet silinemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+      swipeableRefs.current[conversationId]?.close();
+    }
   };
 
   return (
@@ -121,16 +99,16 @@ export default function ChatListScreen() {
                     swipeableRefs.current[conversation.id] = ref;
                   }
                 }}
-                renderLeftActions={() => (
+                renderRightActions={() => (
                   <Pressable
-                    onPress={() => handleDelete(conversation.id)}
+                    onPress={() => void handleDelete(conversation.id)}
                     style={styles.deleteAction}
                   >
                     <Ionicons name="trash-outline" size={22} color="#FFF" />
                     <Text style={styles.deleteActionText}>Sil</Text>
                   </Pressable>
                 )}
-                onSwipeableLeftOpen={() => handleDelete(conversation.id)}
+                onSwipeableRightOpen={() => void handleDelete(conversation.id)}
               >
                 <Pressable
                   onPress={() =>

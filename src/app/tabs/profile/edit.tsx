@@ -8,7 +8,10 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { UserProfileUpdate } from "@/domain/entities/User";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
-import { profileSchema, type ProfileFormValues } from "@/features/profile/schemas/profileSchema";
+import {
+  profileSchema,
+  type ProfileFormValues,
+} from "@/features/profile/schemas/profileSchema";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { Button } from "@/shared/components/Button";
 import { Card } from "@/shared/components/Card";
@@ -16,7 +19,11 @@ import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
 import { OptionChip } from "@/shared/components/OptionChip";
 import { Screen } from "@/shared/components/Screen";
-import { culturalIdentityOptions, cultureImportanceOptions, interestOptions } from "@/shared/constants/options";
+import {
+  culturalIdentityOptions,
+  cultureImportanceOptions,
+  interestOptions,
+} from "@/shared/constants/options";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
 import { useTheme } from "@/shared/theme";
 
@@ -28,7 +35,7 @@ const toProfileUpdate = (values: ProfileFormValues): UserProfileUpdate => {
     bio: values.bio,
     culturalIdentity: values.culturalIdentity,
     cultureImportance: values.cultureImportance,
-    interests: values.interests
+    interests: values.interests,
   };
 
   if (values.occupation) {
@@ -48,7 +55,9 @@ const toProfileUpdate = (values: ProfileFormValues): UserProfileUpdate => {
   }
 
   if (values.photoUri) {
-    update.photos = [{ id: "profile-photo-primary", uri: values.photoUri, isPrimary: true }];
+    update.photos = [
+      { id: "profile-photo-primary", uri: values.photoUri, isPrimary: true },
+    ];
   }
 
   return update;
@@ -75,8 +84,8 @@ export default function ProfileEditScreen() {
       culturalIdentity: "prefer_not_to_say",
       cultureImportance: "somewhat_important",
       interests: [],
-      photoUri: ""
-    }
+      photoUri: "",
+    },
   });
   const selectedPhotoUri = form.watch("photoUri");
 
@@ -97,7 +106,7 @@ export default function ProfileEditScreen() {
       culturalIdentity: profile.culturalIdentity,
       cultureImportance: profile.cultureImportance,
       interests: profile.interests,
-      photoUri: profile.photos[0]?.uri ?? ""
+      photoUri: profile.photos[0]?.uri ?? "",
     });
   }, [form, profile]);
 
@@ -128,14 +137,21 @@ export default function ProfileEditScreen() {
         return;
       }
 
-      Alert.alert("Profil güncellenemedi", error instanceof Error ? error.message : "Tekrar deneyin.");
+      Alert.alert(
+        "Profil güncellenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
     }
   });
 
   return (
     <Screen style={styles.screen}>
       <View style={styles.header}>
-        <Pressable accessibilityRole="button" onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="chevron-back" size={23} color={theme.colors.text} />
         </Pressable>
         <View style={styles.headerText}>
@@ -151,7 +167,10 @@ export default function ProfileEditScreen() {
           render={({ field }) => (
             <>
               {selectedPhotoUri ? (
-                <Image source={{ uri: selectedPhotoUri }} style={styles.photo} />
+                <Image
+                  source={{ uri: selectedPhotoUri }}
+                  style={styles.photo}
+                />
               ) : (
                 <View style={styles.photoFallback}>
                   <Ionicons name="person" size={30} color="#FFFFFF" />
@@ -159,14 +178,22 @@ export default function ProfileEditScreen() {
               )}
               <View style={styles.photoText}>
                 <Text style={styles.sectionTitle}>Profil fotoğrafı</Text>
-                <Text style={styles.helperText}>Net ve güncel bir fotoğraf seç.</Text>
+                <Text style={styles.helperText}>
+                  Net ve güncel bir fotoğraf seç.
+                </Text>
               </View>
               <Button
                 label="Değiştir"
                 variant="ghost"
                 style={styles.photoButton}
                 loading={imagePicker.isPicking}
-                icon={<Ionicons name="image-outline" size={18} color={theme.colors.primary} />}
+                icon={
+                  <Ionicons
+                    name="image-outline"
+                    size={18}
+                    color={theme.colors.primary}
+                  />
+                }
                 onPress={async () => {
                   const uri = await imagePicker.pickImage();
 
@@ -186,7 +213,12 @@ export default function ProfileEditScreen() {
           control={form.control}
           name="name"
           render={({ field, fieldState }) => (
-            <Input label="İsim" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+            <Input
+              label="İsim"
+              value={field.value}
+              onChangeText={field.onChange}
+              error={fieldState.error?.message}
+            />
           )}
         />
         <View style={styles.twoColumn}>
@@ -210,7 +242,12 @@ export default function ProfileEditScreen() {
               control={form.control}
               name="city"
               render={({ field, fieldState }) => (
-                <Input label="Şehir" value={field.value} onChangeText={field.onChange} error={fieldState.error?.message} />
+                <Input
+                  label="Şehir"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={fieldState.error?.message}
+                />
               )}
             />
           </View>
@@ -218,19 +255,24 @@ export default function ProfileEditScreen() {
         <Controller
           control={form.control}
           name="occupation"
-          render={({ field }) => <Input label="Meslek" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Meslek"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
+
         <Controller
           control={form.control}
           name="bio"
           render={({ field, fieldState }) => (
             <Input
               label="Bio"
-              multiline
               value={field.value}
               onChangeText={field.onChange}
               error={fieldState.error?.message}
-              style={styles.multilineInput}
             />
           )}
         />
@@ -241,17 +283,35 @@ export default function ProfileEditScreen() {
         <Controller
           control={form.control}
           name="hometown"
-          render={({ field }) => <Input label="Memleket" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Memleket"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
         <Controller
           control={form.control}
           name="favoriteSong"
-          render={({ field }) => <Input label="Favori türkü" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Favori türkü"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
         <Controller
           control={form.control}
           name="favoritePoet"
-          render={({ field }) => <Input label="Favori ozan" value={field.value} onChangeText={field.onChange} />}
+          render={({ field }) => (
+            <Input
+              label="Favori ozan"
+              value={field.value}
+              onChangeText={field.onChange}
+            />
+          )}
         />
       </Card>
 
@@ -310,23 +370,37 @@ export default function ProfileEditScreen() {
                       onPress={() =>
                         field.onChange(
                           isSelected
-                            ? field.value.filter((interest) => interest !== option.value)
-                            : [...field.value, option.value]
+                            ? field.value.filter(
+                                (interest) => interest !== option.value,
+                              )
+                            : [...field.value, option.value],
                         )
                       }
                     />
                   );
                 })}
               </View>
-              {fieldState.error ? <Text style={styles.error}>{fieldState.error.message}</Text> : null}
+              {fieldState.error ? (
+                <Text style={styles.error}>{fieldState.error.message}</Text>
+              ) : null}
             </>
           )}
         />
       </Card>
 
       <View style={styles.footerActions}>
-        <Button label="Vazgeç" variant="ghost" style={styles.footerButton} onPress={() => router.back()} />
-        <Button label="Kaydet" loading={isUpdating} style={styles.footerButton} onPress={onSubmit} />
+        <Button
+          label="Vazgeç"
+          variant="ghost"
+          style={styles.footerButton}
+          onPress={() => router.back()}
+        />
+        <Button
+          label="Kaydet"
+          loading={isUpdating}
+          style={styles.footerButton}
+          onPress={onSubmit}
+        />
       </View>
     </Screen>
   );
@@ -343,7 +417,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      marginBottom: theme.spacing.xs
+      marginBottom: theme.spacing.xs,
     },
     backButton: {
       width: 42,
@@ -351,20 +425,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.elevated
+      backgroundColor: theme.colors.elevated,
     },
     headerText: {
       flex: 1,
-      gap: theme.spacing.xxs
+      gap: theme.spacing.xxs,
     },
     kicker: {
       ...theme.typography.caption,
       color: theme.colors.primary,
-      textTransform: "uppercase"
+      textTransform: "uppercase",
     },
     title: {
       ...theme.typography.heading,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     photoCard: {
       flexDirection: "row",
@@ -375,7 +449,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       width: 72,
       height: 72,
       borderRadius: theme.radius.pill,
-      backgroundColor: theme.colors.elevated
+      backgroundColor: theme.colors.elevated,
     },
     photoFallback: {
       width: 72,
@@ -383,54 +457,54 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.primary
+      backgroundColor: theme.colors.primary,
     },
     photoText: {
       flex: 1,
-      gap: theme.spacing.xxs
+      gap: theme.spacing.xxs,
     },
     helperText: {
       ...theme.typography.caption,
-      color: theme.colors.muted
+      color: theme.colors.muted,
     },
     photoButton: {
       minHeight: 42,
-      paddingHorizontal: theme.spacing.sm
+      paddingHorizontal: theme.spacing.sm,
     },
     section: {
       gap: theme.spacing.sm,
     },
     sectionTitle: {
       ...theme.typography.subheading,
-      color: theme.colors.text
+      color: theme.colors.text,
     },
     chipWrap: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: theme.spacing.xs
+      gap: theme.spacing.xs,
     },
     twoColumn: {
       flexDirection: "row",
-      gap: theme.spacing.sm
+      gap: theme.spacing.sm,
     },
     column: {
-      flex: 1
+      flex: 1,
     },
     multilineInput: {
       minHeight: 92,
       borderRadius: theme.radius.lg,
       paddingTop: theme.spacing.sm,
-      textAlignVertical: "top"
+      textAlignVertical: "top",
     },
     footerActions: {
       flexDirection: "row",
-      gap: theme.spacing.sm
+      gap: theme.spacing.sm,
     },
     footerButton: {
-      flex: 1
+      flex: 1,
     },
     error: {
       ...theme.typography.caption,
-      color: theme.colors.danger
-    }
+      color: theme.colors.danger,
+    },
   });

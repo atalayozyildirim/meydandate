@@ -39,6 +39,7 @@ export const badgeLabels: Record<Badge, string> = {
   active_user: "Aktif Kullanıcı",
   premium_member: "Premium Üye",
   muharrem_follower: "Muharrem Takipçisi",
+  muharrem_orucu_2026: "Muharrem Orucu 2026",
   cem_room_supporter: "Cem Odası Destekçisi",
   culture_guardian: "Yol Erkânı Destekçisi",
   zulfiqar_sword: "Zülfikar Kılıcı"

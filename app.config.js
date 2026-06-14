@@ -21,6 +21,7 @@ const androidAdMobAppId = requireProductionValue(
   "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
   "ca-app-pub-3940256099942544~3347511713",
 );
+const easProjectId = readEnv("EXPO_PUBLIC_EAS_PROJECT_ID");
 
 const plugins = baseExpoConfig.plugins.map((plugin) => {
   if (Array.isArray(plugin) && plugin[0] === "react-native-google-mobile-ads") {
@@ -39,5 +40,16 @@ const plugins = baseExpoConfig.plugins.map((plugin) => {
 
 module.exports = {
   ...baseExpoConfig,
+  extra: {
+    ...(baseExpoConfig.extra ?? {}),
+    ...(easProjectId
+      ? {
+          eas: {
+            ...(baseExpoConfig.extra?.eas ?? {}),
+            projectId: easProjectId,
+          },
+        }
+      : {}),
+  },
   plugins,
 };
