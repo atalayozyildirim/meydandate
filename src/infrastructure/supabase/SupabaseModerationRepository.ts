@@ -81,12 +81,14 @@ export class SupabaseModerationRepository implements ModerationRepository {
     status: string,
     resolution?: string,
   ): Promise<Report> {
+    const { data: authData } = await supabase.auth.getUser();
     const { data, error } = await supabase
       .from("reports")
       .update({
         status,
         resolution,
         resolvedAt: new Date().toISOString(),
+        resolvedBy: authData.user?.id ?? null,
       })
       .eq("id", reportId)
       .select()
@@ -97,7 +99,7 @@ export class SupabaseModerationRepository implements ModerationRepository {
     // Log action
     const report = await this.getReportDetail(reportId);
     await this.logAction({
-      userId: report.resolvedBy || "",
+      userId: authData.user?.id ?? report.resolvedBy ?? "",
       action: "report_updated",
       targetType: "report",
       targetId: reportId,

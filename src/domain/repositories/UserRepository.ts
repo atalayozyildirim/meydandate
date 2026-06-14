@@ -1,6 +1,6 @@
 // Profil, onboarding ve guvenlik aksiyonlari icin repository sozlesmesi.
 import type { ReportCategory } from "../entities/Match";
-import type { User, UserProfileUpdate } from "../entities/User";
+import type { Badge, User, UserProfileUpdate } from "../entities/User";
 
 export interface OnboardingProfile extends Required<Pick<User, "name" | "age" | "city" | "bio" | "culturalIdentity" | "cultureImportance" | "interests">> {
   occupation?: string;
@@ -29,11 +29,11 @@ export interface UserRepository {
   updateProfile(userId: string, update: UserProfileUpdate): Promise<User>;
   completeOnboarding(userId: string, profile: OnboardingProfile): Promise<User>;
   claimMuharrem2026Badge(userId: string): Promise<User>;
+  claimTaskBadge(userId: string, badge: Badge): Promise<User>;
   activatePremiumBoost(userId: string): Promise<User>;
   setProfileDiscoverability(userId: string, isDiscoverable: boolean): Promise<User>;
   setLocationMatching(userId: string, update: LocationMatchingUpdate): Promise<User>;
   getFireBalance(userId: string): Promise<number>;
-  purchaseFirePackage(userId: string, amount: 100 | 500 | 1500): Promise<number>;
   sendProfileFire(
     userId: string,
     targetUserId: string,
@@ -42,5 +42,6 @@ export interface UserRepository {
   listDiscoverCandidates(userId: string): Promise<User[]>;
   reportUser(userId: string, payload: ReportPayload): Promise<void>;
   blockUser(userId: string, blockedUserId: string): Promise<void>;
+  unblockUser(userId: string, blockedUserId: string): Promise<void>;
   muteUser(userId: string, mutedUserId: string): Promise<void>;
 }

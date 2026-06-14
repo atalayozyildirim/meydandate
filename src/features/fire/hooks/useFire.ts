@@ -1,11 +1,11 @@
 // Fire bakiyesi, paket alımı ve profil boost gönderimini yönetir.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { FirePackageAmount } from "@/domain/entities/Subscription";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
 
 export const firePackageValues = [100, 500, 1500] as const;
-export type FirePackageAmount = (typeof firePackageValues)[number];
 
 export const useFire = () => {
   const queryClient = useQueryClient();
@@ -33,7 +33,7 @@ export const useFire = () => {
         throw new Error("Fire almak için oturum gerekli.");
       }
 
-      return container.userRepository.purchaseFirePackage(currentUser.id, amount);
+      return container.paymentService.purchaseFirePackage(currentUser.id, amount);
     },
     onSuccess: invalidateFire,
   });

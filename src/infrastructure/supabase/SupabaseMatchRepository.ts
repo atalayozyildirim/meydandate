@@ -26,6 +26,43 @@ type PendingSpecialInviteRow = {
   created_at: string;
 };
 
+const minimalPublicUserColumns = [
+  "id",
+  "name",
+  "age",
+  "city",
+  "bio",
+  "culturalIdentity",
+  "cultureImportance",
+  "interests",
+  "photos",
+  "badges",
+  "isPremium",
+  "hasPassedEntryTest",
+  "hasCompletedOnboarding",
+  "createdAt",
+  "updatedAt",
+].join(",");
+
+const createMissingMatchUser = (id: string, createdAt: string): User => ({
+  id,
+  name: "Kullanıcı",
+  email: "",
+  age: 18,
+  city: "",
+  bio: "",
+  culturalIdentity: "prefer_not_to_say",
+  cultureImportance: "not_important",
+  interests: [],
+  photos: [],
+  badges: [],
+  isPremium: false,
+  hasPassedEntryTest: true,
+  hasCompletedOnboarding: true,
+  createdAt,
+  updatedAt: createdAt,
+});
+
 export class SupabaseMatchRepository implements MatchRepository {
   private async getExistingMatchBetween(
     userId: string,
@@ -115,23 +152,41 @@ export class SupabaseMatchRepository implements MatchRepository {
     return this.buildMatch(match as unknown as SupabaseMatchRow);
   }
 
-  private async buildMatch(row: SupabaseMatchRow): Promise<Match> {
+  private async getMatchUsers(row: SupabaseMatchRow): Promise<User[]> {
+    const userIds = [row.user1Id, row.user2Id];
     const { data, error } = await supabase
       .from("users")
       .select(publicUserColumns)
-      .in("id", [row.user1Id, row.user2Id]);
+      .in("id", userIds);
 
-    if (error || !data || data.length < 2) {
-      throw new Error("Eşleşme kullanıcıları yüklenemedi");
+    if (!error) {
+      return (data ?? []).map((userRow) =>
+        mapSupabaseUser(userRow as unknown as Partial<User>),
+      );
     }
 
-    const users = data.map((userRow) => mapSupabaseUser(userRow as unknown as Partial<User>));
-    const user1 = users.find((user) => user.id === row.user1Id) ?? users[0];
-    const user2 = users.find((user) => user.id === row.user2Id) ?? users[1];
+    const { data: fallbackData, error: fallbackError } = await supabase
+      .from("users")
+      .select(minimalPublicUserColumns)
+      .in("id", userIds);
 
-    if (!user1 || !user2) {
-      throw new Error("Eşleşme kullanıcıları eksik");
+    if (fallbackError) {
+      return [];
     }
+
+    return (fallbackData ?? []).map((userRow) =>
+      mapSupabaseUser(userRow as unknown as Partial<User>),
+    );
+  }
+
+  private async buildMatch(row: SupabaseMatchRow): Promise<Match> {
+    const users = await this.getMatchUsers(row);
+    const user1 =
+      users.find((user) => user.id === row.user1Id) ??
+      createMissingMatchUser(row.user1Id, row.matchedAt);
+    const user2 =
+      users.find((user) => user.id === row.user2Id) ??
+      createMissingMatchUser(row.user2Id, row.matchedAt);
 
     return {
       id: row.id,
@@ -221,7 +276,15 @@ export class SupabaseMatchRepository implements MatchRepository {
       throw new Error("Eşleşmeler yüklenemedi");
     }
 
-    return Promise.all((data || []).map((match) => this.buildMatch(match as unknown as SupabaseMatchRow)));
+    const matches = await Promise.allSettled(
+      (data || []).map((match) =>
+        this.buildMatch(match as unknown as SupabaseMatchRow),
+      ),
+    );
+
+    return matches.flatMap((match) =>
+      match.status === "fulfilled" ? [match.value] : [],
+    );
   }
 
   async claimSpecialInvite(_userId: string): Promise<void> {

@@ -28,6 +28,13 @@
         }
       ],
       [
+        "expo-image-picker",
+        {
+          "photosPermission": "Profil ve akış fotoğrafı seçebilmen için fotoğraf kütüphanene erişim gerekiyor.",
+          "cameraPermission": "Profil ve akış fotoğrafı çekebilmen için kameraya erişim gerekiyor."
+        }
+      ],
+      [
         "react-native-google-mobile-ads",
         {
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
@@ -42,6 +49,7 @@
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Profil ve post fotoğrafı seçmek için fotoğraf kütüphanesine erişim gerekiyor.",
+        "NSPhotoLibraryAddUsageDescription": "Paylaştığın görselleri kaydedebilmek için fotoğraf kütüphanesine erişim gerekiyor.",
         "NSCameraUsageDescription": "Profil ve post fotoğrafı çekmek için kamera erişimine izin verin.",
         "NSLocationWhenInUseUsageDescription": "Yakındaki eşleşmeleri göstermek için konumuna erişmek istiyoruz."
       },
@@ -51,7 +59,7 @@
     },
     "android": {
       "package": "com.ehlibyte.app",
-      "permissions": ["READ_EXTERNAL_STORAGE", "WRITE_EXTERNAL_STORAGE"],
+      "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FF4458"

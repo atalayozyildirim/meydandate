@@ -33,7 +33,7 @@ export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: 
         <View pointerEvents="none" style={styles.topBadges}>
           {isStarterProfile ? (
             <View style={[styles.statusPill, styles.guidePill]}>
-              <Ionicons name={"sparkles" as any} size={13} color="#FFFFFF" />
+              <Ionicons name="compass" size={13} color="#FFFFFF" />
               <Text style={styles.statusPillText}>Rehber</Text>
             </View>
           ) : null}

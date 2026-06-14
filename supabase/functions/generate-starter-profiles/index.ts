@@ -1,4 +1,4 @@
-import "@supabase/functions-js/edge-runtime.d.ts";
+import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 
 type CulturalIdentity = "alevi" | "close_to_alevi_culture" | "prefer_not_to_say";
@@ -52,6 +52,48 @@ const profilePhotos = [
   "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=900&q=80",
   "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=900&q=80",
   "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=900&q=80",
+];
+
+const fallbackProfiles: GeneratedProfile[] = [
+  {
+    name: "Derya",
+    age: 29,
+    city: "İstanbul",
+    occupation: "Sosyal hizmet uzmanı",
+    bio: "Deyişler, kitaplar ve sakin sohbetler etrafında tanışmayı severim.",
+    hometown: "Sivas",
+    favoriteSong: "Dostum Dostum",
+    favoritePoet: "Aşık Veysel",
+    culturalIdentity: "alevi",
+    cultureImportance: "very_important",
+    interests: ["turkish_folk_music", "cem_culture", "literature"],
+  },
+  {
+    name: "Mert",
+    age: 32,
+    city: "Ankara",
+    occupation: "Yazılım geliştirici",
+    bio: "Bağlama, doğa yürüyüşü ve kültür muhabbeti iyi bir başlangıç olur.",
+    hometown: "Tokat",
+    favoriteSong: "Uzun İnce Bir Yoldayım",
+    favoritePoet: "Mahzuni Şerif",
+    culturalIdentity: "close_to_alevi_culture",
+    cultureImportance: "important",
+    interests: ["baglama", "nature", "folk_poets"],
+  },
+  {
+    name: "Selin",
+    age: 27,
+    city: "İzmir",
+    occupation: "Öğretmen",
+    bio: "Müzik, dayanışma ve içten sohbetleri önemseyen biriyle tanışmak isterim.",
+    hometown: "Tunceli",
+    favoriteSong: "Gesi Bağları",
+    favoritePoet: "Pir Sultan Abdal",
+    culturalIdentity: "alevi",
+    cultureImportance: "important",
+    interests: ["solidarity", "art", "turkish_folk_music"],
+  },
 ];
 
 const json = (status: number, body: Record<string, unknown>) =>
@@ -140,78 +182,95 @@ const normalizeProfile = (profile: Partial<GeneratedProfile>): GeneratedProfile 
     : ["turkish_folk_music", "cem_culture", "literature"],
 });
 
-const generateProfiles = async (currentProfile: Record<string, unknown>, limit: number) => {
+const getFallbackProfiles = (limit: number) =>
+  fallbackProfiles.slice(0, limit).map(normalizeProfile);
+
+const generateProfiles = async (
+  currentProfile: Record<string, unknown>,
+  limit: number,
+) => {
   const apiKey = Deno.env.get("OPENAI_API_KEY")?.trim();
 
   if (!apiKey) {
-    return [];
+    return getFallbackProfiles(limit);
   }
 
-  const model = Deno.env.get("OPENAI_MATCH_MODEL")?.trim() || "gpt-5.5";
-  const response = await fetch("https://api.openai.com/v1/responses", {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      model,
-      store: false,
-      text: {
-        verbosity: "low",
-        format: {
-          type: "json_schema",
-          name: "starter_profiles",
-          strict: true,
-          schema: {
-            type: "object",
-            additionalProperties: false,
-            required: ["profiles"],
-            properties: {
-              profiles: {
-                type: "array",
-                minItems: limit,
-                maxItems: limit,
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: [
-                    "name",
-                    "age",
-                    "city",
-                    "occupation",
-                    "bio",
-                    "hometown",
-                    "favoriteSong",
-                    "favoritePoet",
-                    "culturalIdentity",
-                    "cultureImportance",
-                    "interests",
-                  ],
-                  properties: {
-                    name: { type: "string" },
-                    age: { type: "integer", minimum: 24, maximum: 45 },
-                    city: { type: "string" },
-                    occupation: { type: "string" },
-                    bio: { type: "string", maxLength: 260 },
-                    hometown: { type: "string" },
-                    favoriteSong: { type: "string" },
-                    favoritePoet: { type: "string" },
-                    culturalIdentity: {
-                      type: "string",
-                      enum: ["alevi", "close_to_alevi_culture", "prefer_not_to_say"],
-                    },
-                    cultureImportance: {
-                      type: "string",
-                      enum: ["very_important", "important", "somewhat_important", "not_important"],
-                    },
-                    interests: {
-                      type: "array",
-                      minItems: 3,
-                      maxItems: 5,
-                      items: {
+  try {
+    const model = Deno.env.get("OPENAI_MATCH_MODEL")?.trim() || "gpt-4.1-mini";
+    const response = await fetch("https://api.openai.com/v1/responses", {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        model,
+        store: false,
+        text: {
+          verbosity: "low",
+          format: {
+            type: "json_schema",
+            name: "starter_profiles",
+            strict: true,
+            schema: {
+              type: "object",
+              additionalProperties: false,
+              required: ["profiles"],
+              properties: {
+                profiles: {
+                  type: "array",
+                  minItems: limit,
+                  maxItems: limit,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: [
+                      "name",
+                      "age",
+                      "city",
+                      "occupation",
+                      "bio",
+                      "hometown",
+                      "favoriteSong",
+                      "favoritePoet",
+                      "culturalIdentity",
+                      "cultureImportance",
+                      "interests",
+                    ],
+                    properties: {
+                      name: { type: "string" },
+                      age: { type: "integer", minimum: 24, maximum: 45 },
+                      city: { type: "string" },
+                      occupation: { type: "string" },
+                      bio: { type: "string", maxLength: 260 },
+                      hometown: { type: "string" },
+                      favoriteSong: { type: "string" },
+                      favoritePoet: { type: "string" },
+                      culturalIdentity: {
                         type: "string",
-                        enum: Array.from(allowedInterests),
+                        enum: [
+                          "alevi",
+                          "close_to_alevi_culture",
+                          "prefer_not_to_say",
+                        ],
+                      },
+                      cultureImportance: {
+                        type: "string",
+                        enum: [
+                          "very_important",
+                          "important",
+                          "somewhat_important",
+                          "not_important",
+                        ],
+                      },
+                      interests: {
+                        type: "array",
+                        minItems: 3,
+                        maxItems: 5,
+                        items: {
+                          type: "string",
+                          enum: Array.from(allowedInterests),
+                        },
                       },
                     },
                   },
@@ -220,39 +279,50 @@ const generateProfiles = async (currentProfile: Record<string, unknown>, limit: 
             },
           },
         },
-      },
-      input: [
-        {
-          role: "system",
-          content:
-            "Ehlibyte için güvenli, saygılı, kültür odaklı starter öneri profilleri üret. Profil metinleri flört uygulamasına uygun, kısa ve doğal olsun. Gerçek kişi iddiası, iletişim bilgisi, cinsel içerik veya manipülatif ifade kullanma.",
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            currentUser: {
-              city: currentProfile.city,
-              hometown: currentProfile.hometown,
-              culturalIdentity: currentProfile.culturalIdentity,
-              cultureImportance: currentProfile.cultureImportance,
-              interests: currentProfile.interests,
-            },
-            count: limit,
-          }),
-        },
-      ],
-    }),
-  });
+        input: [
+          {
+            role: "system",
+            content:
+              "Ehlibyte için güvenli, saygılı, kültür odaklı starter öneri profilleri üret. Profil metinleri flört uygulamasına uygun, kısa ve doğal olsun. Gerçek kişi iddiası, iletişim bilgisi, cinsel içerik veya manipülatif ifade kullanma.",
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              currentUser: {
+                city: currentProfile.city,
+                hometown: currentProfile.hometown,
+                culturalIdentity: currentProfile.culturalIdentity,
+                cultureImportance: currentProfile.cultureImportance,
+                interests: currentProfile.interests,
+              },
+              count: limit,
+            }),
+          },
+        ],
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`OpenAI request failed: ${response.status}`);
+    if (!response.ok) {
+      throw new Error(`OpenAI request failed: ${response.status}`);
+    }
+
+    const payload = (await response.json()) as Record<string, unknown>;
+    const outputText = extractOutputText(payload);
+    const parsed = JSON.parse(outputText) as {
+      profiles?: Partial<GeneratedProfile>[];
+    };
+    const profiles = (parsed.profiles ?? [])
+      .slice(0, limit)
+      .map(normalizeProfile);
+
+    return profiles.length > 0 ? profiles : getFallbackProfiles(limit);
+  } catch (error) {
+    console.error(
+      "Starter profile generation fell back",
+      error instanceof Error ? error.message : error,
+    );
+    return getFallbackProfiles(limit);
   }
-
-  const payload = (await response.json()) as Record<string, unknown>;
-  const outputText = extractOutputText(payload);
-  const parsed = JSON.parse(outputText) as { profiles?: Partial<GeneratedProfile>[] };
-
-  return (parsed.profiles ?? []).slice(0, limit).map(normalizeProfile);
 };
 
 export default {
@@ -335,6 +405,8 @@ export default {
 
     const needed = Math.min(limit - (availableStarters ?? []).length, 3);
     const generatedProfiles = await generateProfiles(currentProfile, needed);
+    let createdCount = 0;
+    let failedCount = 0;
 
     for (const [index, profile] of generatedProfiles.entries()) {
       const email = `ai-starter-${crypto.randomUUID()}@ehlibyte.app`;
@@ -348,7 +420,12 @@ export default {
         });
 
       if (createUserError || !createdUser.user?.id) {
-        throw new Error(createUserError?.message ?? "AI starter user could not be created");
+        failedCount += 1;
+        console.error(
+          "AI starter auth user could not be created",
+          createUserError?.message ?? "Missing created user id",
+        );
+        continue;
       }
 
       const id = createdUser.user.id;
@@ -380,10 +457,19 @@ export default {
 
       if (insertError) {
         await supabaseAdmin.auth.admin.deleteUser(id, true).catch(() => undefined);
-        throw new Error(insertError.message);
+        failedCount += 1;
+        console.error("AI starter profile could not be inserted", insertError.message);
+        continue;
       }
+
+      createdCount += 1;
     }
 
-    return json(200, { ok: true, generated: generatedProfiles.length });
+    return json(200, {
+      ok: true,
+      generated: createdCount,
+      failed: failedCount,
+      reason: createdCount > 0 ? "generated" : "generation_skipped",
+    });
   },
 };

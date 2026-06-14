@@ -700,6 +700,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.md,
       padding: theme.spacing.lg,
       marginBottom: theme.spacing.xl,
+      backgroundColor: theme.colors.primary,
       shadowColor: theme.colors.shadow,
       shadowOpacity: 1,
       shadowRadius: 20,

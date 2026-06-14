@@ -206,8 +206,10 @@ export default function FeedPostDetailScreen() {
       </View>
 
       <ScrollView
+        style={styles.scroller}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.post}>
           <Pressable
@@ -384,7 +386,19 @@ export default function FeedPostDetailScreen() {
               <ActivityIndicator color={theme.colors.primary} />
             </View>
           ) : comments.length === 0 ? (
-            <Text style={styles.emptyThread}>İlk yorumu sen yaz.</Text>
+            <View style={styles.emptyThread}>
+              <View style={styles.emptyThreadIcon}>
+                <Ionicons
+                  name="chatbubble-ellipses-outline"
+                  size={26}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <Text style={styles.emptyThreadTitle}>İlk yorumu sen yaz.</Text>
+              <Text style={styles.emptyThreadCopy}>
+                Bu postun sohbetini başlatan yorum burada görünecek.
+              </Text>
+            </View>
           ) : null}
 
           {comments.map((comment) => (
@@ -501,16 +515,22 @@ export default function FeedPostDetailScreen() {
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     screen: {
+      flex: 1,
+      padding: 0,
       paddingBottom: 0,
     },
+    scroller: {
+      flex: 1,
+    },
     topBar: {
-      minHeight: 54,
+      minHeight: 64,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
-      backgroundColor: "transparent",
+      backgroundColor: theme.colors.background,
     },
     iconButton: {
       width: 42,
@@ -533,7 +553,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
     },
     content: {
-      paddingBottom: theme.spacing.xl,
+      flexGrow: 1,
+      paddingBottom: 0,
+      backgroundColor: theme.colors.background,
     },
     post: {
       flexDirection: "row",
@@ -636,21 +658,24 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     composer: {
       flexDirection: "row",
-      alignItems: "flex-start",
+      alignItems: "center",
       gap: theme.spacing.sm,
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
-      backgroundColor: "transparent",
+      backgroundColor: theme.colors.background,
     },
     commentInput: {
       flex: 1,
       minHeight: 42,
       maxHeight: 120,
-      paddingTop: 8,
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 9,
       ...theme.typography.body,
       color: theme.colors.text,
+      backgroundColor: theme.colors.elevated,
     },
     sendButton: {
       minHeight: 38,
@@ -661,7 +686,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.primary,
     },
     sendButtonDisabled: {
-      backgroundColor: theme.colors.elevated,
+      backgroundColor: "#303747",
     },
     sendButtonText: {
       ...theme.typography.caption,
@@ -669,16 +694,41 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "800",
     },
     thread: {
-      backgroundColor: "transparent",
+      flexGrow: 1,
+      minHeight: 360,
+      backgroundColor: theme.colors.background,
     },
     loadingComments: {
       paddingVertical: theme.spacing.xl,
     },
     emptyThread: {
-      ...theme.typography.body,
+      minHeight: 320,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.xl,
+      paddingBottom: theme.spacing.xxl,
+    },
+    emptyThreadIcon: {
+      width: 58,
+      height: 58,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(255, 91, 112, 0.12)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 91, 112, 0.22)",
+    },
+    emptyThreadTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      marginTop: theme.spacing.xs,
+      textAlign: "center",
+    },
+    emptyThreadCopy: {
+      ...theme.typography.caption,
       color: theme.colors.muted,
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.xl,
+      maxWidth: 280,
       textAlign: "center",
     },
     commentRow: {

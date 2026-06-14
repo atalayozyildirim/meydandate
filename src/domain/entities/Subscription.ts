@@ -1,6 +1,7 @@
 // Premium abonelik ve odeme sonucunu UI'dan bagimsiz sekilde tanimlar.
 export type SubscriptionPlan = "monthly" | "yearly" | "lifetime";
 export type SubscriptionStatus = "inactive" | "trial" | "active" | "cancelled";
+export type FirePackageAmount = 100 | 500 | 1500;
 
 export interface Subscription {
   id: string;
@@ -19,4 +20,10 @@ export interface PaymentResult {
 export interface BadgePurchaseResult {
   badge: import("./User").Badge;
   receiptId: string;
+}
+
+export interface FirePackagePurchaseResult {
+  amount: FirePackageAmount;
+  receiptId: string;
+  balance?: number;
 }

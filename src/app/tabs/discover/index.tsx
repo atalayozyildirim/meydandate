@@ -1,10 +1,12 @@
 // Discover sekmesi swipe kartlarini, animasyonlari ve match modalini calistirir.
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   Alert,
   Pressable,
   StyleSheet,
   Text,
+  type StyleProp,
+  type ViewStyle,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -41,6 +43,101 @@ const SUPER_LIKE_THRESHOLD = -120;
 const OFFSCREEN_DISTANCE = 520;
 const MAX_ROTATION_DEGREES = 14;
 
+interface SwipeActionButtonProps {
+  accessibilityLabel: string;
+  accentColor: string;
+  disabled?: boolean;
+  onPress: () => void;
+  icon: ReactNode;
+  background?: ReactNode;
+  style?: StyleProp<ViewStyle>;
+}
+
+const SwipeActionButton = ({
+  accessibilityLabel,
+  accentColor,
+  disabled = false,
+  onPress,
+  icon,
+  background,
+  style,
+}: SwipeActionButtonProps) => {
+  const pressScale = useSharedValue(1);
+  const glow = useSharedValue(0);
+
+  const animatedShellStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: pressScale.value }],
+  }));
+
+  const animatedGlowStyle = useAnimatedStyle(() => ({
+    opacity: glow.value * 0.28,
+    transform: [
+      {
+        scale: interpolate(glow.value, [0, 1], [0.74, 1.08]),
+      },
+    ],
+  }));
+
+  return (
+    <Animated.View
+      style={[
+        actionButtonBaseStyles.shell,
+        style,
+        disabled && actionButtonBaseStyles.disabled,
+        animatedShellStyle,
+      ]}
+    >
+      {background}
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          actionButtonBaseStyles.glow,
+          { backgroundColor: accentColor },
+          animatedGlowStyle,
+        ]}
+      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        disabled={disabled}
+        onPress={onPress}
+        onPressIn={() => {
+          pressScale.value = withSpring(0.92, {
+            damping: 12,
+            stiffness: 280,
+          });
+          glow.value = withTiming(1, { duration: 120 });
+        }}
+        onPressOut={() => {
+          pressScale.value = withSpring(1, { damping: 12, stiffness: 240 });
+          glow.value = withTiming(0, { duration: 220 });
+        }}
+        style={actionButtonBaseStyles.hitbox}
+      >
+        {icon}
+      </Pressable>
+    </Animated.View>
+  );
+};
+
+const actionButtonBaseStyles = StyleSheet.create({
+  shell: {
+    position: "relative",
+  },
+  hitbox: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  glow: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 999,
+  },
+  disabled: {
+    opacity: 0.5,
+  },
+});
+
 export default function DiscoverScreen() {
   const router = useRouter();
   const theme = useTheme();
@@ -70,6 +167,7 @@ export default function DiscoverScreen() {
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const fireScale = useSharedValue(1);
+  const firePulse = useSharedValue(0);
 
   useEffect(() => {
     translateX.value = 0;
@@ -151,6 +249,7 @@ export default function DiscoverScreen() {
   };
 
   const gesture = Gesture.Pan()
+    .minDistance(4)
     .onUpdate((event) => {
       translateX.value = event.translationX;
       translateY.value = event.translationY;
@@ -215,7 +314,22 @@ export default function DiscoverScreen() {
   }));
 
   const fireButtonStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: fireScale.value }],
+    transform: [
+      {
+        scale:
+          fireScale.value * interpolate(firePulse.value, [0, 1], [1, 1.08]),
+      },
+      { translateY: interpolate(firePulse.value, [0, 1], [0, -2]) },
+    ],
+  }));
+
+  const fireAuraStyle = useAnimatedStyle(() => ({
+    opacity: interpolate(firePulse.value, [0, 1], [0.14, 0.38]),
+    transform: [
+      {
+        scale: interpolate(firePulse.value, [0, 1], [0.76, 1.08]),
+      },
+    ],
   }));
 
   const sendFireToActiveCard = async () => {
@@ -235,6 +349,10 @@ export default function DiscoverScreen() {
       fireScale.value = withSequence(
         withTiming(1.18, { duration: 110 }),
         withSpring(1),
+      );
+      firePulse.value = withSequence(
+        withTiming(1, { duration: 130 }),
+        withTiming(0, { duration: 420 }),
       );
       await sendFire({ targetUserId: activeCard.user.id, amount: 1 });
     } catch (error) {
@@ -316,6 +434,8 @@ export default function DiscoverScreen() {
             {nextCard ? (
               <View
                 pointerEvents="none"
+                renderToHardwareTextureAndroid
+                shouldRasterizeIOS
                 style={[styles.deckCard, styles.nextDeckCard]}
               >
                 <SwipeProfileCard
@@ -328,6 +448,8 @@ export default function DiscoverScreen() {
             ) : null}
             <GestureDetector gesture={gesture}>
               <Animated.View
+                renderToHardwareTextureAndroid
+                shouldRasterizeIOS
                 style={[styles.deckCard, styles.activeDeckCard, animatedStyle]}
               >
                 <SwipeProfileCard
@@ -387,68 +509,85 @@ export default function DiscoverScreen() {
             </View>
           </View>
           <View style={styles.actions}>
-            <Pressable
+            <SwipeActionButton
+              accessibilityLabel="Bu profili geç"
               disabled={isSwiping}
-              style={({ pressed }) => [
-                styles.roundAction,
-                styles.passAction,
-                pressed && styles.pressed,
-              ]}
+              accentColor={theme.colors.danger}
+              style={[styles.roundAction, styles.passAction]}
               onPress={() => void completeSwipe("pass")}
-            >
-              <Ionicons name="close" size={28} color={theme.colors.danger} />
-            </Pressable>
-            <Pressable
+              icon={
+                <Ionicons
+                  name="close"
+                  size={30}
+                  color={theme.colors.danger}
+                />
+              }
+            />
+            <SwipeActionButton
+              accessibilityLabel="Profil detayını aç"
               disabled={isSwiping}
-              style={({ pressed }) => [
-                styles.roundAction,
-                styles.infoAction,
-                pressed && styles.pressed,
-              ]}
+              accentColor={theme.colors.border}
+              style={[styles.roundAction, styles.infoAction]}
               onPress={() => router.push(`/tabs/profile/${activeCard.user.id}`)}
-            >
-              <Ionicons
-                name="information"
-                size={22}
-                color={theme.colors.text}
-              />
-            </Pressable>
-            <Pressable
+              icon={
+                <Ionicons
+                  name="information-circle"
+                  size={28}
+                  color={theme.colors.text}
+                />
+              }
+            />
+            <SwipeActionButton
+              accessibilityLabel="Bu profile Fire gönder"
               disabled={isSendingFire}
-              style={({ pressed }) => [
-                styles.roundAction,
-                styles.fireAction,
-                pressed && styles.pressed,
-              ]}
+              accentColor={theme.colors.primary}
+              style={[styles.roundAction, styles.fireAction]}
               onPress={() => void sendFireToActiveCard()}
-            >
-              <Animated.View style={fireButtonStyle}>
-                <Ionicons name="flame" size={25} color={theme.colors.primary} />
-              </Animated.View>
-              <Text style={styles.fireActionText}>Fire</Text>
-            </Pressable>
-            <Pressable
+              background={
+                <Animated.View
+                  pointerEvents="none"
+                  style={[styles.fireAura, fireAuraStyle]}
+                />
+              }
+              icon={
+                <>
+                  <Animated.View style={fireButtonStyle}>
+                    <Ionicons
+                      name="flame"
+                      size={34}
+                      color={theme.colors.primary}
+                    />
+                  </Animated.View>
+                  <View style={styles.fireBadge}>
+                    <Text style={styles.fireBadgeText}>+1</Text>
+                  </View>
+                </>
+              }
+            />
+            <SwipeActionButton
+              accessibilityLabel="Super Like gönder"
               disabled={isSwiping}
-              style={({ pressed }) => [
-                styles.roundAction,
-                styles.superAction,
-                pressed && styles.pressed,
-              ]}
+              accentColor={theme.colors.secondary}
+              style={[styles.roundAction, styles.superAction]}
               onPress={() => void completeSwipe("super_like")}
-            >
-              <Ionicons name="star" size={24} color={theme.colors.secondary} />
-            </Pressable>
-            <Pressable
+              icon={
+                <Ionicons
+                  name="star"
+                  size={27}
+                  color={theme.colors.secondary}
+                />
+              }
+            />
+            <SwipeActionButton
+              accessibilityLabel="Bu profili beğen"
               disabled={isSwiping}
-              style={({ pressed }) => [
-                styles.roundAction,
-                styles.likeAction,
-                pressed && styles.pressed,
-              ]}
+              accentColor={theme.colors.primary}
+              style={[styles.roundAction, styles.likeAction]}
               onPress={() => void completeSwipe("like")}
-            >
-              <Ionicons name="heart" size={28} color={theme.colors.primary} />
-            </Pressable>
+              icon={
+                <Ionicons name="heart" size={30} color={theme.colors.primary} />
+              }
+            />
           </View>
           <AdMobBanner style={styles.adBanner} />
         </>
@@ -611,11 +750,26 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.primary,
     },
     actions: {
+      width: "100%",
       flexDirection: "row",
-      justifyContent: "center",
+      justifyContent: "space-between",
       alignItems: "center",
-      gap: theme.spacing.md,
-      marginTop: -12,
+      alignSelf: "center",
+      gap: theme.spacing.xs,
+      marginTop: -4,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 7,
+      borderRadius: 32,
+      borderWidth: 1,
+      borderColor: "rgba(255, 91, 112, 0.18)",
+      backgroundColor: theme.isDark
+        ? "rgba(20, 23, 33, 0.92)"
+        : "rgba(255, 255, 255, 0.92)",
+      shadowColor: theme.colors.shadow,
+      shadowOpacity: 1,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+      elevation: 5,
       zIndex: 4,
     },
     adBanner: {
@@ -659,45 +813,71 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flex: 1,
     },
     roundAction: {
-      width: 54,
-      height: 54,
+      width: 53,
+      height: 53,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      backgroundColor: theme.colors.surface,
-      shadowColor: theme.colors.shadow,
+      overflow: "visible",
+      backgroundColor: theme.isDark ? "#181C27" : "#FFFFFF",
+      shadowColor: "rgba(0, 0, 0, 0.16)",
       shadowOpacity: 1,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 5,
+      shadowRadius: 9,
+      shadowOffset: { width: 0, height: 5 },
+      elevation: 3,
     },
     passAction: {
       borderColor: theme.colors.danger,
+      backgroundColor: theme.isDark ? "#1D1820" : "#FFF5F6",
     },
     superAction: {
       borderColor: theme.colors.secondary,
+      backgroundColor: theme.isDark ? "#201B2E" : "#F8F0FF",
     },
     infoAction: {
-      width: 46,
-      height: 46,
-      borderColor: theme.colors.border,
+      width: 48,
+      height: 48,
+      borderColor: "rgba(156, 163, 175, 0.22)",
+      backgroundColor: theme.isDark ? "#151824" : "#F8FAFC",
     },
     fireAction: {
+      width: 62,
+      height: 62,
       borderColor: theme.colors.primary,
-      backgroundColor: theme.isDark ? "#241A22" : "#FFF1F4",
+      borderWidth: 2,
+      backgroundColor: theme.isDark ? "#261821" : "#FFF0F3",
     },
-    fireActionText: {
+    fireAura: {
       position: "absolute",
-      bottom: 6,
+      width: "100%",
+      height: "100%",
+      borderRadius: 999,
+      backgroundColor: "rgba(233, 64, 87, 0.28)",
+    },
+    fireBadge: {
+      position: "absolute",
+      right: -2,
+      bottom: 3,
+      minWidth: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 2,
+      borderColor: theme.isDark ? "#261821" : "#FFF0F3",
+      backgroundColor: theme.colors.primary,
+    },
+    fireBadgeText: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
-      fontSize: 10,
+      color: "#FFFFFF",
+      fontSize: 11,
       lineHeight: 12,
       fontWeight: "900",
     },
     likeAction: {
       borderColor: theme.colors.primary,
+      backgroundColor: theme.isDark ? "#221821" : "#FFF4F6",
     },
     pressed: {
       opacity: 0.76,

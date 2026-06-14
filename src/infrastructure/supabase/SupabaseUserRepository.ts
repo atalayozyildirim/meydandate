@@ -4,7 +4,7 @@ import type {
   OnboardingProfile,
   ReportPayload,
 } from "@/domain/repositories/UserRepository";
-import type { User, UserProfileUpdate } from "@/domain/entities/User";
+import type { Badge, User, UserProfileUpdate } from "@/domain/entities/User";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 import { getProfileBoostRank } from "@/shared/utils/profileBoost";
@@ -177,6 +177,21 @@ export class SupabaseUserRepository implements UserRepository {
     return mapSupabaseUser(profile);
   }
 
+  async claimTaskBadge(userId: string, badge: Badge): Promise<User> {
+    const { data, error } = await supabase
+      .rpc("claim_task_badge", {
+        next_badge: badge,
+      })
+      .maybeSingle();
+    const profile = data as Partial<User> | null;
+
+    if (error || !profile || profile.id !== userId) {
+      throw createSupabaseRepositoryError("Görev rozeti eklenemedi", error);
+    }
+
+    return mapSupabaseUser(profile);
+  }
+
   async activatePremiumBoost(userId: string): Promise<User> {
     const { data, error } = await supabase
       .rpc("activate_premium_boost")
@@ -279,21 +294,6 @@ export class SupabaseUserRepository implements UserRepository {
 
     if (error) {
       throw createSupabaseRepositoryError("Fire bakiyesi yüklenemedi", error);
-    }
-
-    return Number(data ?? 0);
-  }
-
-  async purchaseFirePackage(
-    _userId: string,
-    amount: 100 | 500 | 1500,
-  ): Promise<number> {
-    const { data, error } = await supabase.rpc("purchase_fire_package", {
-      package_amount: amount,
-    });
-
-    if (error) {
-      throw createSupabaseRepositoryError("Fire paketi alınamadı", error);
     }
 
     return Number(data ?? 0);
@@ -496,7 +496,7 @@ export class SupabaseUserRepository implements UserRepository {
       reporterId: userId,
       reportedUserId: payload.reportedUserId,
       category: payload.category,
-      description: payload.description,
+      description: payload.description ?? "",
     });
 
     if (error) {
@@ -527,6 +527,30 @@ export class SupabaseUserRepository implements UserRepository {
 
     if (error) {
       throw new Error("Kullanıcı engellenemedi");
+    }
+  }
+
+  async unblockUser(userId: string, blockedUserId: string): Promise<void> {
+    const { data: user, error: fetchError } = await supabase
+      .rpc("get_my_profile")
+      .maybeSingle();
+    const profile = user as (PrivateProfile & { id?: string }) | null;
+
+    if (fetchError || !profile || profile.id !== userId) {
+      throw new Error("Kullanıcı yüklenemedi");
+    }
+
+    const blockedUsers = (profile.blockedUsers || []).filter(
+      (candidateId) => candidateId !== blockedUserId,
+    );
+
+    const { error } = await supabase
+      .from("users")
+      .update({ blockedUsers })
+      .eq("id", userId);
+
+    if (error) {
+      throw new Error("Engel kaldırılamadı");
     }
   }
 

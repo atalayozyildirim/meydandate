@@ -32,12 +32,14 @@ export const badgeValues = [
   "premium_member",
   "muharrem_follower",
   "muharrem_orucu_2026",
+  "asure_lokmasi",
+  "ilk_eslesme",
+  "populer_profil",
   "cem_room_supporter",
   "culture_guardian",
   "zulfiqar_sword",
-  // Yeni ozel tasarim rozet buraya eklenir:
-  // "haci_bektas_veli",
-  // "dede_korkut",
+  "haci_bektas_veli",
+  "la_fetta_illa",
 ] as const;
 
 export const profileKindValues = ["member", "starter", "ai_starter"] as const;

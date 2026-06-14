@@ -1,6 +1,6 @@
 // Mock kullanici repository'si profil, onboarding ve guvenlik islemlerini yonetir.
 import type { Report, BlockedUser } from "@/domain/entities/Match";
-import type { User, UserProfileUpdate } from "@/domain/entities/User";
+import type { Badge, User, UserProfileUpdate } from "@/domain/entities/User";
 import type {
   LocationMatchingUpdate,
   OnboardingProfile,
@@ -101,6 +101,36 @@ export class MockUserRepository implements UserRepository {
     return updatedUser;
   }
 
+  async claimTaskBadge(userId: string, badge: Badge): Promise<User> {
+    const currentUser = findUser(userId);
+
+    if (currentUser.badges.includes(badge)) {
+      return currentUser;
+    }
+
+    const canClaim =
+      (badge === "asure_lokmasi" &&
+        currentUser.badges.includes("muharrem_orucu_2026")) ||
+      (badge === "ilk_eslesme" &&
+        mockDatabase.matches.some((match) =>
+          match.users.some((user) => user.id === userId),
+        )) ||
+      (badge === "populer_profil" && (currentUser.fireScore ?? 0) >= 50) ||
+      (badge === "active_user" && currentUser.hasCompletedOnboarding);
+
+    if (!canClaim) {
+      throw new Error("Görev henüz tamamlanmadı.");
+    }
+
+    const updatedUser = mergeUser(currentUser, {
+      badges: Array.from(new Set([...currentUser.badges, badge])),
+    });
+    const index = mockDatabase.users.findIndex((user) => user.id === userId);
+    mockDatabase.users[index] = updatedUser;
+
+    return updatedUser;
+  }
+
   async activatePremiumBoost(userId: string): Promise<User> {
     const currentUser = findUser(userId);
     const updatedUser = mergeUser(currentUser, {
@@ -148,15 +178,6 @@ export class MockUserRepository implements UserRepository {
 
   async getFireBalance(userId: string): Promise<number> {
     return mockDatabase.fireWallets[userId] ?? 0;
-  }
-
-  async purchaseFirePackage(
-    userId: string,
-    amount: 100 | 500 | 1500,
-  ): Promise<number> {
-    const nextBalance = (mockDatabase.fireWallets[userId] ?? 0) + amount;
-    mockDatabase.fireWallets[userId] = nextBalance;
-    return nextBalance;
   }
 
   async sendProfileFire(
@@ -305,6 +326,14 @@ export class MockUserRepository implements UserRepository {
     };
 
     mockDatabase.blockedUsers.push(blockedUser);
+  }
+
+  async unblockUser(userId: string, blockedUserId: string): Promise<void> {
+    mockDatabase.blockedUsers = mockDatabase.blockedUsers.filter(
+      (blockedUser) =>
+        blockedUser.blockerId !== userId ||
+        blockedUser.blockedUserId !== blockedUserId,
+    );
   }
 
   async muteUser(userId: string, mutedUserId: string): Promise<void> {

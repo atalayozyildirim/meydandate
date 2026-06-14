@@ -9,6 +9,13 @@ export interface PaidBadgeProduct {
   revenueCatProductId: string;
 }
 
+export interface EarnedBadgeProduct {
+  badge: Badge;
+  title: string;
+  description: string;
+  requirementLabel: string;
+}
+
 export const paidBadgeProducts: PaidBadgeProduct[] = [
   {
     badge: "muharrem_follower",
@@ -37,6 +44,41 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     description: "Hz. Ali'nin çift uçlu kılıcından ilham alan özel destek rozeti.",
     priceLabel: "₺499",
     revenueCatProductId: "ehlibyte.badge.zulfiqar_sword",
+  },
+  {
+    badge: "haci_bektas_veli",
+    title: "Hacı Bektaş Veli",
+    description: "Hünkâr Hacı Bektaş Veli hatırasını profilinde taşı.",
+    priceLabel: "₺399",
+    revenueCatProductId: "ehlibyte.badge.haci_bektas_veli",
+  },
+  {
+    badge: "la_fetta_illa",
+    title: "La Fetta İlla",
+    description: "La feta illa Ali sözünden ilham alan özel destek rozeti.",
+    priceLabel: "₺299",
+    revenueCatProductId: "ehlibyte.badge.la_fetta_illa",
+  },
+];
+
+export const earnedBadgeProducts: EarnedBadgeProduct[] = [
+  {
+    badge: "asure_lokmasi",
+    title: "Aşure Lokması",
+    description: "Muharrem 2026 rozetinden sonra açılır.",
+    requirementLabel: "Muharrem Orucu 2026 rozetini kazan",
+  },
+  {
+    badge: "ilk_eslesme",
+    title: "İlk Eşleşme",
+    description: "İlk karşılıklı eşleşmeni yaptığında kazan.",
+    requirementLabel: "Bir eşleşme oluştur",
+  },
+  {
+    badge: "populer_profil",
+    title: "Popüler Profil",
+    description: "Keşfette Fire alan profiller için görünürlük rozeti.",
+    requirementLabel: "50 Fire skoruna ulaş",
   },
 ];
 

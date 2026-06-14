@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
+import LottieView from "lottie-react-native";
 import { Avatar } from "@/shared/components/Avatar";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
@@ -26,8 +27,6 @@ import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 
 const HEART_MESSAGE = "❤️";
-// eslint-disable-next-line global-require
-const LottieView = require("lottie-react-native").default;
 // eslint-disable-next-line global-require
 const loveJson = require("../../../../assets/lottie/love.json");
 
@@ -287,7 +286,7 @@ export default function ConversationScreen() {
 
             const scale = heart.animated.interpolate({
               inputRange: [0, 0.12, 0.4, 1],
-              outputRange: [0.45, 1.65, 1.35, 0.85],
+              outputRange: [0.6, 1.9, 1.55, 1],
             });
 
             return (
@@ -453,11 +452,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       position: "absolute",
       // composer'in uzerinde, ekranin sag alt kosesinde spawn olur
       bottom: 90,
-      width: 136,
-      height: 136,
+      width: 154,
+      height: 154,
     },
     lottie: {
-      width: 136,
-      height: 136,
+      width: 154,
+      height: 154,
     },
   });

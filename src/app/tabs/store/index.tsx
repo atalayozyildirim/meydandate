@@ -10,20 +10,24 @@ import Animated, {
   withTiming,
 } from "react-native-reanimated";
 import type { Badge } from "@/domain/entities/User";
-import type { SubscriptionPlan } from "@/domain/entities/Subscription";
+import type {
+  FirePackageAmount,
+  SubscriptionPlan,
+} from "@/domain/entities/Subscription";
 import { Button } from "@/shared/components/Button";
 import { Card } from "@/shared/components/Card";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
-import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
-import { paidBadgeProducts } from "@/shared/constants/badges";
+import { BadgeIcon } from "@/shared/components/BadgeIcon";
+import {
+  earnedBadgeProducts,
+  paidBadgeProducts,
+} from "@/shared/constants/badges";
 import { badgeLabels, premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
-import {
-  firePackageValues,
-  type FirePackageAmount,
-  useFire,
-} from "@/features/fire/hooks/useFire";
+import { useBadges } from "@/features/profile/hooks/useBadges";
+import { firePackageValues, useFire } from "@/features/fire/hooks/useFire";
+import { useMatches } from "@/features/match/hooks/useMatches";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { env } from "@/infrastructure/config/env";
 import { useTheme } from "@/shared/theme";
@@ -39,6 +43,18 @@ const premiumPlans = [
   caption: string;
   featured?: boolean;
 }>;
+
+const getFirePackageCaption = (amount: FirePackageAmount) => {
+  if (amount === 100) {
+    return "Kartlara küçük dokunuşlar için";
+  }
+
+  if (amount === 500) {
+    return "Dengeli paket, daha sık Fire gönder";
+  }
+
+  return "Yoğun görünürlük ve destek paketi";
+};
 
 export default function StoreScreen() {
   const theme = useTheme();
@@ -61,11 +77,10 @@ export default function StoreScreen() {
     activateBoost,
     isActivatingBoost,
   } = usePremium();
-  const {
-    fireBalance,
-    purchaseFirePackage,
-    isPurchasingFirePackage,
-  } = useFire();
+  const { fireBalance, purchaseFirePackage, isPurchasingFirePackage } =
+    useFire();
+  const { matches, isLoading: isMatchesLoading } = useMatches();
+  const { claimTaskBadge, isClaimingTaskBadge } = useBadges();
   const firePulse = useSharedValue(1);
 
   const fireIconStyle = useAnimatedStyle(() => ({
@@ -151,15 +166,65 @@ export default function StoreScreen() {
 
   const buyFirePackage = async (amount: FirePackageAmount) => {
     try {
-      const nextBalance = await purchaseFirePackage(amount);
+      const result = await purchaseFirePackage(amount);
       Alert.alert(
         "Fire yüklendi",
-        `${amount} Fire hesabına eklendi. Yeni bakiye: ${nextBalance}.`,
+        result.balance !== undefined
+          ? `${amount} Fire hesabına eklendi. Yeni bakiye: ${result.balance}.`
+          : `${amount} Fire satın alımı tamamlandı. Bakiye kısa süre içinde güncellenecek.`,
       );
     } catch (error) {
       Alert.alert(
         "Fire alınamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const canClaimEarnedBadge = (badge: Badge) => {
+    if (profile?.badges.includes(badge)) {
+      return false;
+    }
+
+    if (badge === "asure_lokmasi") {
+      return profile?.badges.includes("muharrem_orucu_2026");
+    }
+
+    if (badge === "ilk_eslesme") {
+      return matches.length > 0;
+    }
+
+    if (badge === "populer_profil") {
+      return (profile?.fireScore ?? 0) >= 50;
+    }
+
+    return false;
+  };
+
+  const claimEarnedBadge = async (
+    badge: Badge,
+    canClaim: boolean,
+    requirementLabel: string,
+  ) => {
+    if (!canClaim) {
+      Alert.alert("Görev tamamlanmadı", requirementLabel);
+      return;
+    }
+
+    try {
+      const updatedUser = await claimTaskBadge(badge);
+      Alert.alert(
+        "Rozet kazanıldı",
+        `${badgeLabels[badge]} profiline eklendi.`,
+      );
+
+      if (updatedUser.badges.includes(badge)) {
+        return;
+      }
+    } catch (error) {
+      Alert.alert(
+        "Rozet henüz açılamadı",
+        error instanceof Error ? error.message : "Görev şartını tamamla.",
       );
     }
   };
@@ -172,186 +237,295 @@ export default function StoreScreen() {
     <Screen style={styles.screen}>
       <View style={styles.header}>
         <Text style={styles.kicker}>Mağaza</Text>
-        <Text style={styles.title}>Premium al, profilini öne çıkar</Text>
-        <Text style={styles.description}>Premium, boost ve rozet alımları</Text>
+        <Text style={styles.title}>Profilini öne çıkar</Text>
+        <Text style={styles.description}>
+          Premium, Fire ve rozetler tek ekranda.
+        </Text>
       </View>
 
-      <Card style={styles.hero}>
-        <View style={styles.heroTop}>
-          <View style={styles.heroIcon}>
-            <Ionicons name="heart" size={22} color="#FFFFFF" />
-          </View>
-          <View style={styles.heroCopy}>
-            <Text style={styles.heroTitle}>
-              {isPremiumActive ? "Premium aktif" : "Ehlibyte Premium"}
-            </Text>
-            <Text style={styles.heroText}>
-              {isPremiumActive
-                ? "Reklamsız deneyim ve öncelikli görünürlük açık."
-                : "Reklamları kaldır, Super Like kullan ve keşifte öne çık."}
-            </Text>
-          </View>
+      {isMockPaymentMode ? (
+        <View style={styles.noticeBanner}>
+          <Ionicons
+            name="information-circle"
+            size={18}
+            color={theme.colors.warning}
+          />
+          <Text style={styles.noticeText}>Demo mod: gerçek ödeme alınmaz.</Text>
         </View>
-        {isMockPaymentMode ? (
-          <Text style={styles.notice}>Demo mod: gerçek ödeme alınmaz.</Text>
-        ) : null}
-      </Card>
+      ) : null}
 
-      <Card style={styles.fireCard}>
-        <View style={styles.fireHeader}>
-          <Animated.View style={[styles.fireIcon, fireIconStyle]}>
-            <Ionicons name="flame" size={25} color="#FFFFFF" />
-          </Animated.View>
-          <View style={styles.fireCopy}>
-            <Text style={styles.sectionTitle}>Fire bakiyesi</Text>
-            <Text style={styles.mutedText}>
-              Kartlara Fire gönder, keşfet sıralamasında öne taşı.
-            </Text>
+      <View style={styles.salesSection}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderCopy}>
+            <Text style={styles.sectionEyebrow}>En güçlü paket</Text>
+            <Text style={styles.sectionTitle}>Premium</Text>
           </View>
-          <Text style={styles.fireBalance}>{fireBalance}</Text>
-        </View>
-        <View style={styles.firePackages}>
-          {firePackageValues.map((amount) => (
-            <Button
-              key={amount}
-              label={`${amount}`}
-              variant={amount === 500 ? "secondary" : "ghost"}
-              loading={isPurchasingFirePackage}
-              style={styles.firePackageButton}
-              icon={
-                <Ionicons
-                  name="flame"
-                  size={15}
-                  color={amount === 500 ? "#FFFFFF" : theme.colors.primary}
-                />
-              }
-              onPress={() => void buyFirePackage(amount)}
+          <View
+            style={[
+              styles.statusPill,
+              isPremiumActive && styles.statusPillActive,
+            ]}
+          >
+            <Ionicons
+              name={isPremiumActive ? "checkmark-circle" : "flame-outline"}
+              size={15}
+              color={isPremiumActive ? "#FFFFFF" : theme.colors.primary}
             />
-          ))}
-        </View>
-      </Card>
-
-      <View style={styles.planList}>
-        {premiumPlans.map((item) => {
-          const activePlan =
-            isPremiumActive &&
-            subscription?.status === "active" &&
-            subscription.plan === item.plan;
-
-          return (
-            <Card
-              key={item.plan}
-              style={[styles.planCard, item.featured && styles.featuredPlan]}
+            <Text
+              style={[
+                styles.statusPillText,
+                isPremiumActive && styles.statusPillTextActive,
+              ]}
             >
-              <View style={styles.planCopy}>
-                <View style={styles.planTitleRow}>
-                  <Text style={styles.planTitle}>{item.title}</Text>
-                  {item.featured ? (
-                    <Text style={styles.pill}>Popüler</Text>
-                  ) : null}
-                </View>
-                <Text style={styles.planCaption}>{item.caption}</Text>
+              {isPremiumActive ? "Aktif" : "Öne çık"}
+            </Text>
+          </View>
+        </View>
+
+        <Card style={styles.featureCard}>
+          <View style={styles.featureCardTop}>
+            <View style={styles.featureIcon}>
+              <Ionicons name="heart" size={22} color="#FFFFFF" />
+            </View>
+            <View style={styles.featureCopy}>
+              <Text style={styles.featureTitle}>
+                {isPremiumActive
+                  ? "Premium ayrıcalıkların açık"
+                  : "Ehlibyte Premium"}
+              </Text>
+              <Text style={styles.featureSubtitle}>
+                Reklamsız deneyim, Super Like ve keşifte daha güçlü görünürlük.
+              </Text>
+            </View>
+          </View>
+          <View style={styles.featureRows}>
+            {premiumFeatures.map((feature) => (
+              <View key={feature} style={styles.featureRow}>
+                <Ionicons
+                  name="checkmark-circle"
+                  size={17}
+                  color={theme.colors.primary}
+                />
+                <Text style={styles.featureRowText}>{feature}</Text>
               </View>
-              <View style={styles.planAction}>
-                <Text style={styles.price}>
-                  {planPrices?.[item.plan] ?? "Mağaza fiyatı"}
-                </Text>
+            ))}
+          </View>
+        </Card>
+
+        <View style={styles.productList}>
+          {premiumPlans.map((item) => {
+            const activePlan =
+              isPremiumActive &&
+              subscription?.status === "active" &&
+              subscription.plan === item.plan;
+
+            return (
+              <Card
+                key={item.plan}
+                style={[
+                  styles.productCard,
+                  item.featured && styles.featuredCard,
+                ]}
+              >
+                <View style={styles.productCopy}>
+                  <View style={styles.productTitleRow}>
+                    <Text style={styles.productTitle}>{item.title}</Text>
+                    {item.featured ? (
+                      <Text style={styles.popularPill}>Popüler</Text>
+                    ) : null}
+                  </View>
+                  <Text style={styles.productCaption}>{item.caption}</Text>
+                  <Text style={styles.productPrice}>
+                    {planPrices?.[item.plan] ?? "Mağaza fiyatı"}
+                  </Text>
+                </View>
                 <Button
-                  label={activePlan ? "Aktif" : "Al"}
+                  label={activePlan ? "Aktif" : "Satın al"}
                   variant={item.featured ? "secondary" : "primary"}
                   disabled={activePlan}
                   loading={isPurchasing}
-                  style={styles.smallButton}
+                  style={styles.actionButton}
                   onPress={() => void buyPlan(item.plan)}
                 />
-              </View>
-            </Card>
-          );
-        })}
-      </View>
-
-      <View style={styles.featureWrap}>
-        {premiumFeatures.map((feature) => (
-          <View key={feature} style={styles.featureChip}>
-            <Ionicons name="checkmark" size={14} color={theme.colors.primary} />
-            <Text style={styles.featureText}>{feature}</Text>
-          </View>
-        ))}
-      </View>
-
-      <Card style={styles.boostCard}>
-        <View style={styles.boostCopy}>
-          <Text style={styles.sectionTitle}>Profil boost</Text>
-          <Text style={styles.mutedText}>
-            {isBoostActive
-              ? `Aktif${boostExpiresAt ? ` · ${formatProfileBoostExpiry(boostExpiresAt)}` : ""}`
-              : "Premium ile 24 saat öne çık."}
-          </Text>
+              </Card>
+            );
+          })}
         </View>
-        <Button
-          label={isBoostActive ? "Aktif" : "Başlat"}
-          variant="secondary"
-          disabled={!isPremiumActive || isBoostActive}
-          loading={isActivatingBoost}
-          style={styles.smallButton}
-          onPress={() => void startBoost()}
-        />
-      </Card>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>Rozetler</Text>
-        <Text style={styles.mutedText}>Profilinde görünür.</Text>
+        <Card style={styles.productCard}>
+          <View style={styles.productCopy}>
+            <Text style={styles.productTitle}>Profil boost</Text>
+            <Text style={styles.productCaption}>
+              {isBoostActive
+                ? `Aktif${boostExpiresAt ? ` · ${formatProfileBoostExpiry(boostExpiresAt)}` : ""}`
+                : "Premium ile 24 saat keşifte öne çık."}
+            </Text>
+          </View>
+          <Button
+            label={isBoostActive ? "Aktif" : "Başlat"}
+            variant="secondary"
+            disabled={!isPremiumActive || isBoostActive}
+            loading={isActivatingBoost}
+            style={styles.actionButton}
+            onPress={() => void startBoost()}
+          />
+        </Card>
       </View>
 
-      <View style={styles.badgeList}>
-        {paidBadgeProducts.map((product) => {
-          const owned = profile.badges.includes(product.badge);
-          const isZulfiqarBadge = product.badge === "zulfiqar_sword";
+      <View style={styles.salesSection}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderCopy}>
+            <Text style={styles.sectionEyebrow}>Boost bakiyesi</Text>
+            <Text style={styles.sectionTitle}>Fire</Text>
+          </View>
+          <View style={styles.balancePill}>
+            <Animated.View style={fireIconStyle}>
+              <Ionicons name="flame" size={17} color={theme.colors.primary} />
+            </Animated.View>
+            <Text style={styles.balanceText}>{fireBalance}</Text>
+          </View>
+        </View>
 
-          return (
-            <Card key={product.badge} style={styles.badgeCard}>
-              <View
-                style={[
-                  styles.badgeIcon,
-                  isZulfiqarBadge && styles.featuredBadgeIcon,
-                ]}
-              >
-                {isZulfiqarBadge ? (
-                  <ZulfiqarBadgeIcon size={52} />
-                ) : (
-                  <Ionicons
-                    name="ribbon-outline"
-                    size={22}
-                    color={theme.colors.primary}
-                  />
-                )}
+        <View style={styles.productList}>
+          {firePackageValues.map((amount) => (
+            <Card
+              key={amount}
+              style={[
+                styles.productCard,
+                amount === 500 && styles.featuredCard,
+              ]}
+            >
+              <View style={styles.fireProductIcon}>
+                <Ionicons name="flame" size={22} color="#FFFFFF" />
               </View>
-              <View style={styles.badgeCopy}>
-                <Text style={styles.badgeTitle}>{product.title}</Text>
-                <Text numberOfLines={2} style={styles.badgeDescription}>
-                  {product.description}
-                </Text>
-                <Text style={styles.badgePrice}>
-                  {owned ? "Sende var" : product.priceLabel}
+              <View style={styles.productCopy}>
+                <View style={styles.productTitleRow}>
+                  <Text style={styles.productTitle}>{amount} Fire</Text>
+                  {amount === 500 ? (
+                    <Text style={styles.popularPill}>Önerilen</Text>
+                  ) : null}
+                </View>
+                <Text style={styles.productCaption}>
+                  {getFirePackageCaption(amount)}
                 </Text>
               </View>
               <Button
-                label={owned ? "Alındı" : "Al"}
-                variant={owned ? "ghost" : "primary"}
-                disabled={owned}
-                loading={isPurchasingBadge}
-                style={styles.badgeButton}
-                onPress={() => void buyBadge(product.badge)}
+                label="Yükle"
+                variant={amount === 500 ? "secondary" : "primary"}
+                loading={isPurchasingFirePackage}
+                style={styles.actionButton}
+                icon={<Ionicons name="flame" size={16} color="#FFFFFF" />}
+                onPress={() => void buyFirePackage(amount)}
               />
             </Card>
-          );
-        })}
+          ))}
+        </View>
+      </View>
+
+      <View style={styles.salesSection}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderCopy}>
+            <Text style={styles.sectionEyebrow}>Profil vitrini</Text>
+            <Text style={styles.sectionTitle}>Özel rozetler</Text>
+          </View>
+          <Text style={styles.sectionCount}>{paidBadgeProducts.length}</Text>
+        </View>
+
+        <View style={styles.productList}>
+          {paidBadgeProducts.map((product) => {
+            const owned = profile.badges.includes(product.badge);
+
+            return (
+              <Card key={product.badge} style={styles.productCard}>
+                <View style={styles.badgeIcon}>
+                  <BadgeIcon badge={product.badge} size={56} />
+                </View>
+                <View style={styles.productCopy}>
+                  <Text style={styles.productTitle}>{product.title}</Text>
+                  <Text numberOfLines={2} style={styles.productCaption}>
+                    {product.description}
+                  </Text>
+                  <Text style={styles.productPrice}>
+                    {owned ? "Profilinde aktif" : product.priceLabel}
+                  </Text>
+                </View>
+                <Button
+                  label={owned ? "Alındı" : "Satın al"}
+                  variant={owned ? "ghost" : "primary"}
+                  disabled={owned}
+                  loading={isPurchasingBadge}
+                  style={styles.actionButton}
+                  onPress={() => void buyBadge(product.badge)}
+                />
+              </Card>
+            );
+          })}
+        </View>
+      </View>
+
+      <View style={styles.salesSection}>
+        <View style={styles.sectionHeaderRow}>
+          <View style={styles.sectionHeaderCopy}>
+            <Text style={styles.sectionEyebrow}>Başarıyla kazan</Text>
+            <Text style={styles.sectionTitle}>Görev rozetleri</Text>
+          </View>
+          <Text style={styles.sectionCount}>{earnedBadgeProducts.length}</Text>
+        </View>
+
+        <View style={styles.productList}>
+          {earnedBadgeProducts.map((product) => {
+            const owned = profile.badges.includes(product.badge);
+            const canClaim = canClaimEarnedBadge(product.badge);
+            const isLocked = !owned && !canClaim;
+
+            return (
+              <Card key={product.badge} style={styles.productCard}>
+                <View style={styles.badgeIcon}>
+                  <BadgeIcon badge={product.badge} size={56} />
+                </View>
+                <View style={styles.productCopy}>
+                  <Text style={styles.productTitle}>{product.title}</Text>
+                  <Text numberOfLines={2} style={styles.productCaption}>
+                    {product.description}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.productRequirement,
+                      canClaim && styles.productRequirementReady,
+                    ]}
+                  >
+                    {owned
+                      ? "Kazanıldı"
+                      : canClaim
+                        ? "Kazanıma hazır"
+                        : product.requirementLabel}
+                  </Text>
+                </View>
+                <Button
+                  label={owned ? "Sende" : isLocked ? "Kilitli" : "Kazan"}
+                  variant={canClaim ? "secondary" : "ghost"}
+                  disabled={owned || isLocked || isMatchesLoading}
+                  loading={isClaimingTaskBadge}
+                  style={styles.actionButton}
+                  onPress={() =>
+                    void claimEarnedBadge(
+                      product.badge,
+                      canClaim,
+                      product.requirementLabel,
+                    )
+                  }
+                />
+              </Card>
+            );
+          })}
+        </View>
       </View>
 
       <Button
         label="Satın alımları geri yükle"
         variant="ghost"
         loading={isRestoring}
+        style={styles.restoreButton}
         onPress={() => void restore()}
       />
     </Screen>
@@ -379,209 +553,225 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.body,
       color: theme.colors.muted,
     },
-    hero: {
-      gap: theme.spacing.md,
-      backgroundColor: theme.isDark ? "#171A24" : "#FFF7F8",
+    noticeBanner: {
+      minHeight: 42,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: "rgba(245, 158, 11, 0.24)",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.isDark
+        ? "rgba(245, 158, 11, 0.08)"
+        : "rgba(245, 158, 11, 0.12)",
     },
-    fireCard: {
+    noticeText: {
+      ...theme.typography.caption,
+      color: theme.colors.warning,
+      flex: 1,
+    },
+    salesSection: {
+      gap: theme.spacing.sm,
+    },
+    sectionHeaderRow: {
+      minHeight: 44,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+    },
+    sectionHeaderCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: theme.spacing.xxs,
+    },
+    sectionEyebrow: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+      textTransform: "uppercase",
+    },
+    sectionTitle: {
+      ...theme.typography.heading,
+      color: theme.colors.text,
+    },
+    sectionCount: {
+      minWidth: 36,
+      overflow: "hidden",
+      borderRadius: theme.radius.pill,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xxs,
+      backgroundColor: theme.colors.elevated,
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+      textAlign: "center",
+      fontWeight: "900",
+    },
+    statusPill: {
+      minHeight: 34,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.22)",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+    },
+    statusPillActive: {
+      borderColor: theme.colors.primary,
+      backgroundColor: theme.colors.primary,
+    },
+    statusPillText: {
+      ...theme.typography.caption,
+      color: theme.colors.primary,
+      fontWeight: "900",
+    },
+    statusPillTextActive: {
+      color: "#FFFFFF",
+    },
+    balancePill: {
+      minHeight: 38,
+      minWidth: 82,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.18)",
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+    },
+    balanceText: {
+      ...theme.typography.subheading,
+      color: theme.colors.primary,
+    },
+    featureCard: {
       gap: theme.spacing.md,
       borderColor: "rgba(233, 64, 87, 0.18)",
-      backgroundColor: theme.isDark ? "#171A24" : "#FFF7F8",
+      backgroundColor: theme.isDark ? "#171A24" : "#FFFFFF",
     },
-    fireHeader: {
+    featureCardTop: {
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
     },
-    fireIcon: {
-      width: 46,
-      height: 46,
+    featureIcon: {
+      width: 48,
+      height: 48,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.primary,
     },
-    fireCopy: {
+    featureCopy: {
       flex: 1,
+      minWidth: 0,
       gap: theme.spacing.xxs,
     },
-    fireBalance: {
-      ...theme.typography.heading,
-      color: theme.colors.primary,
-      fontSize: 28,
-      lineHeight: 34,
-    },
-    firePackages: {
-      flexDirection: "row",
-      gap: theme.spacing.xs,
-    },
-    firePackageButton: {
-      flex: 1,
-      minHeight: 42,
-      paddingHorizontal: theme.spacing.sm,
-    },
-    heroTop: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    heroIcon: {
-      width: 46,
-      height: 46,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.primary,
-    },
-    heroCopy: {
-      flex: 1,
-      gap: theme.spacing.xxs,
-    },
-    heroTitle: {
+    featureTitle: {
       ...theme.typography.subheading,
       color: theme.colors.text,
     },
-    heroText: {
+    featureSubtitle: {
       ...theme.typography.caption,
       color: theme.colors.muted,
     },
-    notice: {
-      ...theme.typography.caption,
-      color: theme.colors.warning,
+    featureRows: {
+      gap: theme.spacing.xs,
     },
-    planList: {
-      gap: theme.spacing.sm,
-    },
-    planCard: {
-      minHeight: 96,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    featuredPlan: {
-      borderColor: theme.colors.secondary,
-    },
-    planCopy: {
-      flex: 1,
-      gap: theme.spacing.xxs,
-    },
-    planTitleRow: {
+    featureRow: {
+      minHeight: 30,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
     },
-    planTitle: {
+    featureRowText: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      flex: 1,
+    },
+    productList: {
+      gap: theme.spacing.sm,
+    },
+    productCard: {
+      minHeight: 108,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      borderColor: theme.colors.border,
+    },
+    featuredCard: {
+      borderColor: "rgba(138, 35, 135, 0.38)",
+      backgroundColor: theme.isDark ? "rgba(192, 132, 252, 0.08)" : "#FFF7F8",
+    },
+    productCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: theme.spacing.xxs,
+    },
+    productTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
+    },
+    productTitle: {
       ...theme.typography.subheading,
       color: theme.colors.text,
     },
-    pill: {
+    productCaption: {
       ...theme.typography.caption,
-      color: theme.isDark ? "#F8D878" : "#8A5A00",
+      color: theme.colors.muted,
+    },
+    productPrice: {
+      ...theme.typography.subheading,
+      color: theme.colors.primary,
+    },
+    productRequirement: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    productRequirementReady: {
+      color: theme.colors.primary,
+      fontWeight: "900",
+    },
+    popularPill: {
+      ...theme.typography.caption,
+      color: theme.isDark ? "#FCE7F3" : theme.colors.secondary,
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing.xs,
       paddingVertical: 2,
       backgroundColor: theme.isDark
-        ? "rgba(248, 216, 120, 0.12)"
-        : "rgba(248, 216, 120, 0.28)",
+        ? "rgba(192, 132, 252, 0.16)"
+        : "rgba(138, 35, 135, 0.10)",
       overflow: "hidden",
     },
-    planCaption: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
-    planAction: {
-      minWidth: 112,
-      alignItems: "flex-end",
-      gap: theme.spacing.xs,
-    },
-    price: {
-      ...theme.typography.subheading,
-      color: theme.colors.primary,
-    },
-    smallButton: {
-      minHeight: 40,
-      paddingHorizontal: theme.spacing.md,
-    },
-    featureWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: theme.spacing.xs,
-    },
-    featureChip: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xxs,
-      borderRadius: theme.radius.pill,
+    actionButton: {
+      minWidth: 104,
+      minHeight: 46,
       paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-      backgroundColor: theme.colors.surface,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
     },
-    featureText: {
-      ...theme.typography.caption,
-      color: theme.colors.text,
-    },
-    boostCard: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-    },
-    boostCopy: {
-      flex: 1,
-      gap: theme.spacing.xxs,
-    },
-    sectionHeader: {
-      gap: theme.spacing.xxs,
-    },
-    sectionTitle: {
-      ...theme.typography.subheading,
-      color: theme.colors.text,
-    },
-    mutedText: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
-    badgeList: {
-      gap: theme.spacing.sm,
-    },
-    badgeCard: {
-      minHeight: 98,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
+    restoreButton: {
+      minHeight: 50,
+      marginTop: theme.spacing.xs,
     },
     badgeIcon: {
-      width: 44,
-      height: 44,
+      width: 58,
+      height: 58,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
-    },
-    featuredBadgeIcon: {
-      width: 58,
-      height: 58,
       backgroundColor: "transparent",
     },
-    badgeCopy: {
-      flex: 1,
-      gap: theme.spacing.xxs,
-    },
-    badgeTitle: {
-      ...theme.typography.subheading,
-      color: theme.colors.text,
-    },
-    badgeDescription: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
-    badgePrice: {
-      ...theme.typography.caption,
-      color: theme.colors.primary,
-    },
-    badgeButton: {
-      minHeight: 38,
-      paddingHorizontal: theme.spacing.sm,
+    fireProductIcon: {
+      width: 50,
+      height: 50,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
     },
   });

@@ -40,9 +40,14 @@ export const badgeLabels: Record<Badge, string> = {
   premium_member: "Premium Üye",
   muharrem_follower: "Muharrem Takipçisi",
   muharrem_orucu_2026: "Muharrem Orucu 2026",
+  asure_lokmasi: "Aşure Lokması",
+  ilk_eslesme: "İlk Eşleşme",
+  populer_profil: "Popüler Profil",
   cem_room_supporter: "Cem Odası Destekçisi",
   culture_guardian: "Yol Erkânı Destekçisi",
-  zulfiqar_sword: "Zülfikar Kılıcı"
+  zulfiqar_sword: "Zülfikar Kılıcı",
+  haci_bektas_veli: "Hacı Bektaş Veli",
+  la_fetta_illa: "La Fetta İlla"
 };
 
 export const reportCategoryOptions: Option<ReportCategory>[] = [

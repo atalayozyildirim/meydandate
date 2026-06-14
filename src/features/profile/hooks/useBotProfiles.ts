@@ -102,7 +102,11 @@ export const useBotProfiles = () => {
         })
         .maybeSingle();
 
-      if (error || !data) throw new Error("Bot profili oluşturulamadı");
+      if (error) {
+        throw new Error(`Bot profili oluşturulamadı: ${error.message}`);
+      }
+
+      if (!data) throw new Error("Bot profili oluşturulamadı: kayıt dönmedi");
 
       return {
         ...mapSupabaseUser(data as Partial<User>),

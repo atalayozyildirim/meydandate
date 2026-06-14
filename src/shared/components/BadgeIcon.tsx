@@ -3,7 +3,6 @@
 import { Image, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Badge } from "@/domain/entities/User";
-import { ZulfiqarBadgeIcon } from "./ZulfiqarBadgeIcon";
 import { useTheme } from "@/shared/theme";
 
 interface BadgeIconProps {
@@ -27,8 +26,18 @@ interface BadgeIconProps {
 //
 // ─────────────────────────────────────────────────────────────────────────────
 
+type ImageBadge =
+  | "premium_member"
+  | "muharrem_orucu_2026"
+  | "asure_lokmasi"
+  | "ilk_eslesme"
+  | "populer_profil"
+  | "zulfiqar_sword"
+  | "haci_bektas_veli"
+  | "la_fetta_illa";
+
 // TIP A: Sadece Ionicons ikonu olan rozetler
-type IconBadge = Exclude<Badge, "zulfiqar_sword">;
+type IconBadge = Exclude<Badge, ImageBadge>;
 
 const iconBadgeConfig: Record<
   IconBadge,
@@ -36,51 +45,39 @@ const iconBadgeConfig: Record<
 > = {
   community_member: {
     icon: "people",
-    color: "#60A5FA",
-    bgColor: "rgba(96,165,250,0.15)",
-    borderColor: "rgba(96,165,250,0.35)",
+    color: "#FFFFFF",
+    bgColor: "#2563EB",
+    borderColor: "rgba(147,197,253,0.72)",
   },
   verified_profile: {
     icon: "checkmark-circle",
-    color: "#34D399",
-    bgColor: "rgba(52,211,153,0.15)",
-    borderColor: "rgba(52,211,153,0.35)",
+    color: "#FFFFFF",
+    bgColor: "#059669",
+    borderColor: "rgba(110,231,183,0.70)",
   },
   active_user: {
     icon: "flash",
-    color: "#F59E0B",
-    bgColor: "rgba(245,158,11,0.15)",
-    borderColor: "rgba(245,158,11,0.35)",
-  },
-  premium_member: {
-    icon: "star",
-    color: "#A78BFA",
-    bgColor: "rgba(167,139,250,0.15)",
-    borderColor: "rgba(167,139,250,0.35)",
+    color: "#FFFFFF",
+    bgColor: "#D97706",
+    borderColor: "rgba(252,211,77,0.72)",
   },
   muharrem_follower: {
     icon: "moon",
-    color: "#818CF8",
-    bgColor: "rgba(129,140,248,0.15)",
-    borderColor: "rgba(129,140,248,0.35)",
-  },
-  muharrem_orucu_2026: {
-    icon: "calendar",
-    color: "#14B8A6",
-    bgColor: "rgba(20,184,166,0.15)",
-    borderColor: "rgba(20,184,166,0.35)",
+    color: "#FFFFFF",
+    bgColor: "#6366F1",
+    borderColor: "rgba(199,210,254,0.70)",
   },
   cem_room_supporter: {
     icon: "radio",
-    color: "#F472B6",
-    bgColor: "rgba(244,114,182,0.15)",
-    borderColor: "rgba(244,114,182,0.35)",
+    color: "#FFFFFF",
+    bgColor: "#DB2777",
+    borderColor: "rgba(249,168,212,0.70)",
   },
   culture_guardian: {
     icon: "shield-checkmark",
-    color: "#10B981",
-    bgColor: "rgba(16,185,129,0.15)",
-    borderColor: "rgba(16,185,129,0.35)",
+    color: "#FFFFFF",
+    bgColor: "#0F766E",
+    borderColor: "rgba(94,234,212,0.70)",
   },
   // Buraya Ionicons kullanan yeni rozet ekle:
   // yeni_rozet: {
@@ -94,8 +91,14 @@ const iconBadgeConfig: Record<
 // TIP B: Özel PNG/görsel olan rozetler
 // Görseli assets/ klasörüne koy, buraya require() ile ekle
 const imageBadgeAssets: Partial<Record<Badge, ReturnType<typeof require>>> = {
-  // Zulfiqar kendi bileşeninde, ama PNG tercih etseydin:
-  // haci_bektas_veli: require("../../../assets/haci-bektas-veli.png"),
+  premium_member: require("../../../assets/badges/premium.png"),
+  muharrem_orucu_2026: require("../../../assets/badges/asure.png"),
+  asure_lokmasi: require("../../../assets/badges/asure.png"),
+  ilk_eslesme: require("../../../assets/badges/matched.png"),
+  populer_profil: require("../../../assets/badges/popular.png"),
+  zulfiqar_sword: require("../../../assets/badges/zulfikar.png"),
+  haci_bektas_veli: require("../../../assets/badges/hacibektasveli.png"),
+  la_fetta_illa: require("../../../assets/badges/lafetttailla.png"),
 };
 
 const imageBadgeConfig: Partial<
@@ -104,36 +107,56 @@ const imageBadgeConfig: Partial<
     {
       bgColor: string;
       borderColor: string;
-      imageScale: number; // 0.0 - 1.0, görselin frame içindeki boyutu
+      imageScale: number;
     }
   >
 > = {
-  // haci_bektas_veli: {
-  //   bgColor: "#1A0A2E",
-  //   borderColor: "#9B59B6",
-  //   imageScale: 0.82,
-  // },
-};
-
-// TIP C: Tamamen özel SVG bileşeni olan rozetler (ZulfiqarBadgeIcon gibi)
-// Bu map'e rozet adı → bileşen fonksiyonu şeklinde ekle
-const customBadgeComponents: Partial<
-  Record<Badge, (props: { size: number }) => React.ReactElement>
-> = {
-  zulfiqar_sword: ({ size }) => <ZulfiqarBadgeIcon size={size} />,
-  // haci_bektas_veli: ({ size }) => <HaciBektasVeliIcon size={size} />,
+  premium_member: {
+    bgColor: "rgba(167,139,250,0.26)",
+    borderColor: "rgba(216,180,254,0.68)",
+    imageScale: 1.48,
+  },
+  muharrem_orucu_2026: {
+    bgColor: "rgba(20,184,166,0.25)",
+    borderColor: "rgba(94,234,212,0.68)",
+    imageScale: 1.24,
+  },
+  asure_lokmasi: {
+    bgColor: "rgba(248,113,113,0.25)",
+    borderColor: "rgba(252,165,165,0.68)",
+    imageScale: 1.24,
+  },
+  ilk_eslesme: {
+    bgColor: "rgba(96,165,250,0.24)",
+    borderColor: "rgba(147,197,253,0.68)",
+    imageScale: 1.48,
+  },
+  populer_profil: {
+    bgColor: "rgba(245,158,11,0.25)",
+    borderColor: "rgba(252,211,77,0.68)",
+    imageScale: 1.48,
+  },
+  zulfiqar_sword: {
+    bgColor: "rgba(233,64,87,0.26)",
+    borderColor: "rgba(251,113,133,0.72)",
+    imageScale: 1.26,
+  },
+  haci_bektas_veli: {
+    bgColor: "rgba(129,140,248,0.25)",
+    borderColor: "rgba(199,210,254,0.70)",
+    imageScale: 1.26,
+  },
+  la_fetta_illa: {
+    bgColor: "rgba(244,114,182,0.25)",
+    borderColor: "rgba(249,168,212,0.70)",
+    imageScale: 1.26,
+  },
 };
 
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
   const theme = useTheme();
-
-  // Önce TIP C: Özel SVG bileşen var mı?
-  const CustomComponent = customBadgeComponents[badge];
-  if (CustomComponent) {
-    return <CustomComponent size={size} />;
-  }
 
   // TIP B: Özel PNG görseli var mı?
   const imageAsset = imageBadgeAssets[badge];
@@ -151,6 +174,11 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
           backgroundColor: imageConfig.bgColor,
           borderWidth: Math.max(1, size * 0.035),
           borderColor: imageConfig.borderColor,
+          shadowColor: imageConfig.borderColor,
+          shadowOpacity: 0.45,
+          shadowRadius: size * 0.18,
+          shadowOffset: { width: 0, height: 3 },
+          elevation: 3,
         }}
       >
         <Image
@@ -159,7 +187,7 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
             width: size * imageConfig.imageScale,
             height: size * imageConfig.imageScale,
           }}
-          resizeMode="contain"
+          resizeMode="cover"
         />
       </View>
     );
@@ -202,6 +230,11 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
         backgroundColor: config.bgColor,
         borderWidth: Math.max(1, size * 0.04),
         borderColor: config.borderColor,
+        shadowColor: config.bgColor,
+        shadowOpacity: 0.4,
+        shadowRadius: size * 0.16,
+        shadowOffset: { width: 0, height: 3 },
+        elevation: 3,
       }}
     >
       <Ionicons

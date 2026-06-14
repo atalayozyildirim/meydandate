@@ -6,6 +6,8 @@ import { paidBadgeProductByBadge } from "@/shared/constants/badges";
 import type { Badge } from "@/domain/entities/User";
 import type {
   BadgePurchaseResult,
+  FirePackageAmount,
+  FirePackagePurchaseResult,
   PaymentResult,
   Subscription,
   SubscriptionPlan,
@@ -37,6 +39,11 @@ const getRevenueCatApiKey = () => {
 };
 
 const STORE_PRICE_LABEL = "Mağaza fiyatı";
+const fireProductByAmount: Record<FirePackageAmount, string> = {
+  100: "ehlibyte.fire.100",
+  500: "ehlibyte.fire.500",
+  1500: "ehlibyte.fire.1500",
+};
 const REVENUECAT_CONFIGURATION_ERROR =
   "RevenueCat ürünleri mağazadan alınamadı. RevenueCat product identifier değerleri App Store Connect veya StoreKit Configuration ürünleriyle birebir aynı olmalı ve current offering içinde yalnızca mağazada mevcut ürünler bulunmalı.";
 
@@ -396,36 +403,47 @@ export class RevenueCatPaymentService implements PaymentService {
     const receiptId =
       customerInfo?.originalAppUserId ?? createId("badge_receipt");
 
-    try {
-      const { data: badgeUserData } = await supabase
-        .from("users")
-        .select("badges")
-        .eq("id", userId)
-        .single();
+    return { badge, receiptId };
+  }
 
-      if (badgeUserData) {
-        const updatedBadges = Array.from(
-          new Set([...(badgeUserData.badges ?? []), badge]),
-        );
-        const { error: badgeUpdateError } = await supabase
-          .from("users")
-          .update({ badges: updatedBadges })
-          .eq("id", userId);
-
-        if (badgeUpdateError && __DEV__) {
-          console.warn("Badge sync hatası:", badgeUpdateError.message);
-        }
-      }
-    } catch (syncError) {
+  async purchaseFirePackage(
+    userId: string,
+    amount: FirePackageAmount,
+  ): Promise<FirePackagePurchaseResult> {
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
       if (__DEV__) {
-        console.warn(
-          "RevenueCat purchaseBadge Supabase sync hatası:",
-          syncError,
-        );
+        return new MockPaymentService().purchaseFirePackage(userId, amount);
       }
+
+      throw new Error("Satın alma servisi yapılandırılmamış.");
     }
 
-    return { badge, receiptId };
+    await this.initialize(userId);
+
+    if (!this.Purchases) {
+      if (__DEV__) {
+        return new MockPaymentService().purchaseFirePackage(userId, amount);
+      }
+
+      throw new Error("Satın alma modülü yüklenemedi.");
+    }
+
+    const packageItem = await this.selectProductPackage(
+      fireProductByAmount[amount],
+    );
+
+    if (!packageItem) {
+      throw new Error(
+        "RevenueCat Fire paketi bulunamadı. Fire ürünlerini current offering içine ekleyin.",
+      );
+    }
+
+    const { customerInfo } = await this.Purchases.purchasePackage(packageItem);
+
+    return {
+      amount,
+      receiptId: customerInfo?.originalAppUserId ?? createId("fire_receipt"),
+    };
   }
 
   async restorePurchases(userId: string): Promise<Subscription> {

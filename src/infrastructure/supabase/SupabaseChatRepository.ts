@@ -24,6 +24,25 @@ type MessageRow = {
   createdAt: string;
 };
 
+const createMissingParticipant = (id: string, createdAt: string): User => ({
+  id,
+  name: "Kullanıcı",
+  email: "",
+  age: 0,
+  city: "",
+  bio: "",
+  culturalIdentity: "prefer_not_to_say",
+  cultureImportance: "not_important",
+  interests: [],
+  photos: [],
+  badges: [],
+  isPremium: false,
+  hasPassedEntryTest: true,
+  hasCompletedOnboarding: true,
+  createdAt,
+  updatedAt: createdAt,
+});
+
 export class SupabaseChatRepository implements ChatRepository {
   private async getUsersById(userIds: string[]): Promise<Map<string, User>> {
     const uniqueIds = Array.from(new Set(userIds));
@@ -63,12 +82,12 @@ export class SupabaseChatRepository implements ChatRepository {
       throw new Error("Mesajlar yüklenemedi");
     }
 
-    const participant1 = usersById.get(row.participant1Id);
-    const participant2 = usersById.get(row.participant2Id);
-
-    if (!participant1 || !participant2) {
-      throw new Error("Konuşma kullanıcıları eksik");
-    }
+    const participant1 =
+      usersById.get(row.participant1Id) ??
+      createMissingParticipant(row.participant1Id, row.createdAt);
+    const participant2 =
+      usersById.get(row.participant2Id) ??
+      createMissingParticipant(row.participant2Id, row.createdAt);
 
     const messages: Message[] = ((messageRows || []) as MessageRow[]).map((message) => ({
       id: message.id,

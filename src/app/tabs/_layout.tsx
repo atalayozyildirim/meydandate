@@ -8,19 +8,35 @@ import { useTheme } from "@/shared/theme";
 
 type TabIconName =
   | "newspaper-outline"
+  | "newspaper"
   | "flame-outline"
+  | "flame"
   | "cart-outline"
-  | "heart-outline"
+  | "cart"
   | "chatbubbles-outline"
+  | "chatbubbles"
   | "radio-outline"
   | "calendar-outline"
   | "person-outline"
+  | "person"
   | "settings-outline";
 
 const createTabIcon =
-  (name: TabIconName) =>
-  ({ color, size }: { color: ColorValue; size: number }) => (
-    <Ionicons name={name as any} color={String(color)} size={size} />
+  (name: TabIconName, activeName: TabIconName = name) =>
+  ({
+    color,
+    focused,
+    size,
+  }: {
+    color: ColorValue;
+    focused: boolean;
+    size: number;
+  }) => (
+    <Ionicons
+      name={(focused ? activeName : name) as any}
+      color={String(color)}
+      size={focused ? size + 2 : size}
+    />
   );
 
 export default function TabsLayout() {
@@ -52,28 +68,38 @@ export default function TabsLayout() {
         tabBarLabelStyle: {
           fontSize: 10,
           fontWeight: "800",
+          marginTop: 1,
         },
         tabBarItemStyle: {
-          paddingTop: 3,
+          borderRadius: 22,
+          marginHorizontal: 2,
+          paddingTop: 4,
         },
+        tabBarActiveBackgroundColor: theme.isDark
+          ? "rgba(255, 91, 112, 0.10)"
+          : "rgba(233, 64, 87, 0.08)",
+        tabBarInactiveBackgroundColor: "transparent",
         tabBarStyle: {
           position: "absolute",
           left: 18,
           right: 18,
           bottom: 14,
-          minHeight: 62,
-          paddingTop: 8,
-          paddingBottom: 8,
-          borderRadius: 26,
-          backgroundColor: theme.colors.surface,
+          minHeight: 60,
+          paddingTop: 7,
+          paddingBottom: 7,
+          paddingHorizontal: 5,
+          borderRadius: 24,
+          backgroundColor: theme.isDark
+            ? "rgba(23, 25, 35, 0.96)"
+            : "rgba(255, 255, 255, 0.96)",
           borderTopWidth: 0,
-          borderColor: "rgba(233, 64, 87, 0.10)",
+          borderColor: "rgba(255, 91, 112, 0.16)",
           borderWidth: 1,
           shadowColor: theme.colors.shadow,
           shadowOpacity: 1,
-          shadowRadius: 18,
-          shadowOffset: { width: 0, height: 10 },
-          elevation: 8,
+          shadowRadius: 14,
+          shadowOffset: { width: 0, height: 8 },
+          elevation: 6,
         },
       }}
     >
@@ -81,7 +107,7 @@ export default function TabsLayout() {
         name="feed/index"
         options={{
           title: "Akış",
-          tabBarIcon: createTabIcon("newspaper-outline"),
+          tabBarIcon: createTabIcon("newspaper-outline", "newspaper"),
         }}
       />
       <Tabs.Screen
@@ -100,14 +126,14 @@ export default function TabsLayout() {
         name="discover/index"
         options={{
           title: "Keşfet",
-          tabBarIcon: createTabIcon("flame-outline"),
+          tabBarIcon: createTabIcon("flame-outline", "flame"),
         }}
       />
       <Tabs.Screen
         name="store/index"
         options={{
           title: "Mağaza",
-          tabBarIcon: createTabIcon("cart-outline"),
+          tabBarIcon: createTabIcon("cart-outline", "cart"),
         }}
       />
       <Tabs.Screen
@@ -120,7 +146,7 @@ export default function TabsLayout() {
         name="chat/index"
         options={{
           title: "Mesaj",
-          tabBarIcon: createTabIcon("chatbubbles-outline"),
+          tabBarIcon: createTabIcon("chatbubbles-outline", "chatbubbles"),
         }}
       />
       <Tabs.Screen
@@ -139,7 +165,7 @@ export default function TabsLayout() {
         name="profile/index"
         options={{
           title: "Profil",
-          tabBarIcon: createTabIcon("person-outline"),
+          tabBarIcon: createTabIcon("person-outline", "person"),
         }}
       />
       <Tabs.Screen

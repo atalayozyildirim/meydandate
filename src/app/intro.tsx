@@ -242,6 +242,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 34,
       alignItems: "center",
       justifyContent: "center",
+      backgroundColor: theme.colors.primary,
       overflow: "hidden",
       shadowColor: theme.colors.shadow,
       shadowOpacity: 1,
