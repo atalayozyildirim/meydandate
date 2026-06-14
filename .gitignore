@@ -11,3 +11,4 @@ dist
 .vscode
 .agents/
 bun.lock
+package-lock.json

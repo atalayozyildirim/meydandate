@@ -1,7 +1,8 @@
 // Ana uygulama sekmelerini ve protected tab guard'ini tanimlar.
 import { Redirect, Tabs } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import type { ColorValue } from "react-native";
+import { StyleSheet, View, type ColorValue } from "react-native";
+import { BlurView } from "expo-blur";
 import { Loading } from "@/shared/components/Loading";
 import { useSession } from "@/features/auth/hooks/useSession";
 import { useTheme } from "@/shared/theme";
@@ -65,41 +66,69 @@ export default function TabsLayout() {
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary,
         tabBarInactiveTintColor: theme.colors.muted,
-        tabBarLabelStyle: {
-          fontSize: 10,
-          fontWeight: "800",
-          marginTop: 1,
-        },
+        tabBarShowLabel: false,
         tabBarItemStyle: {
-          borderRadius: 22,
-          marginHorizontal: 2,
-          paddingTop: 4,
+          borderRadius: 999,
+          marginHorizontal: 4,
+          marginVertical: 6,
         },
         tabBarActiveBackgroundColor: theme.isDark
-          ? "rgba(255, 91, 112, 0.10)"
-          : "rgba(233, 64, 87, 0.08)",
+          ? "rgba(255, 91, 112, 0.16)"
+          : "rgba(255, 255, 255, 0.36)",
         tabBarInactiveBackgroundColor: "transparent",
+        tabBarIconStyle: {
+          marginTop: 0,
+        },
+        tabBarBackground: () => (
+          <BlurView
+            intensity={theme.isDark ? 52 : 70}
+            tint={theme.isDark ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+          >
+            <View
+              style={[
+                styles.glassTint,
+                {
+                  backgroundColor: theme.isDark
+                    ? "rgba(20, 23, 33, 0.42)"
+                    : "rgba(255, 255, 255, 0.28)",
+                },
+              ]}
+            />
+            <View
+              style={[
+                styles.glassHighlight,
+                {
+                  backgroundColor: theme.isDark
+                    ? "rgba(255, 255, 255, 0.20)"
+                    : "rgba(255, 255, 255, 0.58)",
+                },
+              ]}
+            />
+          </BlurView>
+        ),
         tabBarStyle: {
           position: "absolute",
-          left: 18,
-          right: 18,
-          bottom: 14,
-          minHeight: 60,
-          paddingTop: 7,
-          paddingBottom: 7,
-          paddingHorizontal: 5,
-          borderRadius: 24,
-          backgroundColor: theme.isDark
-            ? "rgba(23, 25, 35, 0.96)"
-            : "rgba(255, 255, 255, 0.96)",
+          left: 34,
+          right: 34,
+          bottom: 18,
+          height: 58,
+          paddingTop: 0,
+          paddingBottom: 0,
+          paddingHorizontal: 7,
+          borderRadius: 30,
+          overflow: "hidden",
+          backgroundColor: "transparent",
           borderTopWidth: 0,
-          borderColor: "rgba(255, 91, 112, 0.16)",
+          borderColor: theme.isDark
+            ? "rgba(255, 255, 255, 0.13)"
+            : "rgba(255, 255, 255, 0.52)",
           borderWidth: 1,
-          shadowColor: theme.colors.shadow,
-          shadowOpacity: 1,
-          shadowRadius: 14,
-          shadowOffset: { width: 0, height: 8 },
-          elevation: 6,
+          shadowColor: theme.isDark ? "#000000" : "rgba(137, 35, 68, 0.28)",
+          shadowOpacity: 0.34,
+          shadowRadius: 24,
+          shadowOffset: { width: 0, height: 12 },
+          elevation: 10,
         },
       }}
     >
@@ -210,3 +239,17 @@ export default function TabsLayout() {
     </Tabs>
   );
 }
+
+const styles = StyleSheet.create({
+  glassTint: {
+    ...StyleSheet.absoluteFillObject,
+  },
+  glassHighlight: {
+    position: "absolute",
+    left: 10,
+    right: 10,
+    top: 1,
+    height: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.38)",
+  },
+});
