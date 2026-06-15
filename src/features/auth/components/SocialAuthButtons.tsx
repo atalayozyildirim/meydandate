@@ -26,7 +26,7 @@ export const SocialAuthButtons = ({ onPress, disabled = false }: SocialAuthButto
         onPress={() => onPress("apple")}
         style={({ pressed }) => [styles.socialButton, pressed && styles.pressed]}
       >
-        <Ionicons name="logo-apple" size={22} color="#111827" />
+        <Ionicons name="logo-apple" size={22} color={theme.colors.text} />
         <Text style={styles.socialLabel}>Apple ile devam et</Text>
       </Pressable>
       <Pressable
@@ -35,7 +35,7 @@ export const SocialAuthButtons = ({ onPress, disabled = false }: SocialAuthButto
         onPress={() => onPress("google")}
         style={({ pressed }) => [styles.socialButton, pressed && styles.pressed]}
       >
-        <Ionicons name="logo-google" size={20} color="#111827" />
+        <Ionicons name="logo-google" size={20} color={theme.colors.text} />
         <Text style={styles.socialLabel}>Google ile devam et</Text>
       </Pressable>
     </View>
@@ -71,13 +71,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       gap: theme.spacing.sm,
-      backgroundColor: "#FFFFFF"
+      backgroundColor: theme.colors.surface
     },
     pressed: {
       opacity: 0.82
     },
     socialLabel: {
       ...theme.typography.subheading,
-      color: "#111827"
+      color: theme.colors.text
     }
   });

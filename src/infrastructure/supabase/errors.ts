@@ -21,6 +21,39 @@ const toSupabaseErrorLike = (error: unknown): SupabaseErrorLike | null => {
   };
 };
 
+const getErrorField = (
+  error: unknown,
+  field: keyof SupabaseErrorLike,
+) => {
+  const supabaseError = toSupabaseErrorLike(error);
+  const value = supabaseError?.[field];
+  return typeof value === "string" ? value : "";
+};
+
+export const isMissingRpcError = (error: unknown, rpcName: string) => {
+  const code = getErrorField(error, "code");
+  const text = [
+    getErrorField(error, "message"),
+    getErrorField(error, "details"),
+    getErrorField(error, "hint"),
+  ].join(" ");
+
+  return (
+    code === "PGRST202" ||
+    (text.includes(rpcName) && /schema cache|function/i.test(text))
+  );
+};
+
+export const isMissingRowError = (error: unknown) => {
+  const text = [
+    getErrorField(error, "message"),
+    getErrorField(error, "details"),
+    getErrorField(error, "hint"),
+  ].join(" ");
+
+  return /not found|bulunamadi|bulunamadı/i.test(text);
+};
+
 export const createSupabaseRepositoryError = (fallbackMessage: string, error: unknown) => {
   const supabaseError = toSupabaseErrorLike(error);
   const details = [

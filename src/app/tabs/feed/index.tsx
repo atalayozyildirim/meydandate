@@ -1,5 +1,5 @@
 // Topluluk akışını, post oluşturmayı ve etiket filtrelerini gösterir.
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -13,14 +13,15 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
-import type { FeedTag } from "@/domain/entities/Feed";
+import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 import { feedTagValues } from "@/domain/entities/Feed";
 import { Avatar } from "@/shared/components/Avatar";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
 import { FeedPostCard } from "@/features/feed/components/FeedPostCard";
+import { QuotedPostCard } from "@/features/feed/components/QuotedPostCard";
 import { FeedAdminPanel } from "@/features/feed/screens/FeedAdminPanel";
 import { AdMobBanner } from "@/features/ads";
 import { useFeed } from "@/features/feed/hooks/useFeed";
@@ -28,6 +29,7 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useUserRole } from "@/features/moderation/hooks/useModerationService";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
+import { container } from "@/infrastructure/config/Container";
 import { useTheme } from "@/shared/theme";
 
 const feedTagLabels: Record<FeedTag | "all", string> = {
@@ -42,8 +44,10 @@ const MAX_FEED_IMAGE_BYTES = 6 * 1024 * 1024;
 
 export default function FeedScreen() {
   const router = useRouter();
+  const params = useLocalSearchParams<{ quotePostId?: string }>();
   const theme = useTheme();
   const styles = createStyles(theme);
+  const listRef = useRef<FlatList<FeedPost>>(null);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const imagePicker = useImagePicker();
   const [selectedTag, setSelectedTag] = useState<FeedTag | "all">("all");
@@ -52,6 +56,7 @@ export default function FeedScreen() {
     uri: string;
     base64?: string | null;
   } | null>(null);
+  const [selectedQuote, setSelectedQuote] = useState<FeedPost | null>(null);
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
   const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
@@ -80,6 +85,41 @@ export default function FeedScreen() {
   } = useFeed(selectedTag);
   const { data: currentUserRole = "user" } = useUserRole(currentUser?.id ?? "");
   const isAdmin = currentUserRole === "admin";
+  const quotedPostIdParam =
+    typeof params.quotePostId === "string" ? params.quotePostId : "";
+
+  useEffect(() => {
+    if (!quotedPostIdParam || !currentUser) {
+      return;
+    }
+
+    if (selectedQuote?.id === quotedPostIdParam) {
+      return;
+    }
+
+    const existingPost = posts.find((post) => post.id === quotedPostIdParam);
+
+    if (existingPost) {
+      setSelectedQuote(existingPost);
+      return;
+    }
+
+    let mounted = true;
+
+    void container.feedRepository
+      .getPost(quotedPostIdParam, currentUser.id)
+      .then((post) => {
+        if (mounted) {
+          setSelectedQuote(post);
+        }
+      })
+      .catch(() => undefined);
+
+    return () => {
+      mounted = false;
+    };
+  }, [currentUser, posts, quotedPostIdParam, selectedQuote?.id]);
+
   const togglePostTag = (tag: FeedTag) => {
     setSelectedPostTags((current) => {
       if (current.includes(tag)) {
@@ -90,6 +130,11 @@ export default function FeedScreen() {
 
       return [...current, tag];
     });
+  };
+
+  const quotePost = (post: FeedPost) => {
+    setSelectedQuote(post);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
   };
 
   const submitPost = async () => {
@@ -110,6 +155,7 @@ export default function FeedScreen() {
         body: trimmedBody || trimmedPollQuestion,
         tags: selectedPostTags,
         ...(selectedImage ? { image: selectedImage } : {}),
+        ...(selectedQuote ? { quotedPostId: selectedQuote.id } : {}),
       };
 
       if (hasValidPoll) {
@@ -122,6 +168,7 @@ export default function FeedScreen() {
       await createPost(payload);
       setBody("");
       setSelectedImage(null);
+      setSelectedQuote(null);
       setSelectedPostTags(["gundem"]);
       setPollQuestion("");
       setPollOptions(["", ""]);
@@ -190,6 +237,13 @@ export default function FeedScreen() {
   if (showAdminPanel && isAdmin) {
     return <FeedAdminPanel onClose={() => setShowAdminPanel(false)} />;
   }
+
+  const composerHasBody = Boolean(body.trim());
+  const composerHasPoll = Boolean(
+    pollQuestion.trim() &&
+      pollOptions.filter((option) => option.trim()).length >= 2,
+  );
+  const canShare = composerHasBody || composerHasPoll;
 
   const feedHeader = (
     <View style={styles.feedHeader}>
@@ -261,7 +315,9 @@ export default function FeedScreen() {
               value={body}
               onChangeText={setBody}
               maxLength={2000}
-              placeholder="Neler oluyor?"
+              placeholder={
+                selectedQuote ? "Alıntına yorum ekle" : "Neler oluyor?"
+              }
               placeholderTextColor={theme.colors.muted}
               style={styles.input}
               multiline
@@ -282,6 +338,33 @@ export default function FeedScreen() {
                   ]}
                 >
                   <Ionicons name="close" size={18} color="#FFFFFF" />
+                </Pressable>
+              </View>
+            ) : null}
+            {selectedQuote ? (
+              <View style={styles.selectedQuoteFrame}>
+                <QuotedPostCard
+                  quotedPost={{
+                    id: selectedQuote.id,
+                    authorId: selectedQuote.authorId,
+                    authorName: selectedQuote.author.name,
+                    authorPhotoUrl: selectedQuote.author.photos[0]?.uri ?? null,
+                    body: selectedQuote.body,
+                    imageUrl: selectedQuote.imageUrl ?? null,
+                    createdAt: selectedQuote.createdAt,
+                  }}
+                  compact
+                />
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel="Alıntıyı kaldır"
+                  onPress={() => setSelectedQuote(null)}
+                  style={({ pressed }) => [
+                    styles.removeQuoteButton,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Ionicons name="close" size={16} color={theme.colors.text} />
                 </Pressable>
               </View>
             ) : null}
@@ -353,24 +436,11 @@ export default function FeedScreen() {
               </ScrollView>
               <Pressable
                 accessibilityRole="button"
-                disabled={
-                  (!body.trim() &&
-                    !(
-                      pollQuestion.trim() &&
-                      pollOptions.filter((option) => option.trim()).length >= 2
-                    )) ||
-                  isCreatingPost
-                }
+                disabled={!canShare || isCreatingPost}
                 onPress={() => void submitPost()}
                 style={({ pressed }) => [
                   styles.shareButton,
-                  ((!body.trim() &&
-                    !(
-                      pollQuestion.trim() &&
-                      pollOptions.filter((option) => option.trim()).length >= 2
-                    )) ||
-                    isCreatingPost) &&
-                    styles.shareButtonDisabled,
+                  (!canShare || isCreatingPost) && styles.shareButtonDisabled,
                   pressed && styles.pressed,
                 ]}
               >
@@ -500,6 +570,7 @@ export default function FeedScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <FlatList
+        ref={listRef}
         data={posts}
         keyExtractor={(post) => post.id}
         ListHeaderComponent={feedHeader}
@@ -532,6 +603,7 @@ export default function FeedScreen() {
             onReport={reportPost}
             onDelete={deletePost}
             onVote={(pollId, optionId) => void votePoll({ pollId, optionId })}
+            onQuote={quotePost}
             canDelete={
               !item.isSponsored && (isAdmin || item.authorId === currentUser.id)
             }
@@ -677,6 +749,23 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "rgba(17, 24, 39, 0.72)",
+    },
+    selectedQuoteFrame: {
+      position: "relative",
+      paddingRight: 34,
+    },
+    removeQuoteButton: {
+      position: "absolute",
+      top: 8,
+      right: 8,
+      width: 26,
+      height: 26,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     photoButton: {
       width: 36,

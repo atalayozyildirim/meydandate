@@ -1,14 +1,16 @@
 # Google ve Apple Login Kurulumu
 
-Son kontrol: 2026-06-08
+Son kontrol: 2026-06-15
 
 ## Durum
 
-Kod tarafında OAuth akışı bağlandı:
+Kod tarafında sosyal giriş akışları bağlandı:
 
 - `expo-web-browser` eklendi.
 - Supabase client `flowType: "pkce"` kullanıyor.
-- `Google` ve `Apple` butonları `openAuthSessionAsync()` ile provider ekranını açıyor.
+- `Google` butonu `openAuthSessionAsync()` ile provider ekranını açıyor.
+- `Apple` butonu iOS'ta native `expo-apple-authentication` akışını kullanıyor ve
+  `supabase.auth.signInWithIdToken()` ile Supabase session'ı oluşturuyor.
 - Callback URL içindeki `code`, `supabase.auth.exchangeCodeForSession(code)` ile session'a çevriliyor.
 - Access/refresh token mevcut secure storage akışına yazılıyor.
 - Social login ile gelen kullanıcı için `public.users` profil satırı yoksa otomatik oluşturuluyor.
@@ -39,10 +41,11 @@ package name ile `google-services.json` indirilmeli. Android native klasörü ol
 dosya `android/app/google-services.json` konumuna eklenmeli ve `app.json` içinde
 `android.googleServicesFile` tanımlanmalı.
 
-Not: Bu projede çalışan sosyal giriş kodu şu anda Supabase Auth OAuth akışıdır. Firebase
-Console'da Google/Apple provider açmak native Firebase config'i hazırlar, ancak uygulamanın
-oturumlarını Firebase Auth'a taşımaz. Firebase Auth'a tam geçiş istenirse `AuthRepository`,
-session saklama ve Supabase RLS/JWT stratejisi ayrıca yeniden tasarlanmalı.
+Not: Google tarafı Supabase Auth OAuth akışıyla çalışır. Apple tarafı ise iOS'ta native Apple
+Authentication ile token alıp Supabase'e verir. Firebase Console'da Google/Apple provider açmak
+native Firebase config'i hazırlar, ancak uygulamanın oturumlarını Firebase Auth'a taşımaz.
+Firebase Auth'a tam geçiş istenirse `AuthRepository`, session saklama ve Supabase RLS/JWT
+stratejisi ayrıca yeniden tasarlanmalı.
 
 ## Uygulama Kimlikleri
 
@@ -90,20 +93,52 @@ Not: Supabase OAuth redirect kullandığımız için ilk aşamada native Google 
 
 Apple Developer:
 
-- App ID için Sign in with Apple capability aç.
-- Services ID oluştur.
-- Services ID return URL olarak şunu ekle:
+- `com.ehlibyte.app` App ID icin Sign in with Apple capability acik olmali.
+- Native iOS Apple login icin esas dogrulanan deger App ID / bundle identifier tarafidir.
+
+Supabase Dashboard > Authentication > Providers > Apple:
+
+- `Client IDs` alanina en az su App ID eklenmeli:
+
+```text
+com.ehlibyte.app
+```
+
+- Expo Go ile test ediliyorsa ayni listeye su da eklenmeli:
+
+```text
+host.exp.Exponent
+```
+
+- Eger custom development build, preview build veya prod farkli bundle identifier kullaniyorsa
+  onlar da ayni `Client IDs` listesine eklenmeli.
+
+Web OAuth fallback kullanilacaksa ek olarak:
+
+- Services ID olustur.
+- Services ID return URL olarak sunu ekle:
 
 ```text
 https://ymrzddxgxdswibtypuwr.supabase.co/auth/v1/callback
 ```
 
-Supabase Apple provider içine şunlar girilmeli:
+- Supabase `Secret` alanina `.p8` dosyasindan uretilen Apple client secret JWT yapistirilir.
 
-- Team ID
-- Key ID
-- Services ID
-- Sign in with Apple private key
+Bu JWT'yi uretmek icin:
+
+```bash
+node scripts/generate-apple-client-secret.mjs \
+  --team-id 37525RW2KX \
+  --client-id com.ehlibyte.app.web \
+  --key-id APPLE_SIGNIN_KEY_ID \
+  --key-file ./AuthKey_APPLE_SIGNIN_KEY_ID.p8
+```
+
+Onemli:
+
+- Buradaki `key-id` App Store Connect API key veya APNs key degil, ozellikle **Sign in with Apple** icin olusturulmus key olmali.
+- Native iOS akisi icin Services ID tek basina yeterli degil; `Client IDs` listesinde bundle identifier da olmali.
+- Web OAuth secret kullaniliyorsa bu secret en gec 6 ayda bir yenilenir.
 
 App Store kuralı: Google login varsa iOS'ta Apple login de çalışmalı.
 
@@ -111,15 +146,16 @@ App Store kuralı: Google login varsa iOS'ta Apple login de çalışmalı.
 
 1. Supabase redirect URL'leri gir.
 2. Google provider client ID/secret gir.
-3. Apple provider bilgilerini gir.
-4. `npm run typecheck` çalıştır.
-5. `npx expo config --type public` ile scheme ve bundle/package değerlerini kontrol et.
-6. iOS gerçek cihaz veya TestFlight build'de Google login dene.
-7. iOS gerçek cihaz veya TestFlight build'de Apple login dene.
-8. Android internal testing build'de Google login dene.
-9. İlk social login sonrası kullanıcının onboarding'e düştüğünü kontrol et.
-10. `public.users` içinde aynı auth user id ile profil satırı oluştuğunu kontrol et.
-11. App'i kapat/aç; session restore çalışmalı.
+3. Apple provider `Client IDs` listesine `com.ehlibyte.app` ekle. Expo Go ile test varsa `host.exp.Exponent` da ekle.
+4. Web fallback kullanacaksan Apple Services ID ve secret bilgilerini de gir.
+5. `npm run typecheck` çalıştır.
+6. `npx expo config --type public` ile scheme ve bundle/package değerlerini kontrol et.
+7. iOS gerçek cihaz veya TestFlight build'de Google login dene.
+8. iOS gerçek cihaz veya TestFlight build'de Apple login dene.
+9. Android internal testing build'de Google login dene.
+10. İlk social login sonrası kullanıcının onboarding'e düştüğünü kontrol et.
+11. `public.users` içinde aynı auth user id ile profil satırı oluştuğunu kontrol et.
+12. App'i kapat/aç; session restore çalışmalı.
 
 ## Beklenen Hatalar
 

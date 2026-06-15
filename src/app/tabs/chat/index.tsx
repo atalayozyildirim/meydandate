@@ -21,6 +21,7 @@ export default function ChatListScreen() {
   const currentUser = useAuthStore((state) => state.currentUser);
   const { conversations, isLoading, deleteConversation } = useConversations();
   const swipeableRefs = useRef<Record<string, Swipeable>>({});
+  const deletingConversationIds = useRef<Set<string>>(new Set());
 
   if (isLoading) {
     return <Loading label="Sohbetler yukleniyor" />;
@@ -31,6 +32,12 @@ export default function ChatListScreen() {
   ).length;
 
   const handleDelete = async (conversationId: string) => {
+    if (deletingConversationIds.current.has(conversationId)) {
+      return;
+    }
+
+    deletingConversationIds.current.add(conversationId);
+
     try {
       await deleteConversation(conversationId);
     } catch (error) {
@@ -39,6 +46,8 @@ export default function ChatListScreen() {
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
       swipeableRefs.current[conversationId]?.close();
+    } finally {
+      deletingConversationIds.current.delete(conversationId);
     }
   };
 

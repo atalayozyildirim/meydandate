@@ -49,6 +49,26 @@ export const formatAuthErrorMessage = (
     return `${providerLabel} provider Supabase tarafında kapalı görünüyor. Supabase > Authentication > Providers ekranından ${providerLabel} provider'ını etkinleştir.`;
   }
 
+  if (
+    provider === "apple" &&
+    hasAny(message, [
+      "invalid client id or web redirect",
+      "invalid_request",
+      "web redirect",
+      "invalid aud",
+      "audience",
+    ])
+  ) {
+    return [
+      "Apple giris ayarinda iOS native kimlik dogrulamasi ile Supabase client ID listesi uyusmuyor.",
+      "Bu projede iOS Apple girisi artik native calisiyor. Supabase > Authentication > Providers > Apple ekranindaki Client IDs alanina App ID eklenmeli: com.ehlibyte.app",
+      "Expo Go ile test ediyorsan ayni listeye host.exp.Exponent de ekle. Development build kullaniyorsan kendi bundle identifier de listede olmali.",
+      "Services ID ve web Return URL ayari yalnizca web OAuth fallback icin gerekir; iOS native giriste esas dogrulanan deger bundle identifier tarafidir.",
+      "Son kod degisikligi native Apple girisine gectigi icin uygulamayi yeniden ac ve gerekiyorsa yeni development build/TestFlight build al.",
+      `Deep link callback icin Supabase > Authentication > URL Configuration > Additional Redirect URLs alaninda su da olmali: ${appCallbackUrl}`,
+    ].join("\n\n");
+  }
+
   if (hasAny(message, ["invalid client", "invalid_client", "unauthorized_client"])) {
     return `${providerLabel} OAuth client bilgileri hatalı görünüyor. Supabase provider ekranına Web OAuth Client ID ve Client Secret girilmeli; Firebase Web SDK apiKey/appId değerleri burada kullanılmaz.`;
   }
@@ -62,4 +82,3 @@ export const formatAuthErrorMessage = (
 
   return message;
 };
-

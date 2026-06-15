@@ -31,6 +31,7 @@ export interface CreateFeedPostPayload {
     options: string[]; // seçenek metinleri
     endsAt?: string;
   };
+  quotedPostId?: string | null;
 }
 
 export interface CreateFeedCommentPayload {

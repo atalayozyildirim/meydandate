@@ -174,11 +174,6 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
           backgroundColor: imageConfig.bgColor,
           borderWidth: Math.max(1, size * 0.035),
           borderColor: imageConfig.borderColor,
-          shadowColor: imageConfig.borderColor,
-          shadowOpacity: 0.45,
-          shadowRadius: size * 0.18,
-          shadowOffset: { width: 0, height: 3 },
-          elevation: 3,
         }}
       >
         <Image
@@ -230,11 +225,6 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
         backgroundColor: config.bgColor,
         borderWidth: Math.max(1, size * 0.04),
         borderColor: config.borderColor,
-        shadowColor: config.bgColor,
-        shadowOpacity: 0.4,
-        shadowRadius: size * 0.16,
-        shadowOffset: { width: 0, height: 3 },
-        elevation: 3,
       }}
     >
       <Ionicons

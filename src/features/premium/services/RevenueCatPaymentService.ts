@@ -3,6 +3,7 @@ import { createId } from "@/shared/utils/id";
 import { env } from "@/infrastructure/config/env";
 import { supabase } from "@/infrastructure/supabase/client";
 import { paidBadgeProductByBadge } from "@/shared/constants/badges";
+import { isExpoGo } from "@/shared/utils/expoRuntime";
 import type { Badge } from "@/domain/entities/User";
 import type {
   BadgePurchaseResult,
@@ -16,7 +17,7 @@ import type { PaymentService } from "./MockPaymentService";
 import { MockPaymentService } from "./MockPaymentService";
 
 const getRevenueCatApiKey = () => {
-  if (!env.useRevenueCatPayments) {
+  if (!env.useRevenueCatPayments || isExpoGo) {
     return "";
   }
 
@@ -86,6 +87,25 @@ interface RevenueCatApi {
   }>;
 }
 
+const resolvePurchasesApi = (module: unknown): RevenueCatApi | null => {
+  const candidates = [
+    module,
+    (module as { default?: unknown } | null | undefined)?.default,
+    (module as { Purchases?: unknown } | null | undefined)?.Purchases,
+    (module as { default?: { default?: unknown } } | null | undefined)?.default
+      ?.default,
+  ];
+
+  return (
+    (candidates.find(
+      (candidate) =>
+        typeof candidate === "object" &&
+        candidate !== null &&
+        typeof (candidate as RevenueCatApi).configure === "function",
+    ) as RevenueCatApi | undefined) ?? null
+  );
+};
+
 export class RevenueCatPaymentService implements PaymentService {
   private isConfigured = false;
   private Purchases: RevenueCatApi | null = null;
@@ -99,9 +119,16 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     if (!this.Purchases) {
-      const purchasesModule = await import("react-native-purchases");
-      this.Purchases = (purchasesModule.default ??
-        purchasesModule) as unknown as RevenueCatApi;
+      const purchasesModule = await import("react-native-purchases").catch(
+        () => null,
+      );
+      this.Purchases = purchasesModule
+        ? resolvePurchasesApi(purchasesModule)
+        : null;
+    }
+
+    if (!this.Purchases) {
+      return;
     }
 
     if (!this.isConfigured && this.Purchases) {

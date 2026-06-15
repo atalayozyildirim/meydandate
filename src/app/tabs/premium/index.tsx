@@ -9,13 +9,14 @@ import { Screen } from "@/shared/components/Screen";
 import { premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
 import { env } from "@/infrastructure/config/env";
+import { isExpoGo } from "@/shared/utils/expoRuntime";
 import { useTheme } from "@/shared/theme";
 import { formatProfileBoostExpiry } from "@/shared/utils/profileBoost";
 
 export default function PremiumScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const isMockPaymentMode = !env.useRevenueCatPayments;
+  const isMockPaymentMode = !env.useRevenueCatPayments || isExpoGo;
   const {
     subscription,
     planPrices,

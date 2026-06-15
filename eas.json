@@ -1,6 +1,7 @@
 {
   "cli": {
-    "version": ">= 5.9.0"
+    "version": ">= 5.9.0",
+    "appVersionSource": "remote"
   },
   "build": {
     "development": {
@@ -19,9 +20,11 @@
     },
     "production": {
       "autoIncrement": true,
+      "node": "20.19.4",
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
-        "EXPO_PUBLIC_USE_SUPABASE": "true"
+        "EXPO_PUBLIC_USE_SUPABASE": "true",
+        "EXPO_PUBLIC_USE_REVENUECAT": "true"
       }
     }
   },

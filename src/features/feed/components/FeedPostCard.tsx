@@ -12,6 +12,8 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 import { PollCard } from "./PollCard";
+import { LinkPreviewCard } from "./LinkPreviewCard";
+import { QuotedPostCard } from "./QuotedPostCard";
 import type { User } from "@/domain/entities/User";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
@@ -35,6 +37,7 @@ interface FeedPostCardProps {
   onReport: (postId: string) => Promise<unknown>;
   onDelete: (postId: string) => Promise<unknown>;
   onVote?: (pollId: string, optionId: string) => void;
+  onQuote?: (post: FeedPost) => void;
   onPermanentBan: (error: unknown) => void;
   canDelete?: boolean;
   disabled?: boolean;
@@ -61,6 +64,7 @@ export const FeedPostCard = ({
   onReport,
   onDelete,
   onVote,
+  onQuote,
   onPermanentBan,
   canDelete = false,
   disabled = false,
@@ -89,6 +93,18 @@ export const FeedPostCard = ({
     }
 
     router.push({ pathname: "/tabs/feed/[postId]", params: { postId: post.id } });
+  };
+  const openQuotedPost = () => {
+    const quotedPostId = post.quotedPost?.id;
+
+    if (!quotedPostId) {
+      return;
+    }
+
+    router.push({
+      pathname: "/tabs/feed/[postId]",
+      params: { postId: quotedPostId },
+    });
   };
 
   const reportPost = () => {
@@ -251,6 +267,14 @@ export const FeedPostCard = ({
 
           <Text style={styles.body}>{sanitizePlainText(post.body, 2000)}</Text>
 
+          {post.quotedPost ? (
+            <QuotedPostCard
+              quotedPost={post.quotedPost}
+              onPress={post.quotedPost.id ? openQuotedPost : undefined}
+              compact
+            />
+          ) : null}
+
           {post.poll && !isSponsored ? (
             <PollCard
               poll={post.poll}
@@ -266,6 +290,10 @@ export const FeedPostCard = ({
               resizeMode="cover"
               style={styles.postImage}
             />
+          ) : null}
+
+          {post.linkPreview ? (
+            <LinkPreviewCard preview={post.linkPreview} />
           ) : null}
 
           <View style={styles.tagRow}>
@@ -340,14 +368,22 @@ export const FeedPostCard = ({
                 />
                 <Text style={styles.actionText}>Yorum</Text>
               </Pressable>
-              <View style={styles.action}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={disabled || !onQuote}
+                onPress={() => onQuote?.(post)}
+                style={({ pressed }) => [
+                  styles.action,
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Ionicons
-                  name="return-down-back-outline"
+                  name="repeat-outline"
                   size={18}
                   color={theme.colors.muted}
                 />
-                <Text style={styles.actionText}>Yanıt</Text>
-              </View>
+                <Text style={styles.actionText}>Alıntıla</Text>
+              </Pressable>
             </View>
           )}
         </View>

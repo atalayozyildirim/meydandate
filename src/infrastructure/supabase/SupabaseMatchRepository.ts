@@ -222,6 +222,17 @@ export class SupabaseMatchRepository implements MatchRepository {
       action,
     });
 
+    if (swipeError?.code === "23505") {
+      const existingMatch = await this.getExistingMatchBetween(userId, targetUserId);
+
+      return existingMatch
+        ? {
+            action,
+            match: existingMatch,
+          }
+        : { action };
+    }
+
     if (swipeError) {
       throw new Error("Swipe kaydedilemedi");
     }

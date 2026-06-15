@@ -30,6 +30,7 @@ import { firePackageValues, useFire } from "@/features/fire/hooks/useFire";
 import { useMatches } from "@/features/match/hooks/useMatches";
 import { useProfile } from "@/features/profile/hooks/useProfile";
 import { env } from "@/infrastructure/config/env";
+import { isExpoGo } from "@/shared/utils/expoRuntime";
 import { useTheme } from "@/shared/theme";
 import { formatProfileBoostExpiry } from "@/shared/utils/profileBoost";
 
@@ -60,7 +61,7 @@ export default function StoreScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const { profile, isLoading: isProfileLoading } = useProfile();
-  const isMockPaymentMode = !env.useRevenueCatPayments;
+  const isMockPaymentMode = !env.useRevenueCatPayments || isExpoGo;
   const {
     subscription,
     planPrices,

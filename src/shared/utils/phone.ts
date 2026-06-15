@@ -1,3 +1,5 @@
+export const DEFAULT_TR_PHONE_INPUT = "+90";
+
 export const normalizePhoneNumber = (value: string): string => {
   const digits = value.replace(/\D/g, "");
 
@@ -20,8 +22,15 @@ export const normalizePhoneNumber = (value: string): string => {
   return `+${digits}`;
 };
 
-export const formatPhoneNumberInput = (value: string): string => {
+export const formatPhoneNumberInput = (
+  value: string,
+  options?: { preserveDefaultCountryCode?: boolean },
+): string => {
   const normalized = normalizePhoneNumber(value);
+
+  if (!normalized) {
+    return options?.preserveDefaultCountryCode ? DEFAULT_TR_PHONE_INPUT : "";
+  }
 
   if (normalized.startsWith("+90")) {
     const local = normalized.slice(3, 13);
@@ -36,7 +45,11 @@ export const formatPhoneNumberInput = (value: string): string => {
   }
 
   const countryAndNumber = normalized.slice(1, 16);
-  return countryAndNumber ? `+${countryAndNumber.replace(/(\d{3})(?=\d)/g, "$1 ").trim()}` : "";
+  return countryAndNumber
+    ? `+${countryAndNumber.replace(/(\d{3})(?=\d)/g, "$1 ").trim()}`
+    : options?.preserveDefaultCountryCode
+      ? DEFAULT_TR_PHONE_INPUT
+      : "";
 };
 
 export const normalizeOtp = (value: string): string => value.replace(/\D/g, "").slice(0, 6);
@@ -45,4 +58,3 @@ export const formatOtpInput = (value: string): string => {
   const otp = normalizeOtp(value);
   return otp.length > 3 ? `${otp.slice(0, 3)} ${otp.slice(3)}` : otp;
 };
-

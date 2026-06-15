@@ -1,6 +1,7 @@
 // AdMob native modulunu guvenli yukler, baslatir ve unit ID secimini merkezilestirir.
 import { NativeModules, Platform } from "react-native";
 import { env } from "@/infrastructure/config/env";
+import { isExpoGo } from "@/shared/utils/expoRuntime";
 
 type GoogleMobileAdsModule = typeof import("react-native-google-mobile-ads");
 export type AdMobPlacement = "banner" | "interstitial" | "rewarded";
@@ -10,7 +11,7 @@ let initializePromise: Promise<boolean> | null = null;
 
 export const isAdMobPlatform = Platform.OS === "ios" || Platform.OS === "android";
 export const isAdMobNativeModuleAvailable =
-  isAdMobPlatform && Boolean(NativeModules.RNGoogleMobileAdsModule);
+  isAdMobPlatform && !isExpoGo && Boolean(NativeModules.RNGoogleMobileAdsModule);
 
 export const loadGoogleMobileAds = async () => {
   if (!isAdMobNativeModuleAvailable) {

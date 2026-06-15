@@ -76,6 +76,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
       tags: FeedTag[];
       image?: { uri: string; base64?: string | null };
       poll?: { question: string; options: string[]; endsAt?: string };
+      quotedPostId?: string | null;
     }) => {
       if (!currentUser) {
         throw new Error("Post paylaşmak için oturum gerekli.");
@@ -108,6 +109,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
         tags: payload.tags,
         image: payload.image,
         ...(filteredPoll ? { poll: filteredPoll } : {}),
+        ...(payload.quotedPostId ? { quotedPostId: payload.quotedPostId } : {}),
       });
     },
     onSuccess: invalidateFeed,

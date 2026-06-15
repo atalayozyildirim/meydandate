@@ -90,6 +90,10 @@ export const getRuntimeConfigIssues = () => {
     errors.push("Production build mock servislerle çalışamaz. EXPO_PUBLIC_USE_SUPABASE=true verin.");
   }
 
+  if (env.isProduction && !env.useRevenueCatPayments) {
+    errors.push("Production build mock odeme ile calisamaz. EXPO_PUBLIC_USE_REVENUECAT=true verin.");
+  }
+
   if (env.isProduction) {
     if (
       isPlaceholder(env.revenueCatIosApiKey, ["your_key", "your-key", "placeholder"]) ||
@@ -110,7 +114,7 @@ export const getRuntimeConfigIssues = () => {
     }
 
     if (!env.adMobIosAppId || !env.adMobAndroidAppId) {
-      warnings.push("Production reklam yayını için AdMob iOS/Android app ID değerlerini EAS env'e ekleyin.");
+      warnings.push("Production reklam yayını için AdMob iOS/Android app ID değerlerini EAS env'e ekleyin. Eksikse build test AdMob kimlikleriyle devam eder.");
     }
   }
 

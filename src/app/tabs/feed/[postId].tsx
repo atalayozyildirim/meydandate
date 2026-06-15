@@ -13,7 +13,9 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
+import { LinkPreviewCard } from "@/features/feed/components/LinkPreviewCard";
 import { PollCard } from "@/features/feed/components/PollCard";
+import { QuotedPostCard } from "@/features/feed/components/QuotedPostCard";
 import { useFeedComments, useFeedPost } from "@/features/feed/hooks/useFeed";
 import { useUserRole } from "@/features/moderation/hooks/useModerationService";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
@@ -171,6 +173,16 @@ export default function FeedPostDetailScreen() {
       ],
     );
   };
+  const quotePost = () => {
+    if (!post) {
+      return;
+    }
+
+    router.push({
+      pathname: "/tabs/feed",
+      params: { quotePostId: post.id },
+    });
+  };
 
   if (isLoading || !currentUser) {
     return <Loading label="Post açılıyor" />;
@@ -277,6 +289,21 @@ export default function FeedPostDetailScreen() {
 
             <Text style={styles.postText}>{sanitizePlainText(post.body, 2000)}</Text>
 
+            {post.quotedPost ? (
+              <QuotedPostCard
+                quotedPost={post.quotedPost}
+                onPress={
+                  post.quotedPost.id
+                    ? () =>
+                        router.push({
+                          pathname: "/tabs/feed/[postId]",
+                          params: { postId: post.quotedPost?.id ?? "" },
+                        })
+                    : undefined
+                }
+              />
+            ) : null}
+
             {post.poll ? (
               <PollCard
                 poll={post.poll}
@@ -294,6 +321,10 @@ export default function FeedPostDetailScreen() {
                 resizeMode="cover"
                 style={styles.postImage}
               />
+            ) : null}
+
+            {post.linkPreview ? (
+              <LinkPreviewCard preview={post.linkPreview} />
             ) : null}
 
             {post.tags.length > 0 ? (
@@ -335,19 +366,22 @@ export default function FeedPostDetailScreen() {
                 />
                 <Text style={styles.postActionText}>{comments.length}</Text>
               </View>
-              <View style={styles.postAction}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isMutating}
+                onPress={quotePost}
+                style={({ pressed }) => [
+                  styles.postAction,
+                  pressed && styles.pressed,
+                ]}
+              >
                 <Ionicons
-                  name="return-down-back-outline"
+                  name="repeat-outline"
                   size={20}
                   color={theme.colors.muted}
                 />
-                <Text style={styles.postActionText}>
-                  {comments.reduce(
-                    (total, comment) => total + comment.replies.length,
-                    0,
-                  )}
-                </Text>
-              </View>
+                <Text style={styles.postActionText}>Alıntıla</Text>
+              </Pressable>
             </View>
           </View>
         </View>

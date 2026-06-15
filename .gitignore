@@ -11,4 +11,5 @@ dist
 .vscode
 .agents/
 bun.lock
-package-lock.json
+AuthKey_*.p8
+*.p8

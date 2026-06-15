@@ -18,7 +18,7 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { formatAuthErrorMessage } from "@/features/auth/utils/authErrorMessages";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
-import { formatPhoneNumberInput } from "@/shared/utils/phone";
+import { DEFAULT_TR_PHONE_INPUT, formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
 export default function LoginScreen() {
@@ -31,7 +31,7 @@ export default function LoginScreen() {
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
-      phoneNumber: "",
+      phoneNumber: DEFAULT_TR_PHONE_INPUT,
     },
   });
 
@@ -74,7 +74,9 @@ export default function LoginScreen() {
             placeholder="Telefon numaranı gir"
             value={field.value}
             onBlur={field.onBlur}
-            onChangeText={(value) => field.onChange(formatPhoneNumberInput(value))}
+            onChangeText={(value) =>
+              field.onChange(formatPhoneNumberInput(value, { preserveDefaultCountryCode: true }))
+            }
             error={fieldState.error?.message}
           />
         )}

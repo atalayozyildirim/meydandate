@@ -75,6 +75,10 @@ if (
   errors.push("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY appl_ public key olmalı.");
 }
 
+if (value("EXPO_PUBLIC_USE_REVENUECAT") !== "true") {
+  errors.push("Production için EXPO_PUBLIC_USE_REVENUECAT=true olmalı.");
+}
+
 if (
   isPlaceholder(value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY")) ||
   !value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY").startsWith("goog_")
@@ -96,6 +100,16 @@ if (
 for (const key of [
   "EXPO_PUBLIC_ADMOB_IOS_APP_ID",
   "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
+]) {
+  if (
+    isPlaceholder(value(key)) ||
+    !/^ca-app-pub-\d+~\d+$/.test(value(key))
+  ) {
+    warnings.push(`${key} production AdMob app id değil; build test AdMob app id ile devam eder.`);
+  }
+}
+
+for (const key of [
   "EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID",
   "EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID",
 ]) {

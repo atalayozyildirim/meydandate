@@ -8,6 +8,7 @@ import type {
 import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
 import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
 import { supabase } from "./client";
 import { mapSupabaseUser } from "./userMapper";
 import { testAccount } from "@/shared/constants/testAccount";
@@ -36,6 +37,12 @@ const dismissAuthSession = () => {
   }
 };
 
+type AppleFullName = {
+  givenName?: string | null;
+  middleName?: string | null;
+  familyName?: string | null;
+};
+
 export class SupabaseAuthRepository implements AuthRepository {
   private async getMyProfile() {
     const { data, error } = await supabase.rpc("get_my_profile").maybeSingle();
@@ -43,12 +50,16 @@ export class SupabaseAuthRepository implements AuthRepository {
     return error ? null : data;
   }
 
-  private getSocialProfileName(user: SupabaseAuthUser) {
+  private getSocialProfileName(user: SupabaseAuthUser, fallbackName?: string) {
     const metadata = user.user_metadata ?? {};
     const fullName = metadata.full_name || metadata.name || metadata.display_name;
 
     if (typeof fullName === "string" && fullName.trim()) {
       return fullName.trim().slice(0, 80);
+    }
+
+    if (fallbackName?.trim()) {
+      return fallbackName.trim().slice(0, 80);
     }
 
     const emailPrefix = user.email?.split("@")[0]?.replace(/[._-]+/g, " ");
@@ -76,7 +87,7 @@ export class SupabaseAuthRepository implements AuthRepository {
     return [{ id: "oauth-avatar", uri: avatarUrl, isPrimary: true }];
   }
 
-  private async ensureSocialProfile(user: SupabaseAuthUser) {
+  private async ensureSocialProfile(user: SupabaseAuthUser, fallbackName?: string) {
     let profile = await this.getMyProfile();
     const socialPhotos = this.getSocialProfilePhotos(user);
 
@@ -102,7 +113,7 @@ export class SupabaseAuthRepository implements AuthRepository {
       id: user.id,
       email: user.email ?? `${user.id}@oauth.ehlibyte.local`,
       ...(user.phone ? { phoneNumber: user.phone } : {}),
-      name: this.getSocialProfileName(user),
+      name: this.getSocialProfileName(user, fallbackName),
       age: 18,
       city: "",
       bio: "",
@@ -125,14 +136,109 @@ export class SupabaseAuthRepository implements AuthRepository {
     return profile;
   }
 
-  private async buildAuthSession(session: Session): Promise<AuthSession> {
-    const profile = await this.ensureSocialProfile(session.user);
+  private async buildAuthSession(
+    session: Session,
+    options?: { fallbackProfileName?: string },
+  ): Promise<AuthSession> {
+    const profile = await this.ensureSocialProfile(session.user, options?.fallbackProfileName);
 
     return {
       accessToken: session.access_token,
       refreshToken: session.refresh_token,
       user: mapSupabaseUser(profile),
     };
+  }
+
+  private getAppleFullName(fullName: AppleFullName | null | undefined) {
+    const parts = [
+      fullName?.givenName,
+      fullName?.middleName,
+      fullName?.familyName,
+    ].filter((part): part is string => typeof part === "string" && part.trim().length > 0);
+
+    return parts.join(" ").trim() || undefined;
+  }
+
+  private async signInWithAppleNative(): Promise<AuthSession> {
+    const AppleAuthentication = await import("expo-apple-authentication").catch(
+      () => null,
+    );
+
+    if (!AppleAuthentication) {
+      throw new Error(
+        "Apple girisi bu test ortaminda desteklenmiyor. Development build veya App Store build ile deneyin.",
+      );
+    }
+
+    const isAvailable = await AppleAuthentication.isAvailableAsync();
+
+    if (!isAvailable) {
+      throw new Error("Apple girisi bu cihazda kullanilamiyor.");
+    }
+
+    let credential: {
+      identityToken?: string | null;
+      fullName?: AppleFullName | null;
+    };
+
+    try {
+      credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+    } catch (error) {
+      if (
+        typeof error === "object" &&
+        error !== null &&
+        "code" in error &&
+        error.code === "ERR_REQUEST_CANCELED"
+      ) {
+        throw new Error("Apple girisi iptal edildi.");
+      }
+
+      throw error;
+    }
+
+    if (!credential.identityToken) {
+      throw new Error("Apple kimlik dogrulamasi tamamlandi ama kimlik tokeni gelmedi.");
+    }
+
+    const fallbackProfileName = this.getAppleFullName(credential.fullName);
+    const { data, error } = await supabase.auth.signInWithIdToken({
+      provider: "apple",
+      token: credential.identityToken,
+    });
+
+    if (error || !data.session) {
+      throw new Error(error?.message ?? "Apple oturumu olusturulamadi.");
+    }
+
+    if (credential.fullName) {
+      const { givenName, familyName } = credential.fullName;
+      const metadataUpdate: Record<string, string> = {};
+
+      if (fallbackProfileName) {
+        metadataUpdate.full_name = fallbackProfileName;
+      }
+
+      if (givenName?.trim()) {
+        metadataUpdate.given_name = givenName.trim();
+      }
+
+      if (familyName?.trim()) {
+        metadataUpdate.family_name = familyName.trim();
+      }
+
+      if (Object.keys(metadataUpdate).length > 0) {
+        await supabase.auth.updateUser({
+          data: metadataUpdate,
+        });
+      }
+    }
+
+    return this.buildAuthSession(data.session, { fallbackProfileName });
   }
 
   async requestOtp(challenge: OtpChallenge): Promise<void> {
@@ -216,6 +322,10 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async signInWithProvider(provider: SocialAuthProvider): Promise<AuthSession> {
+    if (provider === "apple" && Platform.OS === "ios") {
+      return this.signInWithAppleNative();
+    }
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {

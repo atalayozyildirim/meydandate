@@ -1,7 +1,9 @@
 import type {
   FeedComment,
+  FeedLinkPreview,
   FeedPoll,
   FeedPost,
+  FeedQuotedPost,
   FeedReply,
   FeedTag,
 } from "@/domain/entities/Feed";
@@ -17,6 +19,7 @@ import type {
   FeedRepository,
 } from "@/domain/repositories/FeedRepository";
 import { ehlibyteBotUser } from "@/shared/constants/ehlibyteBot";
+import { fetchLinkPreview } from "@/shared/utils/linkPreview";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 import { supabase } from "./client";
 import { createSupabaseRepositoryError } from "./errors";
@@ -51,6 +54,10 @@ const getErrorText = (error: unknown) => {
 const isMissingFeedImageColumnError = (error: unknown) =>
   /PGRST204|42703|schema cache|column/i.test(getErrorText(error)) &&
   /image_path|image_url/i.test(getErrorText(error));
+
+const isMissingFeedEnrichmentColumnError = (error: unknown) =>
+  /PGRST204|42703|schema cache|column/i.test(getErrorText(error)) &&
+  /quoted_post_id|quote_snapshot|link_preview/i.test(getErrorText(error));
 
 const decodeBase64 = (value: string): ArrayBuffer => {
   const cleanValue = value.replace(/[^A-Za-z0-9+/=]/g, "");
@@ -96,6 +103,31 @@ const normalizeFeedTags = (tags: unknown): FeedTag[] => {
 };
 
 const postSelect = `
+  id,
+  author_id,
+  body,
+  image_url,
+  quoted_post_id,
+  quote_snapshot,
+  link_preview,
+  tags,
+  report_count,
+  is_pinned,
+  created_at,
+  updated_at,
+  author:users!feed_posts_author_id_fkey(${publicUserColumns}),
+  likes:feed_post_likes(user_id),
+  poll:feed_polls(
+    id,
+    post_id,
+    question,
+    ends_at,
+    options:feed_poll_options(id, text, display_order),
+    votes:feed_poll_votes(option_id, user_id)
+  )
+`;
+
+const legacyPostSelect = `
   id,
   author_id,
   body,
@@ -199,6 +231,9 @@ type PostRow = {
   body: string;
   image_url: string | null;
   image_path?: string | null;
+  quoted_post_id?: string | null;
+  quote_snapshot?: unknown | null;
+  link_preview?: unknown | null;
   tags: FeedTag[];
   report_count: number;
   is_pinned: boolean;
@@ -223,6 +258,86 @@ type BotPostRow = {
   created_at: string;
   updated_at: string;
 };
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null && !Array.isArray(value);
+
+const readString = (record: Record<string, unknown>, key: string) => {
+  const value = record[key];
+  return typeof value === "string" ? value.trim() : "";
+};
+
+const readOptionalUrl = (record: Record<string, unknown>, key: string) => {
+  const value = readString(record, key);
+  return /^https?:\/\//i.test(value) ? value : null;
+};
+
+const mapLinkPreview = (value: unknown): FeedLinkPreview | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const url = readOptionalUrl(value, "url");
+
+  if (!url) {
+    return null;
+  }
+
+  const title = sanitizePlainText(readString(value, "title"), 140);
+  const description = sanitizePlainText(readString(value, "description"), 220);
+  const siteName = sanitizePlainText(readString(value, "siteName"), 80);
+  const imageUrl = readOptionalUrl(value, "imageUrl");
+
+  return {
+    url,
+    ...(title ? { title } : {}),
+    ...(description ? { description } : {}),
+    ...(siteName ? { siteName } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
+  };
+};
+
+const mapQuotedPost = (
+  value: unknown,
+  quotedPostId?: string | null,
+): FeedQuotedPost | null => {
+  if (!isRecord(value)) {
+    return null;
+  }
+
+  const authorName = sanitizePlainText(readString(value, "authorName"), 80);
+  const body = sanitizePlainText(readString(value, "body"), 260);
+
+  if (!authorName && !body) {
+    return null;
+  }
+
+  const id = readString(value, "id") || quotedPostId || null;
+  const authorId = readString(value, "authorId") || null;
+  const authorPhotoUrl = readOptionalUrl(value, "authorPhotoUrl");
+  const imageUrl = readOptionalUrl(value, "imageUrl");
+  const createdAt = readString(value, "createdAt") || null;
+
+  return {
+    id,
+    authorId,
+    authorName: authorName || "Paylaşım",
+    body,
+    ...(authorPhotoUrl ? { authorPhotoUrl } : {}),
+    ...(imageUrl ? { imageUrl } : {}),
+    ...(createdAt ? { createdAt } : {}),
+  };
+};
+
+const buildQuoteSnapshot = (post: FeedPost): FeedQuotedPost => ({
+  id: post.id,
+  authorId: post.authorId,
+  authorName: sanitizePlainText(post.author.name, 80),
+  authorPhotoUrl: post.author.photos[0]?.uri ?? null,
+  body: sanitizePlainText(post.body, 260),
+  imageUrl: post.imageUrl ?? null,
+  createdAt: post.createdAt,
+});
 
 const mapReply = (postId: string, row: ReplyRow): FeedReply => ({
   id: row.id,
@@ -289,6 +404,8 @@ const mapPost = (row: PostRow, currentUserId = ""): FeedPost => ({
   reportCount: row.report_count,
   isPinned: row.is_pinned,
   poll: mapPoll(row.poll, currentUserId),
+  quotedPost: mapQuotedPost(row.quote_snapshot, row.quoted_post_id),
+  linkPreview: mapLinkPreview(row.link_preview),
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 });
@@ -330,11 +447,22 @@ const botPayloadToRow = (
 
 export class SupabaseFeedRepository implements FeedRepository {
   async getPost(postId: string, currentUserId = ""): Promise<FeedPost> {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("feed_posts")
       .select(postSelect)
       .eq("id", postId)
       .single();
+
+    if (error && isMissingFeedEnrichmentColumnError(error)) {
+      const legacyResult = await supabase
+        .from("feed_posts")
+        .select(legacyPostSelect)
+        .eq("id", postId)
+        .single();
+
+      data = legacyResult.data;
+      error = legacyResult.error;
+    }
 
     if (error || !data) {
       throw createSupabaseRepositoryError("Post yüklenemedi.", error);
@@ -350,19 +478,29 @@ export class SupabaseFeedRepository implements FeedRepository {
   ): Promise<FeedPage> {
     const offset = options.offset ?? 0;
     const limit = options.limit ?? DEFAULT_FEED_PAGE_SIZE;
-    let query = supabase
-      .from("feed_posts")
-      .select(postSelect)
-      .order("is_pinned", { ascending: false })
-      .order("updated_at", { ascending: false })
-      .order("id", { ascending: false })
-      .range(offset, offset + limit);
+    const buildFeedQuery = (select: string) => {
+      let query = supabase
+        .from("feed_posts")
+        .select(select)
+        .order("is_pinned", { ascending: false })
+        .order("updated_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(offset, offset + limit);
 
-    if (tag !== "all") {
-      query = query.contains("tags", [tag]);
+      if (tag !== "all") {
+        query = query.contains("tags", [tag]);
+      }
+
+      return query;
+    };
+
+    let { data, error } = await buildFeedQuery(postSelect);
+
+    if (error && isMissingFeedEnrichmentColumnError(error)) {
+      const legacyResult = await buildFeedQuery(legacyPostSelect);
+      data = legacyResult.data;
+      error = legacyResult.error;
     }
-
-    const { data, error } = await query;
 
     if (error) {
       throw createSupabaseRepositoryError("Akış yüklenemedi.", error);
@@ -518,6 +656,17 @@ export class SupabaseFeedRepository implements FeedRepository {
   async createPost(payload: CreateFeedPostPayload): Promise<FeedPost> {
     let imagePath: string | null = null;
     let imageUrl: string | null = null;
+    let quoteSnapshot: FeedQuotedPost | null = null;
+
+    if (payload.quotedPostId) {
+      try {
+        quoteSnapshot = buildQuoteSnapshot(
+          await this.getPost(payload.quotedPostId, payload.authorId),
+        );
+      } catch (error) {
+        throw createSupabaseRepositoryError("Alıntılanan post bulunamadı.", error);
+      }
+    }
 
     if (payload.image) {
       // Allow passing an external URL (e.g., picked GIF from Tenor/Giphy) directly
@@ -563,10 +712,22 @@ export class SupabaseFeedRepository implements FeedRepository {
       }
     }
 
-    const postPayload = {
+    const sanitizedBody = sanitizePlainText(payload.body, 2000).trim();
+    const linkPreview = await fetchLinkPreview(sanitizedBody);
+    const basePostPayload = {
       author_id: payload.authorId,
-      body: sanitizePlainText(payload.body, 2000).trim(),
+      body: sanitizedBody,
       tags: payload.tags,
+    };
+    const postPayload = {
+      ...basePostPayload,
+      ...(quoteSnapshot
+        ? {
+            quoted_post_id: quoteSnapshot.id,
+            quote_snapshot: quoteSnapshot,
+          }
+        : {}),
+      ...(linkPreview ? { link_preview: linkPreview } : {}),
     };
     const postPayloadWithImage =
       imageUrl && imagePath
@@ -578,6 +739,21 @@ export class SupabaseFeedRepository implements FeedRepository {
       .insert(postPayloadWithImage)
       .select("id")
       .single();
+
+    if (error && isMissingFeedEnrichmentColumnError(error)) {
+      const legacyPostPayloadWithImage =
+        imageUrl && imagePath
+          ? { ...basePostPayload, image_url: imageUrl, image_path: imagePath }
+          : basePostPayload;
+      const retryResult = await supabase
+        .from("feed_posts")
+        .insert(legacyPostPayloadWithImage)
+        .select("id")
+        .single();
+
+      data = retryResult.data;
+      error = retryResult.error;
+    }
 
     if (
       error &&

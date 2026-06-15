@@ -38,6 +38,30 @@ type LiveMessageRow = {
 };
 
 export class SupabaseLiveRoomRepository implements LiveRoomRepository {
+  private async notifyLiveRoomStarted(
+    room: LiveRoom,
+    accessToken?: string | null,
+  ): Promise<void> {
+    if (!accessToken) {
+      return;
+    }
+
+    await supabase.functions
+      .invoke("send-admin-event-push", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        body: {
+          title: `${room.title} canli basladi`.slice(0, 80),
+          body: (
+            room.description.trim() ||
+            "Meydanda yeni canli yayin basladi. Katilmak icin uygulamayi ac."
+          ).slice(0, 180),
+        },
+      })
+      .catch(() => undefined);
+  }
+
   private async getCurrentUserId(): Promise<string | null> {
     const { data } = await supabase.auth.getUser();
     return data.user?.id ?? null;
@@ -225,13 +249,15 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
   }
 
   async startRoom(
-    _roomId: string,
+    roomId: string,
     _userId: string,
     payload: StartLiveRoomPayload,
+    accessToken?: string | null,
   ): Promise<LiveRoom> {
+    const previousRoom = await this.getRoom(roomId).catch(() => null);
     const { data, error } = await supabase.rpc("admin_start_live_room", {
       target_description: payload.description,
-      target_room_id: _roomId,
+      target_room_id: roomId,
       target_stream_url: payload.streamUrl.trim(),
       target_title: payload.title,
     });
@@ -240,7 +266,13 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
       throw createSupabaseRepositoryError("Canlı yayın başlatılamadı", error);
     }
 
-    return this.getRoom((data as LiveRoomRow).id);
+    const room = await this.getRoom((data as LiveRoomRow).id);
+
+    if (previousRoom?.status !== "live" && room.status === "live") {
+      await this.notifyLiveRoomStarted(room, accessToken);
+    }
+
+    return room;
   }
 
   async stopRoom(roomId: string): Promise<LiveRoom> {

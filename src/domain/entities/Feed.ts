@@ -17,6 +17,24 @@ export interface FeedPoll {
   endsAt?: string | null;
 }
 
+export interface FeedLinkPreview {
+  url: string;
+  title?: string | null;
+  description?: string | null;
+  imageUrl?: string | null;
+  siteName?: string | null;
+}
+
+export interface FeedQuotedPost {
+  id?: string | null;
+  authorId?: string | null;
+  authorName: string;
+  authorPhotoUrl?: string | null;
+  body: string;
+  imageUrl?: string | null;
+  createdAt?: string | null;
+}
+
 export const feedTagValues = ["muharrem", "deyis", "soru", "gundem"] as const;
 
 export type FeedTag = (typeof feedTagValues)[number];
@@ -61,6 +79,8 @@ export interface FeedPost {
   botPostId?: string;
   isActive?: boolean;
   poll?: FeedPoll | null;
+  quotedPost?: FeedQuotedPost | null;
+  linkPreview?: FeedLinkPreview | null;
   createdAt: string;
   updatedAt: string;
 }

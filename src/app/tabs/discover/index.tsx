@@ -1,9 +1,10 @@
 // Discover sekmesi swipe kartlarini, animasyonlari ve match modalini calistirir.
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Alert,
   Pressable,
   StyleSheet,
+  Switch,
   Text,
   type StyleProp,
   type ViewStyle,
@@ -12,7 +13,10 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as Location from "expo-location";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Animated, {
   interpolate,
   runOnJS,
@@ -32,16 +36,72 @@ import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Avatar } from "@/shared/components/Avatar";
+import { BottomSheet } from "@/shared/components/BottomSheet";
 import { Button } from "@/shared/components/Button";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
+import { OptionChip } from "@/shared/components/OptionChip";
 import { Screen } from "@/shared/components/Screen";
+import { queryKeys } from "@/shared/constants/queryKeys";
+import {
+  clampMatchRadiusKm,
+  DEFAULT_MATCH_RADIUS_KM,
+} from "@/shared/utils/location";
 import { useTheme } from "@/shared/theme";
+import { container } from "@/infrastructure/config/Container";
 
 const SWIPE_THRESHOLD = 110;
 const SUPER_LIKE_THRESHOLD = -120;
 const OFFSCREEN_DISTANCE = 520;
 const MAX_ROTATION_DEGREES = 14;
+const locationRadiusOptions = [10, 25, 50, 100, 250] as const;
+
+interface LocationPreferenceArgs {
+  enabled: boolean;
+  radiusKm: number;
+  refreshLocation?: boolean;
+}
+
+const getLocationPreferenceErrorMessage = (error: unknown) => {
+  const message = error instanceof Error ? error.message : "";
+
+  if (/Konum izni verilmedi/i.test(message)) {
+    return message;
+  }
+
+  if (/Location is required|latitude|longitude/i.test(message)) {
+    return "Yakındaki eşleşmeyi açmak için konumunu bir kez yenilemen gerekiyor.";
+  }
+
+  if (
+    /PGRST|PostgREST|schema cache|set_location_matching|function|permission denied|column/i.test(
+      message,
+    )
+  ) {
+    return "Konum tercihini şu an kaydedemedik. Birazdan tekrar dene.";
+  }
+
+  return message || "Konum tercihi güncellenemedi. Tekrar deneyin.";
+};
+
+const requestCurrentLocation = async () => {
+  const permission = await Location.requestForegroundPermissionsAsync();
+
+  if (permission.status !== "granted") {
+    throw new Error(
+      "Konum izni verilmedi. Yakındaki eşleşmeler için izin gerekli.",
+    );
+  }
+
+  const position = await Location.getCurrentPositionAsync({
+    accuracy: Location.Accuracy.Balanced,
+  });
+
+  return {
+    latitude: position.coords.latitude,
+    longitude: position.coords.longitude,
+  };
+};
 
 interface SwipeActionButtonProps {
   accessibilityLabel: string;
@@ -142,15 +202,19 @@ export default function DiscoverScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
+  const queryClient = useQueryClient();
+  const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((state) => state.currentUser);
+  const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
   const { height } = useWindowDimensions();
   const {
     deck,
     specialInvite,
     isLoading,
     isRefreshing,
-    isSwiping,
     isHandlingSpecialInvite,
+    dismissCandidate,
+    restoreCandidate,
     swipe,
     refresh,
     acceptSpecialInvite,
@@ -160,6 +224,39 @@ export default function DiscoverScreen() {
   const [activeSafetyUser, setActiveSafetyUser] = useState<User | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [isMatchVisible, setIsMatchVisible] = useState(false);
+  const [isLocationSheetVisible, setIsLocationSheetVisible] = useState(false);
+  const failedSwipeIdsRef = useRef<Set<string>>(new Set());
+  const hasAutoOpenedLocationSheetRef = useRef(false);
+  const locationMatchingEnabled = currentUser?.matchByLocation ?? false;
+  const hasProfileLocation =
+    typeof currentUser?.locationLatitude === "number" &&
+    typeof currentUser?.locationLongitude === "number";
+  const locationRadiusKm = clampMatchRadiusKm(
+    currentUser?.matchRadiusKm ?? DEFAULT_MATCH_RADIUS_KM,
+  );
+  const locationUpdatedAt = currentUser?.locationUpdatedAt
+    ? new Date(currentUser.locationUpdatedAt)
+    : null;
+  const locationUpdatedLabel =
+    locationUpdatedAt && Number.isFinite(locationUpdatedAt.getTime())
+      ? `${locationUpdatedAt.toLocaleDateString("tr-TR")} ${locationUpdatedAt.toLocaleTimeString(
+          "tr-TR",
+          {
+            hour: "2-digit",
+            minute: "2-digit",
+          },
+        )}`
+      : null;
+  const locationShortcutLabel = locationMatchingEnabled
+    ? hasProfileLocation
+      ? `${locationRadiusKm} km yakinda`
+      : "Konum yenilenmeli"
+    : "Konuma gore kapali";
+  const locationSheetSubtitle = locationMatchingEnabled
+    ? hasProfileLocation
+      ? `Yakındaki profiller ${locationRadiusKm} km içinde. ${locationUpdatedLabel ? `Son: ${locationUpdatedLabel}` : ""}`
+      : "Konumunu bir kez yenilemen gerekiyor."
+    : "Yakındaki profilleri keşfet akışında öne çıkar.";
 
   const activeCard = deck[0];
   const nextCard = deck[1];
@@ -174,46 +271,145 @@ export default function DiscoverScreen() {
     translateY.value = 0;
   }, [activeCard?.user.id, translateX, translateY]);
 
-  const completeSwipe = async (action: LikeAction) => {
-    if (!activeCard) {
+  useEffect(() => {
+    if (
+      hasAutoOpenedLocationSheetRef.current ||
+      !locationMatchingEnabled ||
+      hasProfileLocation
+    ) {
       return;
     }
 
-    if (action === "super_like" && !currentUser?.isPremium) {
-      translateX.value = 0;
-      translateY.value = 0;
+    hasAutoOpenedLocationSheetRef.current = true;
+    setIsLocationSheetVisible(true);
+  }, [hasProfileLocation, locationMatchingEnabled]);
+
+  const locationMatchingMutation = useMutation({
+    mutationFn: async ({
+      enabled,
+      radiusKm,
+      refreshLocation = false,
+    }: LocationPreferenceArgs) => {
+      if (!currentUser) {
+        throw new Error("Konum tercihi için oturum gerekli.");
+      }
+
+      const needsLocation = enabled && (refreshLocation || !hasProfileLocation);
+      const coordinates = needsLocation
+        ? await requestCurrentLocation()
+        : undefined;
+
+      return container.userRepository.setLocationMatching(currentUser.id, {
+        enabled,
+        radiusKm,
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
+      });
+    },
+    onSuccess: async (updatedUser) => {
+      setCurrentUser(updatedUser);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+      ]);
+    },
+    onError: (error) => {
       Alert.alert(
-        "Premium gerekli",
-        "Super Like, Ehlibyte Premium ile kullanılabilir.",
-        [
-          { text: "Vazgeç", style: "cancel" },
-          {
-            text: "Premium'u incele",
-            onPress: () => router.push("/tabs/store"),
-          },
-        ],
+        "Konum kaydedilemedi",
+        getLocationPreferenceErrorMessage(error),
       );
+    },
+  });
+
+  const updateLocationPreference = (
+    enabled: boolean,
+    radiusKm = locationRadiusKm,
+    refreshLocation = false,
+  ) => {
+    if (locationMatchingMutation.isPending) {
       return;
     }
 
+    locationMatchingMutation.mutate({ enabled, radiusKm, refreshLocation });
+  };
+
+  const openLocationSheet = () => {
+    setIsLocationSheetVisible(true);
+  };
+
+  const showPremiumRequiredAlert = () => {
+    translateX.value = 0;
+    translateY.value = 0;
+    Alert.alert(
+      "Premium gerekli",
+      "Super Like, Ehlibyte Premium ile kullanılabilir.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Premium'u incele",
+          onPress: () => router.push("/tabs/store"),
+        },
+      ],
+    );
+  };
+
+  const ensureSwipeIsAllowed = (action: LikeAction) => {
+    if (action !== "super_like" || currentUser?.isPremium) {
+      return true;
+    }
+
+    showPremiumRequiredAlert();
+    return false;
+  };
+
+  const handleSwipeResult = async (
+    targetUserId: string,
+    action: LikeAction,
+  ) => {
     try {
-      const createdMatch = await swipe(activeCard.user.id, action);
+      const createdMatch = await swipe(targetUserId, action);
 
       if (createdMatch) {
         setMatch(createdMatch);
         setIsMatchVisible(true);
       }
     } catch (error) {
+      failedSwipeIdsRef.current.add(targetUserId);
+      restoreCandidate(targetUserId);
       Alert.alert(
         "Swipe hatası",
         error instanceof Error
           ? error.message
           : "İşlem tamamlanamadı, lütfen tekrar dene.",
       );
-    } finally {
+    }
+  };
+
+  const finalizeSwipeTransition = (targetUserId: string) => {
+    if (failedSwipeIdsRef.current.has(targetUserId)) {
+      failedSwipeIdsRef.current.delete(targetUserId);
       translateX.value = 0;
       translateY.value = 0;
+      return;
     }
+
+    dismissCandidate(targetUserId);
+    translateX.value = 0;
+    translateY.value = 0;
+  };
+
+  const triggerButtonSwipe = (action: LikeAction) => {
+    if (!activeCard) {
+      return;
+    }
+
+    if (!ensureSwipeIsAllowed(action)) {
+      return;
+    }
+
+    const targetUserId = activeCard.user.id;
+    dismissCandidate(targetUserId);
+    void handleSwipeResult(targetUserId, action);
   };
 
   const handleAcceptSpecialInvite = async () => {
@@ -255,23 +451,46 @@ export default function DiscoverScreen() {
       translateY.value = event.translationY;
     })
     .onEnd((event) => {
+      const targetUserId = activeCard?.user.id;
+
+      if (!targetUserId) {
+        translateX.value = withSpring(0);
+        translateY.value = withSpring(0);
+        return;
+      }
+
       if (event.translationY < SUPER_LIKE_THRESHOLD) {
-        translateY.value = withSpring(-OFFSCREEN_DISTANCE, {}, () =>
-          runOnJS(completeSwipe)("super_like"),
+        if (!currentUser?.isPremium) {
+          runOnJS(showPremiumRequiredAlert)();
+          translateX.value = withSpring(0);
+          translateY.value = withSpring(0);
+          return;
+        }
+        runOnJS(handleSwipeResult)(targetUserId, "super_like");
+        translateY.value = withTiming(
+          -OFFSCREEN_DISTANCE,
+          { duration: 190 },
+          () => runOnJS(finalizeSwipeTransition)(targetUserId),
         );
         return;
       }
 
       if (event.translationX > SWIPE_THRESHOLD) {
-        translateX.value = withSpring(OFFSCREEN_DISTANCE, {}, () =>
-          runOnJS(completeSwipe)("like"),
+        runOnJS(handleSwipeResult)(targetUserId, "like");
+        translateX.value = withTiming(
+          OFFSCREEN_DISTANCE,
+          { duration: 180 },
+          () => runOnJS(finalizeSwipeTransition)(targetUserId),
         );
         return;
       }
 
       if (event.translationX < -SWIPE_THRESHOLD) {
-        translateX.value = withSpring(-OFFSCREEN_DISTANCE, {}, () =>
-          runOnJS(completeSwipe)("pass"),
+        runOnJS(handleSwipeResult)(targetUserId, "pass");
+        translateX.value = withTiming(
+          -OFFSCREEN_DISTANCE,
+          { duration: 180 },
+          () => runOnJS(finalizeSwipeTransition)(targetUserId),
         );
         return;
       }
@@ -368,17 +587,54 @@ export default function DiscoverScreen() {
   }
 
   return (
-    <Screen scroll={false} style={styles.screen}>
+    <Screen
+      scroll={false}
+      style={[
+        styles.screen,
+        {
+          paddingBottom: Math.max(insets.bottom + 28, 36),
+        },
+      ]}
+    >
       <View style={styles.header}>
-        <View>
-          <Text style={styles.kicker}>Ehlibyte</Text>
-          <Text style={styles.title}>Keşfet</Text>
+        <View style={styles.headerLead}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Akışa dön"
+            onPress={() => router.replace("/tabs/feed")}
+            style={({ pressed }) => [
+              styles.iconButton,
+              styles.backButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="chevron-back" size={20} color={theme.colors.text} />
+          </Pressable>
+          <View>
+            <Text style={styles.kicker}>Ehlibyte</Text>
+            <Text style={styles.title}>Keşfet</Text>
+          </View>
         </View>
         <View style={styles.headerActions}>
           <View style={styles.countBadge}>
             <Ionicons name="flame" size={15} color={theme.colors.primary} />
             <Text style={styles.count}>{fireBalance}</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Konum ve keşfet ayarlarını aç"
+            onPress={openLocationSheet}
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="settings-outline"
+              size={18}
+              color={theme.colors.text}
+            />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Keşfet listesini yenile"
@@ -393,6 +649,45 @@ export default function DiscoverScreen() {
           </Pressable>
         </View>
       </View>
+
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Konuma göre eşleşme ayarlarını aç"
+        onPress={openLocationSheet}
+        style={({ pressed }) => [
+          styles.locationShortcut,
+          locationMatchingEnabled && styles.locationShortcutActive,
+          pressed && styles.pressed,
+        ]}
+      >
+        <View style={styles.locationShortcutMeta}>
+          <View
+            style={[
+              styles.locationIconWrap,
+              locationMatchingEnabled && styles.locationIconWrapActive,
+            ]}
+          >
+            <Ionicons
+              name={locationMatchingEnabled ? "location" : "location-outline"}
+              size={16}
+              color={
+                locationMatchingEnabled
+                  ? theme.colors.primary
+                  : theme.colors.muted
+              }
+            />
+          </View>
+          <View style={styles.locationTextWrap}>
+            <Text style={styles.locationShortcutTitle}>
+              Konuma gore eslesme
+            </Text>
+            <Text style={styles.locationShortcutSubtitle}>
+              {locationShortcutLabel}
+            </Text>
+          </View>
+        </View>
+        <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
+      </Pressable>
 
       {specialInvite ? (
         <View style={styles.specialInvitePanel}>
@@ -511,27 +806,21 @@ export default function DiscoverScreen() {
           <View style={styles.actions}>
             <SwipeActionButton
               accessibilityLabel="Bu profili geç"
-              disabled={isSwiping}
               accentColor={theme.colors.danger}
               style={[styles.roundAction, styles.passAction]}
-              onPress={() => void completeSwipe("pass")}
+              onPress={() => triggerButtonSwipe("pass")}
               icon={
-                <Ionicons
-                  name="close"
-                  size={30}
-                  color={theme.colors.danger}
-                />
+                <Ionicons name="close" size={30} color={theme.colors.danger} />
               }
             />
             <SwipeActionButton
               accessibilityLabel="Profil detayını aç"
-              disabled={isSwiping}
               accentColor={theme.colors.border}
               style={[styles.roundAction, styles.infoAction]}
               onPress={() => router.push(`/tabs/profile/${activeCard.user.id}`)}
               icon={
                 <Ionicons
-                  name="information-circle"
+                  name="person-circle-outline"
                   size={28}
                   color={theme.colors.text}
                 />
@@ -566,24 +855,22 @@ export default function DiscoverScreen() {
             />
             <SwipeActionButton
               accessibilityLabel="Super Like gönder"
-              disabled={isSwiping}
               accentColor={theme.colors.secondary}
               style={[styles.roundAction, styles.superAction]}
-              onPress={() => void completeSwipe("super_like")}
+              onPress={() => triggerButtonSwipe("super_like")}
               icon={
                 <Ionicons
-                  name="star"
-                  size={27}
+                  name="flash-outline"
+                  size={28}
                   color={theme.colors.secondary}
                 />
               }
             />
             <SwipeActionButton
               accessibilityLabel="Bu profili beğen"
-              disabled={isSwiping}
               accentColor={theme.colors.primary}
               style={[styles.roundAction, styles.likeAction]}
-              onPress={() => void completeSwipe("like")}
+              onPress={() => triggerButtonSwipe("like")}
               icon={
                 <Ionicons name="heart" size={30} color={theme.colors.primary} />
               }
@@ -607,6 +894,81 @@ export default function DiscoverScreen() {
         user={activeSafetyUser}
         onClose={() => setActiveSafetyUser(null)}
       />
+      <BottomSheet
+        visible={isLocationSheetVisible}
+        onClose={() => setIsLocationSheetVisible(false)}
+      >
+        <View style={styles.locationSheetHeader}>
+          <View style={styles.locationSheetTitleWrap}>
+            <Text style={styles.locationSheetTitle}>Konuma gore eslesme</Text>
+            <Text style={styles.locationSheetSubtitle}>
+              {locationSheetSubtitle}
+            </Text>
+          </View>
+          <Switch
+            value={locationMatchingEnabled}
+            disabled={!currentUser || locationMatchingMutation.isPending}
+            onValueChange={(enabled) =>
+              updateLocationPreference(enabled, locationRadiusKm, enabled)
+            }
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+        <View style={styles.locationSheetInfoRow}>
+          <View
+            style={[
+              styles.locationIconWrap,
+              locationMatchingEnabled && styles.locationIconWrapActive,
+            ]}
+          >
+            <Ionicons
+              name={locationMatchingEnabled ? "navigate" : "navigate-outline"}
+              size={16}
+              color={
+                locationMatchingEnabled
+                  ? theme.colors.primary
+                  : theme.colors.muted
+              }
+            />
+          </View>
+          <Text style={styles.locationSheetInfoText}>
+            {hasProfileLocation
+              ? `${locationRadiusKm} km yaricap aktif`
+              : "Konum kaydi henuz yok"}
+          </Text>
+        </View>
+        <View style={styles.locationChipWrap}>
+          {locationRadiusOptions.map((radiusKm) => (
+            <OptionChip
+              key={radiusKm}
+              label={`${radiusKm} km`}
+              selected={locationRadiusKm === radiusKm}
+              disabled={!currentUser || locationMatchingMutation.isPending}
+              onPress={() =>
+                updateLocationPreference(
+                  true,
+                  radiusKm,
+                  !locationMatchingEnabled || !hasProfileLocation,
+                )
+              }
+            />
+          ))}
+        </View>
+        <Button
+          label={locationMatchingEnabled ? "Konumu yenile" : "Konumu kullan"}
+          variant="ghost"
+          loading={locationMatchingMutation.isPending}
+          disabled={!currentUser}
+          icon={
+            <Ionicons name="locate" size={18} color={theme.colors.primary} />
+          }
+          onPress={() => updateLocationPreference(true, locationRadiusKm, true)}
+        />
+      </BottomSheet>
       <MatchModal
         match={match}
         visible={isMatchVisible}
@@ -629,6 +991,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "space-between",
       minHeight: 48,
+    },
+    headerLead: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      flexShrink: 1,
     },
     kicker: {
       ...theme.typography.caption,
@@ -668,6 +1036,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
       borderColor: "rgba(233, 64, 87, 0.14)",
+    },
+    backButton: {
+      flexShrink: 0,
     },
     deckArea: {
       width: "100%",
@@ -762,14 +1133,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 32,
       borderWidth: 1,
       borderColor: "rgba(255, 91, 112, 0.18)",
-      backgroundColor: theme.isDark
-        ? "rgba(20, 23, 33, 0.92)"
-        : "rgba(255, 255, 255, 0.92)",
-      shadowColor: theme.colors.shadow,
-      shadowOpacity: 1,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 5,
+      backgroundColor: theme.isDark ? "#141721" : "#FFFFFF",
       zIndex: 4,
     },
     adBanner: {
@@ -782,11 +1146,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: "rgba(233, 64, 87, 0.16)",
       padding: theme.spacing.md,
       backgroundColor: theme.colors.surface,
-      shadowColor: theme.colors.shadow,
-      shadowOpacity: 1,
-      shadowRadius: 18,
-      shadowOffset: { width: 0, height: 10 },
-      elevation: 4,
     },
     specialInviteHeader: {
       flexDirection: "row",
@@ -821,11 +1180,97 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       overflow: "visible",
       backgroundColor: theme.isDark ? "#181C27" : "#FFFFFF",
-      shadowColor: "rgba(0, 0, 0, 0.16)",
-      shadowOpacity: 1,
-      shadowRadius: 9,
-      shadowOffset: { width: 0, height: 5 },
-      elevation: 3,
+    },
+    locationShortcut: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
+      minHeight: 56,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.14)",
+      backgroundColor: theme.colors.surface,
+    },
+    locationShortcutActive: {
+      borderColor: "rgba(233, 64, 87, 0.26)",
+      backgroundColor: theme.isDark ? "#181822" : "#FFF7F8",
+    },
+    locationShortcutMeta: {
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    locationIconWrap: {
+      width: 34,
+      height: 34,
+      borderRadius: 17,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.isDark ? "#141721" : "#F5F7FA",
+      borderWidth: 1,
+      borderColor: "rgba(156, 163, 175, 0.16)",
+    },
+    locationIconWrapActive: {
+      borderColor: "rgba(233, 64, 87, 0.22)",
+      backgroundColor: theme.isDark ? "#231821" : "#FFF1F4",
+    },
+    locationTextWrap: {
+      flex: 1,
+      gap: 2,
+    },
+    locationShortcutTitle: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "700",
+    },
+    locationShortcutSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    locationSheetHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      marginBottom: theme.spacing.xs,
+    },
+    locationSheetTitleWrap: {
+      flex: 1,
+      gap: theme.spacing.xxs,
+    },
+    locationSheetTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+    },
+    locationSheetSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    locationSheetInfoRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      minHeight: 44,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.14)",
+      backgroundColor: theme.isDark ? "#161925" : "#FCFCFE",
+    },
+    locationSheetInfoText: {
+      ...theme.typography.caption,
+      flex: 1,
+      color: theme.colors.text,
+    },
+    locationChipWrap: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
+      marginBottom: theme.spacing.xs,
     },
     passAction: {
       borderColor: theme.colors.danger,

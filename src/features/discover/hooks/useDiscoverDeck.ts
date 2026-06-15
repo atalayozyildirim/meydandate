@@ -1,7 +1,8 @@
 // Discover kartlarini, swipe aksiyonlarini ve match sonucunu yonetir.
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { LikeAction, Match } from "@/domain/entities/Match";
+import type { User } from "@/domain/entities/User";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { container } from "@/infrastructure/config/Container";
@@ -10,6 +11,9 @@ import { queryKeys } from "@/shared/constants/queryKeys";
 export const useDiscoverDeck = () => {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.currentUser);
+  const [dismissedCandidateIds, setDismissedCandidateIds] = useState<Set<string>>(
+    () => new Set(),
+  );
 
   const candidatesQuery = useQuery({
     queryKey: [queryKeys.discover, currentUser?.id],
@@ -48,9 +52,15 @@ export const useDiscoverDeck = () => {
 
       return container.matchRepository.swipe(currentUser.id, targetUserId, action);
     },
-    onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+    onSuccess: async (_result, variables) => {
+      queryClient.setQueryData<User[] | undefined>(
+        [queryKeys.discover, currentUser?.id],
+        (currentCandidates) =>
+          currentCandidates?.filter(
+            (candidate) => candidate.id !== variables.targetUserId,
+          ) ?? currentCandidates,
+      );
+      void Promise.all([
         queryClient.invalidateQueries({ queryKey: [queryKeys.matches] }),
         queryClient.invalidateQueries({ queryKey: [queryKeys.conversations] })
       ]);
@@ -100,11 +110,57 @@ export const useDiscoverDeck = () => {
       return [];
     }
 
-    return (candidatesQuery.data ?? []).map((candidate) => ({
-      user: candidate,
-      compatibility: calculateCulturalMatchScore(currentUser, candidate)
-    }));
-  }, [candidatesQuery.data, currentUser, specialInviteQuery.data]);
+    return (candidatesQuery.data ?? [])
+      .filter((candidate) => !dismissedCandidateIds.has(candidate.id))
+      .map((candidate) => ({
+        user: candidate,
+        compatibility: calculateCulturalMatchScore(currentUser, candidate)
+      }));
+  }, [
+    candidatesQuery.data,
+    currentUser,
+    dismissedCandidateIds,
+    specialInviteQuery.data,
+  ]);
+
+  useEffect(() => {
+    const candidateIds = new Set((candidatesQuery.data ?? []).map((item) => item.id));
+
+    setDismissedCandidateIds((current) => {
+      const next = new Set(
+        [...current].filter((candidateId) => candidateIds.has(candidateId)),
+      );
+      const isSame =
+        next.size === current.size &&
+        [...next].every((candidateId) => current.has(candidateId));
+
+      return isSame ? current : next;
+    });
+  }, [candidatesQuery.data]);
+
+  const dismissCandidate = useCallback((targetUserId: string) => {
+    setDismissedCandidateIds((current) => {
+      if (current.has(targetUserId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.add(targetUserId);
+      return next;
+    });
+  }, []);
+
+  const restoreCandidate = useCallback((targetUserId: string) => {
+    setDismissedCandidateIds((current) => {
+      if (!current.has(targetUserId)) {
+        return current;
+      }
+
+      const next = new Set(current);
+      next.delete(targetUserId);
+      return next;
+    });
+  }, []);
 
   const swipe = async (targetUserId: string, action: LikeAction): Promise<Match | null> => {
     const result = await swipeMutation.mutateAsync({ targetUserId, action });
@@ -118,6 +174,8 @@ export const useDiscoverDeck = () => {
     isRefreshing: candidatesQuery.isFetching || specialInviteQuery.isFetching,
     isSwiping: swipeMutation.isPending,
     isHandlingSpecialInvite: acceptSpecialInviteMutation.isPending || declineSpecialInviteMutation.isPending,
+    dismissCandidate,
+    restoreCandidate,
     swipe,
     refresh: async () => {
       await Promise.all([

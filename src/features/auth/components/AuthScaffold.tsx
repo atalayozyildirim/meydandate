@@ -88,11 +88,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontSize: 38,
       lineHeight: 44,
       fontWeight: "900",
-      color: "#111827"
+      color: theme.colors.text
     },
     subtitle: {
       ...theme.typography.body,
-      color: "#6B7280",
+      color: theme.colors.muted,
       marginBottom: theme.spacing.lg
     },
     form: {

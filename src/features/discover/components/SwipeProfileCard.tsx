@@ -1,4 +1,5 @@
 // Tinder benzeri kartin profil bilgilerini ve uyum skorlarini gosterir.
+import { memo } from "react";
 import { ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -17,7 +18,12 @@ interface SwipeProfileCardProps {
   onOpenSafety: () => void;
 }
 
-export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: SwipeProfileCardProps) => {
+const SwipeProfileCardComponent = ({
+  user,
+  compatibility,
+  height,
+  onOpenSafety,
+}: SwipeProfileCardProps) => {
   const theme = useTheme();
   const styles = createStyles(theme);
   const primaryPhoto =
@@ -89,6 +95,8 @@ export const SwipeProfileCard = ({ user, compatibility, height, onOpenSafety }: 
     </Card>
   );
 };
+
+export const SwipeProfileCard = memo(SwipeProfileCardComponent);
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({

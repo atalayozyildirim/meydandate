@@ -18,6 +18,7 @@ import type {
 import { ehlibyteBotUser } from "@/shared/constants/ehlibyteBot";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { createId } from "@/shared/utils/id";
+import { fetchLinkPreview } from "@/shared/utils/linkPreview";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 
 const now = new Date().toISOString();
@@ -169,6 +170,16 @@ const isMockAdmin = (userId: string) => userId === "user-atalay-admin";
 
 const toggleUserId = (ids: string[], userId: string) =>
   ids.includes(userId) ? ids.filter((id) => id !== userId) : [...ids, userId];
+
+const buildQuoteSnapshot = (post: FeedPost) => ({
+  id: post.id,
+  authorId: post.authorId,
+  authorName: sanitizePlainText(post.author.name, 80),
+  authorPhotoUrl: post.author.photos[0]?.uri ?? null,
+  body: sanitizePlainText(post.body, 260),
+  imageUrl: post.imageUrl ?? null,
+  createdAt: post.createdAt,
+});
 
 export class MockFeedRepository implements FeedRepository {
   async getPost(postId: string): Promise<FeedPost> {
@@ -325,6 +336,10 @@ export class MockFeedRepository implements FeedRepository {
       comments: [],
       reportCount: 0,
       poll,
+      quotedPost: payload.quotedPostId
+        ? buildQuoteSnapshot(findPost(payload.quotedPostId))
+        : null,
+      linkPreview: await fetchLinkPreview(payload.body),
       createdAt: timestamp,
       updatedAt: timestamp,
     };

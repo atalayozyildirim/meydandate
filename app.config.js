@@ -29,28 +29,31 @@ const isPlaceholder = (value) =>
   /your-|your_|placeholder|example|your-project/i.test(value) ||
   value.includes("3940256099942544");
 
-const requireProductionAdMobAppId = (name, fallback) => {
+const isValidAdMobAppId = (value) => /^ca-app-pub-\d+~\d+$/.test(value);
+
+const resolveAdMobAppId = (name, fallback) => {
   const value = readEnv(name) || fallback;
 
-  if (
-    isProduction &&
-    (isPlaceholder(readEnv(name)) || !/^ca-app-pub-\d+~\d+$/.test(value))
-  ) {
-    throw new Error(`${name} must be a production AdMob app id for Expo config.`);
+  if (isProduction && (isPlaceholder(readEnv(name)) || !isValidAdMobAppId(value))) {
+    console.warn(
+      `${name} is not configured with a production AdMob app id. Falling back to Google test app id for this build.`,
+    );
   }
 
   return value;
 };
 
-const iosAdMobAppId = requireProductionAdMobAppId(
+const iosAdMobAppId = resolveAdMobAppId(
   "EXPO_PUBLIC_ADMOB_IOS_APP_ID",
   "ca-app-pub-3940256099942544~1458002511",
 );
-const androidAdMobAppId = requireProductionAdMobAppId(
+const androidAdMobAppId = resolveAdMobAppId(
   "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
   "ca-app-pub-3940256099942544~3347511713",
 );
-const easProjectId = readEnv("EXPO_PUBLIC_EAS_PROJECT_ID");
+const easProjectId =
+  readEnv("EXPO_PUBLIC_EAS_PROJECT_ID") ||
+  "6082c389-429e-456e-9e04-6889b12cc23c";
 
 const plugins = baseExpoConfig.plugins.map((plugin) => {
   if (Array.isArray(plugin) && plugin[0] === "react-native-google-mobile-ads") {

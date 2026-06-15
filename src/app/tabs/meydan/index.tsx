@@ -1,6 +1,7 @@
 // Sanal Cem odası için backend destekli live katılım ekranını sunar.
 import {
   Alert,
+  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -12,6 +13,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ResizeMode, Video } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
+import * as WebBrowser from "expo-web-browser";
 import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
@@ -46,6 +48,66 @@ const ceremonySteps = [
       "Oda sadece izleme ve topluluk katılımı içindir; uygunsuz mesaj/sohbet banlanır.",
   },
 ];
+
+type StreamSource =
+  | {
+      kind: "youtube";
+      openUrl: string;
+      thumbnailUrl: string;
+    }
+  | {
+      kind: "direct";
+      playbackUrl: string;
+    };
+
+const getYoutubeVideoId = (streamUrl: string) => {
+  try {
+    const url = new URL(streamUrl.trim());
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+
+    if (host === "youtu.be") {
+      return url.pathname.split("/").filter(Boolean)[0] ?? null;
+    }
+
+    if (host === "youtube.com" || host === "m.youtube.com") {
+      if (url.pathname === "/watch") {
+        return url.searchParams.get("v");
+      }
+
+      const segments = url.pathname.split("/").filter(Boolean);
+
+      if (["embed", "live", "shorts"].includes(segments[0] ?? "")) {
+        return segments[1] ?? null;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const resolveStreamSource = (streamUrl?: string | null): StreamSource | null => {
+  if (!streamUrl?.trim()) {
+    return null;
+  }
+
+  const safeUrl = streamUrl.trim();
+  const youtubeVideoId = getYoutubeVideoId(safeUrl);
+
+  if (youtubeVideoId) {
+    return {
+      kind: "youtube",
+      openUrl: safeUrl,
+      thumbnailUrl: `https://i.ytimg.com/vi/${youtubeVideoId}/hqdefault.jpg`,
+    };
+  }
+
+  return {
+    kind: "direct",
+    playbackUrl: safeUrl,
+  };
+};
 
 export default function MeydanRoomScreen() {
   const router = useRouter();
@@ -98,6 +160,10 @@ export default function MeydanRoomScreen() {
 
     return Math.max(0, Date.now() - new Date(room.startedAt).getTime());
   }, [room?.startedAt]);
+  const streamSource = useMemo(
+    () => resolveStreamSource(room?.streamUrl),
+    [room?.streamUrl],
+  );
 
   useEffect(() => {
     if (!room) {
@@ -204,6 +270,21 @@ export default function MeydanRoomScreen() {
     }
   };
 
+  const openExternalStream = async () => {
+    if (streamSource?.kind !== "youtube") {
+      return;
+    }
+
+    try {
+      await WebBrowser.openBrowserAsync(streamSource.openUrl);
+    } catch {
+      Alert.alert(
+        "Yayın açılamadı",
+        "YouTube bağlantısı şu an açılamadı. Linki kontrol edip tekrar dene.",
+      );
+    }
+  };
+
   if (isLoading) {
     return <Loading label="Meydan yükleniyor" />;
   }
@@ -233,11 +314,33 @@ export default function MeydanRoomScreen() {
       </View>
 
       <View style={styles.stage}>
-        {hasStream && room?.streamUrl ? (
+        {hasStream && room?.streamUrl && streamSource ? (
+          streamSource.kind === "youtube" ? (
+            <Pressable onPress={() => void openExternalStream()} style={styles.youtubeStage}>
+              <ImageBackground
+                source={{ uri: streamSource.thumbnailUrl }}
+                style={styles.video}
+                imageStyle={styles.youtubeImage}
+              >
+                <View style={styles.youtubeOverlay}>
+                  <View style={styles.youtubeBadge}>
+                    <Ionicons name="play-circle" size={18} color="#FFFFFF" />
+                    <Text style={styles.youtubeBadgeText}>YouTube canlı yayını aç</Text>
+                  </View>
+                  {isLive ? (
+                    <View style={styles.livePill}>
+                      <View style={styles.livePillDot} />
+                      <Text style={styles.livePillText}>CANLI</Text>
+                    </View>
+                  ) : null}
+                </View>
+              </ImageBackground>
+            </Pressable>
+          ) : (
           <View style={{ position: "relative" }}>
             <Video
               key={`${room?.id}-${room?.startedAt ?? "idle"}`}
-              source={{ uri: room.streamUrl }}
+              source={{ uri: streamSource.playbackUrl }}
               style={styles.video}
               resizeMode={ResizeMode.COVER}
               shouldPlay={isLive}
@@ -254,6 +357,7 @@ export default function MeydanRoomScreen() {
               ) : null}
             </View>
           </View>
+          )
         ) : (
           <View style={styles.emptyStage}>
             <View style={styles.stageIcon}>
@@ -309,7 +413,7 @@ export default function MeydanRoomScreen() {
             placeholder="Meydan"
           />
           <Input
-            label="HTTPS stream URL"
+            label="HTTPS yayın URL'i veya YouTube linki"
             value={streamUrl}
             onChangeText={setStreamUrl}
             autoCapitalize="none"
@@ -660,6 +764,36 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       width: "100%",
       minHeight: 198,
       backgroundColor: "#000000",
+    },
+    youtubeStage: {
+      position: "relative",
+    },
+    youtubeImage: {
+      opacity: 0.88,
+    },
+    youtubeOverlay: {
+      flex: 1,
+      minHeight: 198,
+      justifyContent: "space-between",
+      padding: theme.spacing.md,
+      backgroundColor: "rgba(12, 15, 24, 0.38)",
+    },
+    youtubeBadge: {
+      alignSelf: "flex-start",
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: theme.radius.pill,
+      backgroundColor: "rgba(15, 23, 42, 0.74)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.16)",
+    },
+    youtubeBadgeText: {
+      ...theme.typography.caption,
+      color: "#FFFFFF",
+      fontWeight: "700",
     },
     emptyStage: {
       flex: 1,

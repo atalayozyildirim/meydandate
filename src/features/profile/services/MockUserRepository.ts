@@ -11,6 +11,7 @@ import { createId } from "@/shared/utils/id";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { getProfileBoostExpiry, getProfileBoostRank } from "@/shared/utils/profileBoost";
 import { clampMatchRadiusKm, getDistanceKm } from "@/shared/utils/location";
+import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 
 const findUser = (userId: string) => {
   const user = mockDatabase.users.find((candidate) => candidate.id === userId);
@@ -27,6 +28,42 @@ const mergeUser = (user: User, update: Partial<User>): User => ({
   ...update,
   updatedAt: new Date().toISOString()
 });
+
+const getMockDiscoveryRank = (
+  currentUser: User,
+  candidate: User,
+  nowMs: number,
+  candidateLikedCurrentUser = false,
+) => {
+  const compatibility = calculateCulturalMatchScore(currentUser, candidate);
+  const compatibilityScore =
+    compatibility.cultural * 0.42 +
+    compatibility.interests * 0.36 +
+    compatibility.lifestyle * 0.22;
+  const reciprocalIntentScore = candidateLikedCurrentUser ? 46 : 0;
+  const boostScore = getProfileBoostRank(candidate.boostedUntil, nowMs) * 34;
+  const fireScore = Math.min(28, Math.log1p(candidate.fireScore ?? 0) * 5.5);
+  const premiumScore = candidate.isPremium ? 8 : 0;
+  const distanceScore =
+    typeof candidate.distanceKm === "number"
+      ? Math.max(0, 14 - Math.min(candidate.distanceKm, 70) / 5)
+      : 0;
+  const freshScore = Math.max(
+    0,
+    10 -
+      (nowMs - new Date(candidate.createdAt).getTime()) / (1000 * 60 * 60 * 24 * 14),
+  );
+
+  return (
+    reciprocalIntentScore +
+    compatibilityScore +
+    boostScore +
+    fireScore +
+    premiumScore +
+    distanceScore +
+    freshScore
+  );
+};
 
 export class MockUserRepository implements UserRepository {
   async getCurrentUser(userId: string): Promise<User> {
@@ -213,6 +250,13 @@ export class MockUserRepository implements UserRepository {
         .filter((like) => like.fromUserId === userId)
         .map((like) => like.toUserId)
     );
+    const likedYouUserIds = new Set(
+      mockDatabase.likes
+        .filter(
+          (like) => like.toUserId === userId && like.action !== "pass",
+        )
+        .map((like) => like.fromUserId),
+    );
 
     const nowMs = Date.now();
     const hasLocationMatching =
@@ -258,37 +302,19 @@ export class MockUserRepository implements UserRepository {
           : [];
       })
       .sort((first, second) => {
-        const boostRank =
-          getProfileBoostRank(second.boostedUntil, nowMs) -
-          getProfileBoostRank(first.boostedUntil, nowMs);
-
-        if (boostRank !== 0) {
-          return boostRank;
-        }
-
-        if (hasLocationMatching) {
-          const distanceRank =
-            (first.distanceKm ?? Number.POSITIVE_INFINITY) -
-            (second.distanceKm ?? Number.POSITIVE_INFINITY);
-
-          if (distanceRank !== 0) {
-            return distanceRank;
-          }
-        }
-
-        const fireRank = (second.fireScore ?? 0) - (first.fireScore ?? 0);
-
-        if (fireRank !== 0) {
-          return fireRank;
-        }
-
-        if (first.isPremium !== second.isPremium) {
-          return second.isPremium ? 1 : -1;
-        }
-
         return (
-          new Date(second.createdAt).getTime() -
-          new Date(first.createdAt).getTime()
+          getMockDiscoveryRank(
+            currentUser,
+            second,
+            nowMs,
+            likedYouUserIds.has(second.id),
+          ) -
+          getMockDiscoveryRank(
+            currentUser,
+            first,
+            nowMs,
+            likedYouUserIds.has(first.id),
+          )
         );
       });
 

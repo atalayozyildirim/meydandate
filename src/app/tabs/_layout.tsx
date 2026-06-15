@@ -118,17 +118,14 @@ export default function TabsLayout() {
           paddingHorizontal: 7,
           borderRadius: 30,
           overflow: "hidden",
-          backgroundColor: "transparent",
+          backgroundColor: theme.isDark
+            ? "rgba(20, 23, 33, 0.46)"
+            : "rgba(255, 255, 255, 0.38)",
           borderTopWidth: 0,
           borderColor: theme.isDark
             ? "rgba(255, 255, 255, 0.13)"
             : "rgba(255, 255, 255, 0.52)",
           borderWidth: 1,
-          shadowColor: theme.isDark ? "#000000" : "rgba(137, 35, 68, 0.28)",
-          shadowOpacity: 0.34,
-          shadowRadius: 24,
-          shadowOffset: { width: 0, height: 12 },
-          elevation: 10,
         },
       }}
     >
@@ -156,6 +153,9 @@ export default function TabsLayout() {
         options={{
           title: "Keşfet",
           tabBarIcon: createTabIcon("flame-outline", "flame"),
+          tabBarStyle: {
+            display: "none",
+          },
         }}
       />
       <Tabs.Screen

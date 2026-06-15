@@ -41,7 +41,11 @@ export const Button = ({
       accessibilityRole="button"
       disabled={disabled || loading}
       onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.pressed, style]}
+      style={({ pressed }) => [
+        styles.button,
+        pressed && styles.pressed,
+        style,
+      ]}
     >
       {loading ? <ActivityIndicator color={styles.label.color} /> : icon}
       {children ? children : <Text style={styles.label}>{label}</Text>}
@@ -79,11 +83,6 @@ const createStyles = (
       backgroundColor: disabled ? theme.colors.border : backgroundByVariant[variant],
       borderWidth: variant === "ghost" ? 1 : 0,
       borderColor: variant === "ghost" ? theme.colors.border : "transparent",
-      shadowColor: variant === "ghost" ? "transparent" : theme.colors.shadow,
-      shadowOpacity: variant === "ghost" ? 0 : 1,
-      shadowRadius: 14,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: variant === "ghost" ? 0 : 3,
     },
     pressed: {
       opacity: 0.82,

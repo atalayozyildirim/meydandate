@@ -6,6 +6,11 @@ import type { Conversation, Message } from "@/domain/entities/Message";
 import type { User } from "@/domain/entities/User";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
+import {
+  createSupabaseRepositoryError,
+  isMissingRpcError,
+  isMissingRowError,
+} from "./errors";
 
 type ConversationRow = {
   id: string;
@@ -44,6 +49,17 @@ const createMissingParticipant = (id: string, createdAt: string): User => ({
 });
 
 export class SupabaseChatRepository implements ChatRepository {
+  private async deleteConversationDirectly(conversationId: string): Promise<void> {
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", conversationId);
+
+    if (error && !isMissingRowError(error)) {
+      throw createSupabaseRepositoryError("Sohbet silinemedi.", error);
+    }
+  }
+
   private async getUsersById(userIds: string[]): Promise<Map<string, User>> {
     const uniqueIds = Array.from(new Set(userIds));
 
@@ -197,8 +213,8 @@ export class SupabaseChatRepository implements ChatRepository {
       target_message_id: messageId,
     });
 
-    if (error) {
-      throw new Error("Mesaj silinemedi.");
+    if (error && !isMissingRowError(error)) {
+      throw createSupabaseRepositoryError("Mesaj silinemedi.", error);
     }
   }
 
@@ -207,8 +223,15 @@ export class SupabaseChatRepository implements ChatRepository {
       target_conversation_id: conversationId,
     });
 
-    if (error) {
-      throw new Error("Sohbet silinemedi.");
+    if (!error || isMissingRowError(error)) {
+      return;
     }
+
+    if (isMissingRpcError(error, "delete_user_conversation")) {
+      await this.deleteConversationDirectly(conversationId);
+      return;
+    }
+
+    throw createSupabaseRepositoryError("Sohbet silinemedi.", error);
   }
 }

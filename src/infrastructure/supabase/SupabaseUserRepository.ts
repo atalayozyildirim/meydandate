@@ -9,7 +9,7 @@ import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 import { getProfileBoostRank } from "@/shared/utils/profileBoost";
 import { clampMatchRadiusKm } from "@/shared/utils/location";
-import { createSupabaseRepositoryError } from "./errors";
+import { createSupabaseRepositoryError, isMissingRpcError } from "./errors";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 
 type PrivateProfile = Partial<User> & {
@@ -33,12 +33,18 @@ const getDailyCandidateJitter = (userId: string, candidateId: string) => {
   return hash / 9973;
 };
 
-const getDiscoveryRank = (currentUser: User, candidate: User, nowMs: number) => {
+const getDiscoveryRank = (
+  currentUser: User,
+  candidate: User,
+  nowMs: number,
+  candidateLikedCurrentUser = false,
+) => {
   const compatibility = calculateCulturalMatchScore(currentUser, candidate);
   const compatibilityScore =
     compatibility.cultural * 0.42 +
     compatibility.interests * 0.36 +
     compatibility.lifestyle * 0.22;
+  const reciprocalIntentScore = candidateLikedCurrentUser ? 46 : 0;
   const boostScore = getProfileBoostRank(candidate.boostedUntil, nowMs) * 34;
   const fireScore = Math.min(28, Math.log1p(candidate.fireScore ?? 0) * 5.5);
   const premiumScore = candidate.isPremium ? 8 : 0;
@@ -54,6 +60,7 @@ const getDiscoveryRank = (currentUser: User, candidate: User, nowMs: number) => 
   const jitter = getDailyCandidateJitter(currentUser.id, candidate.id) * 4;
 
   return (
+    reciprocalIntentScore +
     compatibilityScore +
     boostScore +
     fireScore +
@@ -61,32 +68,6 @@ const getDiscoveryRank = (currentUser: User, candidate: User, nowMs: number) => 
     distanceScore +
     freshScore +
     jitter
-  );
-};
-
-const getErrorField = (
-  error: unknown,
-  field: "code" | "message" | "details" | "hint",
-) => {
-  if (typeof error !== "object" || error === null || !(field in error)) {
-    return "";
-  }
-
-  const value = (error as Record<string, unknown>)[field];
-  return typeof value === "string" ? value : "";
-};
-
-const isMissingRpcError = (error: unknown, rpcName: string) => {
-  const code = getErrorField(error, "code");
-  const text = [
-    getErrorField(error, "message"),
-    getErrorField(error, "details"),
-    getErrorField(error, "hint"),
-  ].join(" ");
-
-  return (
-    code === "PGRST202" ||
-    (text.includes(rpcName) && /schema cache|function/i.test(text))
   );
 };
 
@@ -393,13 +374,21 @@ export class SupabaseUserRepository implements UserRepository {
     const blockedUserIds = currentProfile.blockedUsers || [];
     const mutedUserIds = currentProfile.mutedUsers || [];
 
-    const { data: swipes, error: swipesError } = await supabase
-      .from("swipes")
-      .select("targetUserId")
-      .eq("userId", userId);
+    const [{ data: swipes, error: swipesError }, { data: inboundSwipes, error: inboundSwipesError }] =
+      await Promise.all([
+        supabase.from("swipes").select("targetUserId").eq("userId", userId),
+        supabase
+          .from("swipes")
+          .select("userId")
+          .eq("targetUserId", userId)
+          .neq("action", "pass"),
+      ]);
 
-    if (swipesError) {
-      throw createSupabaseRepositoryError("Adaylar yüklenemedi", swipesError);
+    if (swipesError || inboundSwipesError) {
+      throw createSupabaseRepositoryError(
+        "Adaylar yüklenemedi",
+        swipesError ?? inboundSwipesError,
+      );
     }
 
     const actedUserIds = (swipes || [])
@@ -410,6 +399,11 @@ export class SupabaseUserRepository implements UserRepository {
       );
     const excludedUserIds = Array.from(
       new Set([...blockedUserIds, ...mutedUserIds, ...actedUserIds]),
+    );
+    const likedYouUserIds = new Set(
+      (inboundSwipes || [])
+        .map((swipe) => swipe.userId)
+        .filter((candidateUserId): candidateUserId is string => typeof candidateUserId === "string"),
     );
 
     if (currentProfile.matchByLocation && hasStoredLocation(currentProfile)) {
@@ -431,7 +425,24 @@ export class SupabaseUserRepository implements UserRepository {
       const locationCandidates = (data || []).map((row) =>
         mapSupabaseUser(row as Partial<User>),
       );
-      const memberCandidates = locationCandidates.filter(
+      const mappedCurrentUser = mapSupabaseUser(currentProfile);
+      const nowMs = Date.now();
+      const sortedLocationCandidates = locationCandidates.sort(
+        (first, second) =>
+          getDiscoveryRank(
+            mappedCurrentUser,
+            second,
+            nowMs,
+            likedYouUserIds.has(second.id),
+          ) -
+          getDiscoveryRank(
+            mappedCurrentUser,
+            first,
+            nowMs,
+            likedYouUserIds.has(first.id),
+          ),
+      );
+      const memberCandidates = sortedLocationCandidates.filter(
         (candidate) => (candidate.profileKind ?? "member") === "member",
       );
 
@@ -478,8 +489,18 @@ export class SupabaseUserRepository implements UserRepository {
       .map((row) => mapSupabaseUser(row as unknown as Partial<User>))
       .sort((first, second) => {
         return (
-          getDiscoveryRank(mappedCurrentUser, second, nowMs) -
-          getDiscoveryRank(mappedCurrentUser, first, nowMs)
+          getDiscoveryRank(
+            mappedCurrentUser,
+            second,
+            nowMs,
+            likedYouUserIds.has(second.id),
+          ) -
+          getDiscoveryRank(
+            mappedCurrentUser,
+            first,
+            nowMs,
+            likedYouUserIds.has(first.id),
+          )
         );
       });
 

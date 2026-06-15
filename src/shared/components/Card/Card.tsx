@@ -1,4 +1,4 @@
-// Tekil bilgi bloklari ve listeler icin soft shadow kart bileseni.
+// Tekil bilgi bloklari ve listeler icin cerceveli kart bileseni.
 import type { PropsWithChildren } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useTheme } from "@/shared/theme";
@@ -22,10 +22,5 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       borderColor: "rgba(233, 64, 87, 0.10)",
       padding: theme.spacing.md,
-      shadowColor: theme.colors.shadow,
-      shadowOpacity: 1,
-      shadowRadius: 16,
-      shadowOffset: { width: 0, height: 8 },
-      elevation: 3
     }
   });
