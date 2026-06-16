@@ -48,7 +48,7 @@ RevenueCat dashboard:
 
 - Entitlement lookup key: `premium`
 - Current Offering aktif.
-- Current Offering içinde aylık ve yıllık paketler var.
+- Current Offering içinde aylık, yıllık ve varsa ömür boyu Premium paketi var.
 - Product identifiers App Store Connect ve RevenueCat'te birebir aynı.
 - Webhook URL: `https://<project-ref>.supabase.co/functions/v1/revenuecat-webhook`
 - Webhook Authorization Header Value, Supabase `REVENUECAT_WEBHOOK_AUTH_TOKEN` secret'ı ile aynı.
@@ -59,16 +59,22 @@ App şu planları bekliyor:
 ```text
 monthly
 yearly
+lifetime
 ```
 
-Eski logda `lifetime` da görünüyordu. App şu anda lifetime satın alma UI'ı sunmuyor; RevenueCat current offering içinde App Store'da olmayan `lifetime` ürünü kalırsa offerings empty hatası devam edebilir. Ya App Store Connect'te ürünü oluştur ya da RevenueCat current offering'den çıkar.
+App şu anda `lifetime` satın alma UI'ı da sunuyor. Ömür boyu Premium'u satmayacaksan RevenueCat current offering'den çıkar; satacaksan App Store Connect'te non-consumable ürün olarak oluştur ve RevenueCat'te `premium` entitlement'ına lifetime duration ile bağla.
 
 ## 4. App Store Connect
 
 iOS in-app purchase ürünleri:
 
-- Product ID: `monthly`
-- Product ID: `yearly`
+- Product ID: `ehlibyte.premium.monthly`
+- Product ID: `ehlibyte.premium.yearly`
+- Product ID: `ehlibyte.premium.lifetime`
+- Product ID: `ehlibyte.fire.100`
+- Product ID: `ehlibyte.fire.500`
+- Product ID: `ehlibyte.fire.1500`
+- Ücretli rozet product id listesi için `doc/APP_STORE_IAP_PRODUCTS.md` dosyasını baz al.
 - Status: Ready to Submit veya Approved olmalı.
 - Ürünler doğru app bundle'a bağlı olmalı: `com.ehlibyte.app`
 - Paid Apps Agreement, tax ve banking tamam olmalı.

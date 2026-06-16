@@ -31,9 +31,9 @@ const renewalByPlanDays: Record<Exclude<SubscriptionPlan, "lifetime">, number> =
 export class MockPaymentService implements PaymentService {
   async getPlanPrices(): Promise<Record<SubscriptionPlan, string>> {
     return {
-      monthly: "₺149",
-      yearly: "₺999",
-      lifetime: "₺2.999"
+      monthly: "₺79,99",
+      yearly: "₺599,99",
+      lifetime: "₺899,99"
     };
   }
 

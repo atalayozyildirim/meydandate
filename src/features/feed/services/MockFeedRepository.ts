@@ -141,9 +141,9 @@ const botFeedPosts: FeedPost[] = [
   createBotPostFromPayload(
     "zulfiqar-sword-default",
     {
-      body: "Zülfikar Kılıcı özel rozeti mağazada. Hz. Ali'nin çift uçlu kılıcından ilham alan bu rozet profilinde özel destekçi işareti olarak görünür. Fiyat: ₺499.",
+      body: "Zülfikar Kılıcı özel rozeti mağazada. Hz. Ali'nin çift uçlu kılıcından ilham alan bu rozet profilinde özel destekçi işareti olarak görünür. Fiyat: ₺149,99.",
       tags: ["gundem"],
-      ctaLabel: "Mağazada ₺499",
+      ctaLabel: "Mağazada ₺149,99",
       isActive: true,
       showAdMob: true,
       sortOrder: 100,

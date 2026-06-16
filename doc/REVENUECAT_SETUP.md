@@ -9,9 +9,10 @@ ile başlayan secret anahtarları `EXPO_PUBLIC_*` değişkenlerine koyma.
 2. Geliştirme için Test Store ekle.
 3. `premium` lookup key'i ile entitlement oluştur.
 4. App Store Connect'te `com.ehlibyte.app` için aylık ve yıllık abonelik ürünleri oluştur.
+   Ömür boyu Premium'u da satacaksan bunu abonelik değil, non-consumable ürün olarak aç.
 5. RevenueCat'e Apple App Store uygulamasını ekle, ürünleri içe aktar ve `premium`
    entitlement'ına bağla.
-6. Current offering içinde aylık ve annual paketlerini bu içe aktarılan ürünlere bağla.
+6. Current offering içinde monthly, annual ve varsa lifetime paketlerini bu içe aktarılan ürünlere bağla.
 7. Android yayınlanacaksa aynı işlemi Google Play uygulaması için yap.
 8. Rozet ürünlerini App Store Connect/Google Play tarafında consumable veya
    non-consumable olarak oluşturup current offering içine ekle.
@@ -20,12 +21,29 @@ ile başlayan secret anahtarları `EXPO_PUBLIC_*` değişkenlerine koyma.
 10. Webhook Authorization Header Value alanına güçlü bir secret koy. Aynı değeri
     Supabase secret olarak `REVENUECAT_WEBHOOK_AUTH_TOKEN` adıyla tanımla.
 
+Premium product id listesi:
+
+- `ehlibyte.premium.monthly` - ₺79,99 / ay
+- `ehlibyte.premium.yearly` - ₺599,99 / yıl
+- `ehlibyte.premium.lifetime` - ₺899,99
+
+Fire product id listesi:
+
+- `ehlibyte.fire.100` - 100 Fire - ₺24,99
+- `ehlibyte.fire.500` - 500 Fire - ₺89,99
+- `ehlibyte.fire.1500` - 1500 Fire - ₺199,99
+
 Rozet product id listesi:
 
-- `ehlibyte.badge.muharrem_follower` - ₺49
-- `ehlibyte.badge.cem_room_supporter` - ₺79
-- `ehlibyte.badge.culture_guardian` - ₺99
-- `ehlibyte.badge.zulfiqar_sword` - ₺499
+- `ehlibyte.badge.muharrem_follower` - ₺29,99
+- `ehlibyte.badge.cem_room_supporter` - ₺39,99
+- `ehlibyte.badge.culture_guardian` - ₺49,99
+- `ehlibyte.badge.la_fetta_illa` - ₺99,99
+- `ehlibyte.badge.haci_bektas_veli` - ₺129,99
+- `ehlibyte.badge.zulfiqar_sword` - ₺149,99
+
+Detaylı App Store Connect ürün listesi için [APP_STORE_IAP_PRODUCTS.md](./APP_STORE_IAP_PRODUCTS.md)
+dosyasını kullan.
 
 ## Environment
 
@@ -74,8 +92,8 @@ sorgusu bu id'leri bulamamıştır. Bu kodla çözülen bir durum değildir; das
 konfigürasyonu hizalanmalıdır.
 
 - RevenueCat ürün identifier'ı App Store Connect Product ID ile birebir aynı olmalı.
-  App şu anda `monthly` ve `yearly` planlarını satın alma UI'ında sunar.
-- Current offering içinde app'in desteklemediği `lifetime` gibi ürünler varsa mağazada
+  App şu anda `monthly`, `yearly` ve `lifetime` planlarını satın alma UI'ında sunar.
+- Current offering içinde App Store Connect'te oluşturulmamış ürün varsa mağazada
   gerçekten oluşturulana kadar offering'den çıkar.
 - App Store Connect'te Paid Applications Agreement, Tax ve Banking durumları tamamlanmalı.
 - iOS 18.4-18.5 simulator sandbox ürün sorgusu boş döndürebilir; fiziksel cihaz, iOS 26+
@@ -87,7 +105,7 @@ konfigürasyonu hizalanmalıdır.
 - Vergi ve banka bilgileri tamamlanmış
 - iOS In-App Purchase capability açık
 - RevenueCat offering current durumda
-- Aylık ve yıllık paketler `premium` entitlement'ına bağlı
+- Aylık, yıllık ve varsa ömür boyu paketler `premium` entitlement'ına bağlı
 - Rozet product id'leri current offering içinde ve mağaza ürünleriyle birebir aynı
 - Offering'deki product id listesi App Store Connect ve Google Play ile birebir aynı
 - RevenueCat webhook Supabase Edge Function'a bağlı ve Authorization header doğrulanıyor

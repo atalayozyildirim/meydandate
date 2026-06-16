@@ -161,7 +161,7 @@ export class RevenueCatPaymentService implements PaymentService {
 
   private getFallbackPlanPrices(): Record<SubscriptionPlan, string> {
     return __DEV__
-      ? { monthly: "₺149", yearly: "₺999", lifetime: "₺2.999" }
+      ? { monthly: "₺79,99", yearly: "₺599,99", lifetime: "₺899,99" }
       : {
           monthly: STORE_PRICE_LABEL,
           yearly: STORE_PRICE_LABEL,
