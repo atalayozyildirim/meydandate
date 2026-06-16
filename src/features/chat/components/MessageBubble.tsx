@@ -17,6 +17,7 @@ interface MessageBubbleProps {
   isOwn: boolean;
   disabled?: boolean;
   onDelete?: (messageId: string) => void;
+  onReport?: (message: Message) => void;
 }
 
 export const MessageBubble = ({
@@ -24,12 +25,15 @@ export const MessageBubble = ({
   isOwn,
   disabled = false,
   onDelete,
+  onReport,
 }: MessageBubbleProps) => {
   const theme = useTheme();
   const trimmed = message.body.trim();
   const isHeart = trimmed === "❤️";
   const styles = createStyles(theme, isOwn, isHeart);
   const swipeableRef = useRef<Swipeable>(null);
+  const canDelete = Boolean(onDelete);
+  const canReport = Boolean(onReport) && !isOwn;
 
   const bubbleContent = isHeart ? (
     <View style={styles.heartBubble}>
@@ -55,8 +59,24 @@ export const MessageBubble = ({
       <View style={styles.swipeFrame}>
         <Swipeable
           ref={swipeableRef}
-          enabled={!disabled && Boolean(onDelete)}
+          enabled={!disabled && (canDelete || canReport)}
+          overshootLeft={false}
           overshootRight={false}
+          renderLeftActions={() =>
+            canReport ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Mesajı şikayet et"
+                onPress={() => {
+                  swipeableRef.current?.close();
+                  onReport?.(message);
+                }}
+                style={styles.reportAction}
+              >
+                <Ionicons name="flag-outline" size={18} color="#FFFFFF" />
+              </Pressable>
+            ) : null
+          }
           renderRightActions={() => (
             <Pressable
               accessibilityRole="button"
@@ -73,6 +93,10 @@ export const MessageBubble = ({
           onSwipeableRightOpen={() => {
             swipeableRef.current?.close();
             onDelete?.(message.id);
+          }}
+          onSwipeableLeftOpen={() => {
+            swipeableRef.current?.close();
+            onReport?.(message);
           }}
         >
           {bubbleContent}
@@ -103,6 +127,14 @@ const createStyles = (
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.danger,
+    },
+    reportAction: {
+      width: 58,
+      marginRight: theme.spacing.xs,
+      borderRadius: theme.radius.lg,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.warning,
     },
     bubble: {
       borderRadius: theme.radius.lg,

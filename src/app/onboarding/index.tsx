@@ -55,22 +55,21 @@ const saveKnowledgeTestAttemptState = (state: KnowledgeTestAttemptState) =>
     .setItem(env.knowledgeTestAttemptKey, JSON.stringify(state))
     .catch(() => undefined);
 
-const aleviKnowledgeQuestions = [
+const culturalKnowledgeQuestions = [
   {
     id: "cem",
-    question:
-      "Aşure gününde karşı komşuna aşure götürürken yüzüne karşı alevilerin yemeği yenilmez dedimi",
+    question: "Aşure lokması paylaşılırken temel yaklaşım ne olmalı?",
     options: [
-      { id: "yobazockomsu", label: "Evet", correct: true },
-      { id: "gosteris", label: "Hayır", correct: false },
-      { id: "yalnizlik", label: "Duymadım", correct: false },
+      { id: "saygi", label: "Saygı ve rıza gözetilir", correct: true },
+      { id: "israr", label: "Israr edilir", correct: false },
+      { id: "gosteris", label: "Paylaşım gösteriş için yapılır", correct: false },
     ],
   },
   {
     id: "semah",
-    question: "Cem erkani gelenekte hangi mekanda yurutulur?",
+    question: "Cem erkanı gelenekte hangi mekanda yürütülür?",
     options: [
-      { id: "ibadet", label: "Cemevi ", correct: true },
+      { id: "ibadet", label: "Cemevi", correct: true },
       { id: "one1", label: "Herhangi bir yer", correct: false },
       { id: "spor", label: "Köylerde", correct: false },
     ],
@@ -98,7 +97,7 @@ const aleviKnowledgeQuestions = [
   },
   {
     id: "muharrem",
-    question: "Muharrem orucu hangi değerle ilişkilidir?",
+    question: "Muharrem orucu hangi değerlerle ilişkilidir?",
     options: [
       { id: "yas", label: "Yas, sabır ve arınma", correct: true },
       { id: "test100", label: "Sabır", correct: false },
@@ -181,7 +180,7 @@ export default function OnboardingScreen() {
     },
   });
   const selectedPhotoUri = form.watch("photoUri");
-  const hasPassedKnowledgeTest = aleviKnowledgeQuestions.every((question) =>
+  const hasPassedKnowledgeTest = culturalKnowledgeQuestions.every((question) =>
     Boolean(quizAnswers[question.id]),
   );
   const isKnowledgeTestLocked = lockedUntil !== null && lockedUntil > now;
@@ -323,7 +322,7 @@ export default function OnboardingScreen() {
 
   const answerKnowledgeQuestion = async (
     questionId: string,
-    option: (typeof aleviKnowledgeQuestions)[number]["options"][number],
+    option: (typeof culturalKnowledgeQuestions)[number]["options"][number],
   ) => {
     if (!attemptStateLoaded || isKnowledgeTestLocked) {
       return;
@@ -411,7 +410,7 @@ export default function OnboardingScreen() {
       <View style={styles.quizCard}>
         <View style={styles.quizHeader}>
           <View>
-            <Text style={styles.kicker}>Alevilik bilgi testi</Text>
+            <Text style={styles.kicker}>Yol ve erkân bilgi testi</Text>
             <Text style={styles.sectionTitle}>Giriş için tüm soruları geç</Text>
           </View>
           <View
@@ -420,8 +419,13 @@ export default function OnboardingScreen() {
               hasPassedKnowledgeTest && styles.scoreBadgePassed,
             ]}
           >
-            <Text style={styles.scoreText}>
-              {Object.keys(quizAnswers).length}/4
+            <Text
+              style={[
+                styles.scoreText,
+                hasPassedKnowledgeTest && styles.scoreTextPassed,
+              ]}
+            >
+              {Object.keys(quizAnswers).length}/{culturalKnowledgeQuestions.length}
             </Text>
           </View>
         </View>
@@ -435,7 +439,7 @@ export default function OnboardingScreen() {
             ? `Test kilitli. ${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`
             : `Kalan deneme hakkı: ${remainingAttempts}`}
         </Text>
-        {aleviKnowledgeQuestions.map((question) => (
+        {culturalKnowledgeQuestions.map((question) => (
           <View key={question.id} style={styles.quizQuestion}>
             <Text style={styles.quizQuestionText}>{question.question}</Text>
             <View style={styles.quizOptions}>
@@ -473,7 +477,9 @@ export default function OnboardingScreen() {
       </View>
 
       <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Kendinizi nasıl tanımlarsınız?</Text>
+        <Text style={styles.sectionTitle}>
+          Kültürel yakınlığını nasıl anlatırsın?
+        </Text>
         <Controller
           control={form.control}
           name="culturalIdentity"
@@ -494,7 +500,7 @@ export default function OnboardingScreen() {
 
       <View style={styles.section}>
         <Text style={styles.sectionTitle}>
-          Alevi kültürü hayatınızda ne kadar önemli?
+          Bu kültür hayatında ne kadar önemli?
         </Text>
         <Controller
           control={form.control}
@@ -797,6 +803,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.text,
     },
+    scoreTextPassed: {
+      color: "#FFFFFF",
+    },
     quizStatus: {
       ...theme.typography.caption,
       color: theme.colors.muted,
@@ -816,17 +825,22 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.xs,
     },
     quizOption: {
-      minHeight: 44,
+      minHeight: 52,
       borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.colors.border,
       paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
       justifyContent: "center",
-      backgroundColor: "rgba(255, 255, 255, 0.78)",
+      backgroundColor: theme.isDark
+        ? theme.colors.elevated
+        : "rgba(255, 255, 255, 0.86)",
     },
     quizOptionSelected: {
       borderColor: theme.colors.primary,
-      backgroundColor: "#FFF0F3",
+      backgroundColor: theme.isDark
+        ? "rgba(233, 64, 87, 0.22)"
+        : "#FFF0F3",
     },
     quizOptionDisabled: {
       opacity: 0.5,
@@ -834,6 +848,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     quizOptionText: {
       ...theme.typography.body,
       color: theme.colors.text,
+      flexShrink: 1,
     },
     quizOptionTextSelected: {
       color: theme.colors.primary,

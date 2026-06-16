@@ -245,6 +245,11 @@ export class MockUserRepository implements UserRepository {
         .filter((blockedUser) => blockedUser.blockerId === userId)
         .map((blockedUser) => blockedUser.blockedUserId)
     );
+    const mutedIds = new Set(
+      mockDatabase.mutedUsers
+        .filter((mutedUser) => mutedUser.userId === userId)
+        .map((mutedUser) => mutedUser.mutedUserId),
+    );
     const actedUserIds = new Set(
       mockDatabase.likes
         .filter((like) => like.fromUserId === userId)
@@ -274,6 +279,7 @@ export class MockUserRepository implements UserRepository {
           user.blockedUsers?.includes(userId) ||
           user.mutedUsers?.includes(userId) ||
           blockedIds.has(user.id) ||
+          mutedIds.has(user.id) ||
           actedUserIds.has(user.id)
         ) {
           return [];
@@ -340,6 +346,10 @@ export class MockUserRepository implements UserRepository {
       report.description = payload.description;
     }
 
+    if (payload.evidence) {
+      report.evidence = payload.evidence;
+    }
+
     mockDatabase.reports.push(report);
   }
 
@@ -363,6 +373,11 @@ export class MockUserRepository implements UserRepository {
   }
 
   async muteUser(userId: string, mutedUserId: string): Promise<void> {
+    const user = findUser(userId);
+    user.mutedUsers = Array.from(
+      new Set([...(user.mutedUsers ?? []), mutedUserId]),
+    );
+
     mockDatabase.mutedUsers.push({
       userId,
       mutedUserId,

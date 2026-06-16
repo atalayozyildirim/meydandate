@@ -1,7 +1,6 @@
 // Sanal Cem odası için backend destekli live katılım ekranını sunar.
 import {
   Alert,
-  ImageBackground,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,11 +8,11 @@ import {
   TextInput,
   View,
 } from "react-native";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ResizeMode, Video } from "expo-av";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import * as WebBrowser from "expo-web-browser";
+import { WebView } from "react-native-webview";
 import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
@@ -52,13 +51,151 @@ const ceremonySteps = [
 type StreamSource =
   | {
       kind: "youtube";
-      openUrl: string;
-      thumbnailUrl: string;
+      videoId: string;
+      embedHtml: string;
+    }
+  | {
+      kind: "kick";
+      channel: string;
+      embedHtml: string;
     }
   | {
       kind: "direct";
       playbackUrl: string;
-    };
+};
+
+const buildEmbedDocument = (iframeUrl: string) => `<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <style>
+      html, body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+      }
+      iframe {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #000;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe
+      src="${iframeUrl}"
+      allow="autoplay; encrypted-media; fullscreen; picture-in-picture"
+      allowfullscreen="false"
+      webkit-playsinline
+      playsinline
+    ></iframe>
+  </body>
+</html>`;
+
+const buildYoutubeEmbedHtml = (videoId: string, startSeconds = 0) => {
+  const embedParams = new URLSearchParams({
+    autoplay: "1",
+    controls: "0",
+    disablekb: "1",
+    enablejsapi: "1",
+    fs: "0",
+    iv_load_policy: "3",
+    mute: "1",
+    modestbranding: "1",
+    origin: "https://www.youtube-nocookie.com",
+    playsinline: "1",
+    rel: "0",
+  });
+  const safeStartSeconds = Math.max(0, Math.floor(startSeconds));
+
+  if (safeStartSeconds > 0) {
+    embedParams.set("start", String(safeStartSeconds));
+  }
+
+  return `<!doctype html>
+<html>
+  <head>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <style>
+      html, body, #player {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+        background: #000;
+      }
+      iframe {
+        position: fixed;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <iframe
+      id="player"
+      src="https://www.youtube-nocookie.com/embed/${videoId}?${embedParams.toString()}"
+      allow="autoplay; encrypted-media; picture-in-picture"
+      allowfullscreen="false"
+      webkit-playsinline
+      playsinline
+    ></iframe>
+    <script>
+      const player = document.getElementById("player");
+      const startSeconds = ${safeStartSeconds};
+      let didSeekToSharedPosition = false;
+
+      function sendCommand(func, args = []) {
+        if (!player || !player.contentWindow) return;
+        player.contentWindow.postMessage(
+          JSON.stringify({ event: "command", func, args }),
+          "*"
+        );
+      }
+
+      function startMuted() {
+        sendCommand("mute");
+        if (!didSeekToSharedPosition && startSeconds > 0) {
+          sendCommand("seekTo", [startSeconds, true]);
+          didSeekToSharedPosition = true;
+        }
+        sendCommand("playVideo");
+      }
+
+      window.addEventListener("load", () => {
+        setTimeout(startMuted, 350);
+        setTimeout(startMuted, 1200);
+        setInterval(() => sendCommand("playVideo"), 5000);
+      });
+
+      document.addEventListener("visibilitychange", () => {
+        if (!document.hidden) startMuted();
+      });
+    </script>
+  </body>
+</html>`;
+};
+
+const buildKickEmbedHtml = (channel: string, isMuted: boolean) => {
+  const embedParams = new URLSearchParams({
+    allowfullscreen: "false",
+    autoplay: "true",
+    muted: isMuted ? "true" : "false",
+  });
+
+  return buildEmbedDocument(
+    `https://player.kick.com/${encodeURIComponent(channel)}?${embedParams.toString()}`,
+  );
+};
 
 const getYoutubeVideoId = (streamUrl: string) => {
   try {
@@ -87,7 +224,47 @@ const getYoutubeVideoId = (streamUrl: string) => {
   return null;
 };
 
-const resolveStreamSource = (streamUrl?: string | null): StreamSource | null => {
+const getKickChannel = (streamUrl: string) => {
+  try {
+    const url = new URL(streamUrl.trim());
+    const host = url.hostname.replace(/^www\./, "").toLowerCase();
+    const segments = url.pathname.split("/").filter(Boolean);
+
+    if (host === "player.kick.com") {
+      return segments[0] ?? null;
+    }
+
+    if (host === "kick.com" || host === "m.kick.com") {
+      const channel = segments[0];
+      const reservedPaths = new Set([
+        "about",
+        "browse",
+        "categories",
+        "dashboard",
+        "following",
+        "search",
+        "settings",
+        "terms",
+        "video",
+        "videos",
+      ]);
+
+      if (channel && !reservedPaths.has(channel.toLowerCase())) {
+        return channel;
+      }
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
+
+const resolveStreamSource = (
+  streamUrl?: string | null,
+  syncedPositionMillis = 0,
+  isEmbedMuted = true,
+): StreamSource | null => {
   if (!streamUrl?.trim()) {
     return null;
   }
@@ -98,8 +275,21 @@ const resolveStreamSource = (streamUrl?: string | null): StreamSource | null => 
   if (youtubeVideoId) {
     return {
       kind: "youtube",
-      openUrl: safeUrl,
-      thumbnailUrl: `https://i.ytimg.com/vi/${youtubeVideoId}/hqdefault.jpg`,
+      videoId: youtubeVideoId,
+      embedHtml: buildYoutubeEmbedHtml(
+        youtubeVideoId,
+        syncedPositionMillis / 1000,
+      ),
+    };
+  }
+
+  const kickChannel = getKickChannel(safeUrl);
+
+  if (kickChannel) {
+    return {
+      kind: "kick",
+      channel: kickChannel,
+      embedHtml: buildKickEmbedHtml(kickChannel, isEmbedMuted),
     };
   }
 
@@ -109,10 +299,16 @@ const resolveStreamSource = (streamUrl?: string | null): StreamSource | null => 
   };
 };
 
+const isRealtimeDirectStream = (playbackUrl: string) =>
+  /\.(m3u8|m3u|mpd)(\?|#|$)/i.test(playbackUrl) ||
+  playbackUrl.toLowerCase().includes(".m3u8");
+
 export default function MeydanRoomScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
+  const videoRef = useRef<Video>(null);
+  const embedWebViewRef = useRef<WebView>(null);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const {
     room,
@@ -132,6 +328,7 @@ export default function MeydanRoomScreen() {
   const [adminDescription, setAdminDescription] = useState("");
   const [streamUrl, setStreamUrl] = useState("");
   const [chatDraft, setChatDraft] = useState("");
+  const [isEmbedMuted, setIsEmbedMuted] = useState(true);
   const participants = room?.participants ?? [];
   const participantCount = room?.participantCount ?? participants.length;
   const messages = room?.messages ?? [];
@@ -160,10 +357,31 @@ export default function MeydanRoomScreen() {
 
     return Math.max(0, Date.now() - new Date(room.startedAt).getTime());
   }, [room?.startedAt]);
+  const currentStreamProvider = useMemo(() => {
+    const currentStreamUrl = room?.streamUrl;
+
+    if (!currentStreamUrl) {
+      return null;
+    }
+
+    if (getYoutubeVideoId(currentStreamUrl)) {
+      return "youtube";
+    }
+
+    if (getKickChannel(currentStreamUrl)) {
+      return "kick";
+    }
+
+    return "direct";
+  }, [room?.streamUrl]);
+  const kickMuted = currentStreamProvider === "kick" ? isEmbedMuted : true;
   const streamSource = useMemo(
-    () => resolveStreamSource(room?.streamUrl),
-    [room?.streamUrl],
+    () => resolveStreamSource(room?.streamUrl, syncedPositionMillis, kickMuted),
+    [kickMuted, room?.streamUrl, syncedPositionMillis],
   );
+  const shouldSyncDirectPlayback =
+    streamSource?.kind === "direct" &&
+    !isRealtimeDirectStream(streamSource.playbackUrl);
 
   useEffect(() => {
     if (!room) {
@@ -174,6 +392,58 @@ export default function MeydanRoomScreen() {
     setAdminDescription((current) => current || room.description);
     setStreamUrl((current) => current || room.streamUrl || "");
   }, [room]);
+
+  useEffect(() => {
+    setIsEmbedMuted(true);
+  }, [
+    room?.startedAt,
+    streamSource?.kind,
+    streamSource?.kind === "youtube" ? streamSource.videoId : undefined,
+    streamSource?.kind === "kick" ? streamSource.channel : undefined,
+  ]);
+
+  useEffect(() => {
+    if (streamSource?.kind !== "direct") {
+      return;
+    }
+
+    void videoRef.current
+      ?.setStatusAsync({
+        shouldPlay: isLive,
+        ...(shouldSyncDirectPlayback
+          ? { positionMillis: syncedPositionMillis }
+          : {}),
+      })
+      .catch(() => undefined);
+  }, [
+    isLive,
+    room?.startedAt,
+    shouldSyncDirectPlayback,
+    streamSource?.kind,
+    streamSource?.kind === "direct" ? streamSource.playbackUrl : undefined,
+    syncedPositionMillis,
+  ]);
+
+  const toggleEmbedSound = () => {
+    const nextMuted = !isEmbedMuted;
+    setIsEmbedMuted(nextMuted);
+
+    if (streamSource?.kind !== "youtube") {
+      return;
+    }
+
+    const command = nextMuted ? "mute" : "unMute";
+    embedWebViewRef.current?.injectJavaScript(`
+      (function () {
+        var player = document.getElementById("player");
+        if (!player || !player.contentWindow) return true;
+        player.contentWindow.postMessage(JSON.stringify({ event: "command", func: "${command}", args: [] }), "*");
+        player.contentWindow.postMessage(JSON.stringify({ event: "command", func: "playVideo", args: [] }), "*");
+        return true;
+      })();
+      true;
+    `);
+  };
 
   const toggleRoom = async () => {
     try {
@@ -198,6 +468,14 @@ export default function MeydanRoomScreen() {
       Alert.alert(
         "Yayın URL'i gerekli",
         "Canlı yayını başlatmak için HTTPS stream URL gir.",
+      );
+      return;
+    }
+
+    if (!resolveStreamSource(nextStreamUrl)) {
+      Alert.alert(
+        "Yayın linki desteklenmiyor",
+        "YouTube video/canlı linki, Kick kanal linki veya direkt MP4/HLS URL gir.",
       );
       return;
     }
@@ -270,21 +548,6 @@ export default function MeydanRoomScreen() {
     }
   };
 
-  const openExternalStream = async () => {
-    if (streamSource?.kind !== "youtube") {
-      return;
-    }
-
-    try {
-      await WebBrowser.openBrowserAsync(streamSource.openUrl);
-    } catch {
-      Alert.alert(
-        "Yayın açılamadı",
-        "YouTube bağlantısı şu an açılamadı. Linki kontrol edip tekrar dene.",
-      );
-    }
-  };
-
   if (isLoading) {
     return <Loading label="Meydan yükleniyor" />;
   }
@@ -315,48 +578,87 @@ export default function MeydanRoomScreen() {
 
       <View style={styles.stage}>
         {hasStream && room?.streamUrl && streamSource ? (
-          streamSource.kind === "youtube" ? (
-            <Pressable onPress={() => void openExternalStream()} style={styles.youtubeStage}>
-              <ImageBackground
-                source={{ uri: streamSource.thumbnailUrl }}
+          streamSource.kind === "youtube" || streamSource.kind === "kick" ? (
+            <View style={styles.embedStage}>
+              <WebView
+                ref={embedWebViewRef}
+                key={`${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.kind}-${
+                  streamSource.kind === "youtube"
+                    ? streamSource.videoId
+                    : `${streamSource.channel}-${isEmbedMuted ? "muted" : "sound"}`
+                }`}
+                source={{
+                  html: streamSource.embedHtml,
+                  baseUrl:
+                    streamSource.kind === "youtube"
+                      ? "https://www.youtube-nocookie.com"
+                      : "https://player.kick.com",
+                }}
                 style={styles.video}
-                imageStyle={styles.youtubeImage}
-              >
-                <View style={styles.youtubeOverlay}>
-                  <View style={styles.youtubeBadge}>
-                    <Ionicons name="play-circle" size={18} color="#FFFFFF" />
-                    <Text style={styles.youtubeBadgeText}>YouTube canlı yayını aç</Text>
+                containerStyle={styles.embedContainer}
+                originWhitelist={["*"]}
+                javaScriptEnabled
+                domStorageEnabled
+                scrollEnabled={false}
+                bounces={false}
+                allowsInlineMediaPlayback
+                mediaPlaybackRequiresUserAction={false}
+                allowsFullscreenVideo={false}
+                automaticallyAdjustContentInsets={false}
+              />
+              <View pointerEvents="box-none" style={styles.videoOverlay}>
+                {isLive ? (
+                  <View style={styles.livePill}>
+                    <View style={styles.livePillDot} />
+                    <Text style={styles.livePillText}>CANLI</Text>
                   </View>
-                  {isLive ? (
-                    <View style={styles.livePill}>
-                      <View style={styles.livePillDot} />
-                      <Text style={styles.livePillText}>CANLI</Text>
-                    </View>
-                  ) : null}
-                </View>
-              </ImageBackground>
-            </Pressable>
-          ) : (
-          <View style={{ position: "relative" }}>
-            <Video
-              key={`${room?.id}-${room?.startedAt ?? "idle"}`}
-              source={{ uri: streamSource.playbackUrl }}
-              style={styles.video}
-              resizeMode={ResizeMode.COVER}
-              shouldPlay={isLive}
-              isMuted={false}
-              isLooping={false}
-            />
-            {/* Dokunma engeli + CANLI overlay */}
-            <View pointerEvents="none" style={styles.videoOverlay}>
-              {isLive ? (
-                <View style={styles.livePill}>
-                  <View style={styles.livePillDot} />
-                  <Text style={styles.livePillText}>CANLI</Text>
-                </View>
-              ) : null}
+                ) : null}
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={
+                    isEmbedMuted ? "Yayın sesini aç" : "Yayın sesini kapat"
+                  }
+                  onPress={toggleEmbedSound}
+                  style={styles.embedSoundButton}
+                >
+                  <Ionicons
+                    name={isEmbedMuted ? "volume-mute" : "volume-high"}
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                </Pressable>
+              </View>
             </View>
-          </View>
+          ) : (
+            <View style={styles.videoFrame}>
+              <Video
+                ref={videoRef}
+                key={`${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.playbackUrl}`}
+                source={{ uri: streamSource.playbackUrl }}
+                style={styles.video}
+                resizeMode={ResizeMode.COVER}
+                shouldPlay={isLive}
+                isMuted={false}
+                isLooping={false}
+                progressUpdateIntervalMillis={1000}
+                status={{
+                  shouldPlay: isLive,
+                  isMuted: false,
+                  isLooping: false,
+                  ...(shouldSyncDirectPlayback
+                    ? { positionMillis: syncedPositionMillis }
+                    : {}),
+                }}
+              />
+              <View pointerEvents="none" style={styles.videoOverlay}>
+                {isLive ? (
+                  <View style={styles.livePill}>
+                    <View style={styles.livePillDot} />
+                    <Text style={styles.livePillText}>CANLI</Text>
+                  </View>
+                ) : null}
+                </View>
+            </View>
           )
         ) : (
           <View style={styles.emptyStage}>
@@ -413,7 +715,7 @@ export default function MeydanRoomScreen() {
             placeholder="Meydan"
           />
           <Input
-            label="HTTPS yayın URL'i veya YouTube linki"
+            label="HTTPS yayın URL'i, YouTube veya Kick linki"
             value={streamUrl}
             onChangeText={setStreamUrl}
             autoCapitalize="none"
@@ -762,38 +1064,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     video: {
       width: "100%",
+      height: 198,
+      backgroundColor: "#000000",
+    },
+    videoFrame: {
+      position: "relative",
       minHeight: 198,
       backgroundColor: "#000000",
     },
-    youtubeStage: {
+    embedStage: {
       position: "relative",
-    },
-    youtubeImage: {
-      opacity: 0.88,
-    },
-    youtubeOverlay: {
-      flex: 1,
       minHeight: 198,
-      justifyContent: "space-between",
-      padding: theme.spacing.md,
-      backgroundColor: "rgba(12, 15, 24, 0.38)",
+      backgroundColor: "#000000",
     },
-    youtubeBadge: {
-      alignSelf: "flex-start",
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-      paddingHorizontal: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-      borderRadius: theme.radius.pill,
-      backgroundColor: "rgba(15, 23, 42, 0.74)",
-      borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.16)",
-    },
-    youtubeBadgeText: {
-      ...theme.typography.caption,
-      color: "#FFFFFF",
-      fontWeight: "700",
+    embedContainer: {
+      backgroundColor: "#000000",
     },
     emptyStage: {
       flex: 1,
@@ -1141,6 +1426,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "flex-start",
       alignItems: "flex-end",
       padding: 10,
+      gap: 8,
+    },
+    embedSoundButton: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(15, 23, 42, 0.76)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.18)",
     },
     livePill: {
       flexDirection: "row",

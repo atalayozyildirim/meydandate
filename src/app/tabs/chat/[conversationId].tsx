@@ -16,6 +16,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
+import type { Message } from "@/domain/entities/Message";
 import { Avatar } from "@/shared/components/Avatar";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
@@ -23,10 +24,12 @@ import { conversationStarters } from "@/shared/constants/options";
 import { MessageBubble } from "@/features/chat/components/MessageBubble";
 import { useConversation } from "@/features/chat/hooks/useConversations";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { useSafetyActions } from "@/features/profile/hooks/useSafetyActions";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 
 const HEART_MESSAGE = "❤️";
+const MESSAGE_REPORT_CONTEXT_LIMIT = 20;
 // eslint-disable-next-line global-require
 const loveJson = require("../../../../assets/lottie/love.json");
 
@@ -44,6 +47,7 @@ export default function ConversationScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
+  const safetyActions = useSafetyActions();
   const [message, setMessage] = useState("");
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const lastAnimatedHeartIdRef = useRef<string | null>(null);
@@ -167,6 +171,73 @@ export default function ConversationScreen() {
     }
   };
 
+  const reportMessage = (reportedMessage: Message) => {
+    if (reportedMessage.senderId === currentUser.id) {
+      Alert.alert("Bu mesaj sana ait", "Kendi mesajını şikayet edemezsin.");
+      return;
+    }
+
+    const contextMessages = conversation.messages.slice(
+      -MESSAGE_REPORT_CONTEXT_LIMIT,
+    );
+    const reportedBody = reportedMessage.body.trim();
+    const contextEvidence = contextMessages.map((item) => {
+      const senderLabel =
+        item.senderId === currentUser.id
+          ? "şikayet eden"
+          : item.senderId === reportedMessage.senderId
+            ? "şikayet edilen"
+            : item.senderId;
+
+      return `context:${new Date(item.createdAt).toISOString()} | ${senderLabel} | ${item.body.trim().slice(0, 280)}`;
+    });
+    const description = [
+      "Mesaj şikayeti",
+      `Konuşma: ${conversation.id}`,
+      `Mesaj: ${reportedMessage.id}`,
+      `İçerik: ${reportedBody.slice(0, 900)}`,
+    ].join("\n");
+
+    Alert.alert(
+      "Mesaj şikayet edilsin mi?",
+      "Bu mesaj ve son konuşma bağlamı moderasyon paneline düşecek.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Şikayet et",
+          style: "destructive",
+          onPress: () => {
+            void safetyActions
+              .reportUser({
+                reportedUserId: reportedMessage.senderId,
+                category: "harassment",
+                description,
+                evidence: [
+                  "type:message",
+                  `conversationId:${conversation.id}`,
+                  `messageId:${reportedMessage.id}`,
+                  `reportedMessage:${reportedBody.slice(0, 900)}`,
+                  ...contextEvidence,
+                ],
+              })
+              .then(() => {
+                Alert.alert(
+                  "Şikayet alındı",
+                  "Mesaj moderasyon ekibine gönderildi.",
+                );
+              })
+              .catch((error) => {
+                Alert.alert(
+                  "Şikayet gönderilemedi",
+                  error instanceof Error ? error.message : "Tekrar deneyin.",
+                );
+              });
+          },
+        },
+      ],
+    );
+  };
+
   return (
     <Screen scroll={false} style={styles.screen}>
       <KeyboardAvoidingView
@@ -223,6 +294,7 @@ export default function ConversationScreen() {
               isOwn={item.senderId === currentUser.id}
               disabled={isDeletingMessage}
               onDelete={(messageId) => void removeMessage(messageId)}
+              onReport={reportMessage}
             />
           ))}
           {conversation.messages.length === 0 ? (

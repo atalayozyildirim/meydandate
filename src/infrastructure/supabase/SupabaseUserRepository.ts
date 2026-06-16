@@ -518,6 +518,7 @@ export class SupabaseUserRepository implements UserRepository {
       reportedUserId: payload.reportedUserId,
       category: payload.category,
       description: payload.description ?? "",
+      evidence: payload.evidence ?? [],
     });
 
     if (error) {

@@ -51,6 +51,7 @@ export interface Report {
   reportedUserId: string;
   category: ReportCategory;
   description?: string;
+  evidence?: string[];
   createdAt: string;
 }
 

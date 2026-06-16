@@ -210,6 +210,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="settings/blocked-users"
+        options={{
+          href: null,
+          tabBarStyle: {
+            display: "none",
+          },
+        }}
+      />
+      <Tabs.Screen
         name="chat/[conversationId]"
         options={{
           href: null,

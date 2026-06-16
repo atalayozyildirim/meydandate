@@ -19,8 +19,23 @@ export const useSafetyActions = () => {
   };
 
   const reportMutation = useMutation({
-    mutationFn: ({ reportedUserId, category }: { reportedUserId: string; category: ReportCategory }) =>
-      container.userRepository.reportUser(ensureUserId(), { reportedUserId, category })
+    mutationFn: ({
+      reportedUserId,
+      category,
+      description,
+      evidence,
+    }: {
+      reportedUserId: string;
+      category: ReportCategory;
+      description?: string;
+      evidence?: string[];
+    }) =>
+      container.userRepository.reportUser(ensureUserId(), {
+        reportedUserId,
+        category,
+        description,
+        evidence,
+      })
   });
 
   const blockMutation = useMutation({
@@ -55,6 +70,7 @@ export const useSafetyActions = () => {
       }
 
       await queryClient.invalidateQueries({ queryKey: [queryKeys.profile, userId] });
+      await queryClient.invalidateQueries({ queryKey: [queryKeys.discover] });
     }
   });
 

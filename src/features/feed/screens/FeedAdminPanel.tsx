@@ -87,6 +87,7 @@ interface AdminProfileReport {
   reportedUserId: string;
   category: string;
   description: string;
+  evidence: string[];
   status: ReportStatus;
   createdAt: string;
   reportedUser?: ReportUserPreview;
@@ -163,6 +164,22 @@ const reportCategoryLabel: Record<ReportCategoryFilter, string> = {
   fraud: "Dolandırıcılık",
   other: "Diğer",
 };
+
+const getEvidenceValue = (evidence: string[], prefix: string) =>
+  evidence
+    .find((item) => item.startsWith(prefix))
+    ?.slice(prefix.length)
+    .trim();
+
+const getMessageReportContext = (evidence: string[]) =>
+  evidence
+    .filter((item) => item.startsWith("context:"))
+    .map((item) => item.slice("context:".length).trim())
+    .filter(Boolean);
+
+const isMessageReportEvidence = (evidence: string[]) =>
+  evidence.includes("type:message") ||
+  Boolean(getEvidenceValue(evidence, "messageId:"));
 
 const sanitizeReportSearch = (value: string) =>
   value
@@ -288,7 +305,7 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
       let query = supabase
         .from("reports")
         .select(
-          'id,"reporterId","reportedUserId",category,description,status,"createdAt"',
+          'id,"reporterId","reportedUserId",category,description,evidence,status,"createdAt"',
           { count: "exact" },
         )
         .eq("status", profileReportStatus)
@@ -327,6 +344,9 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
           reportedUserId: String(row.reportedUserId),
           category: String(row.category),
           description: String(row.description ?? ""),
+          evidence: Array.isArray(row.evidence)
+            ? row.evidence.map((item) => String(item))
+            : [],
           status: (row.status ?? "pending") as ReportStatus,
           createdAt: String(row.createdAt),
           reportedUser: usersById.get(String(row.reportedUserId)),
@@ -1500,6 +1520,49 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
                       </Text>
                     </View>
                   </View>
+                  {isMessageReportEvidence(report.evidence) ? (
+                    <View style={styles.messageEvidenceBox}>
+                      <View style={styles.messageEvidenceHeader}>
+                        <Ionicons
+                          name="chatbox-ellipses-outline"
+                          size={14}
+                          color={theme.colors.primary}
+                        />
+                        <Text style={styles.messageEvidenceTitle}>
+                          Mesaj şikayeti
+                        </Text>
+                      </View>
+                      <Text style={styles.messageEvidenceBody}>
+                        {getEvidenceValue(report.evidence, "reportedMessage:") ||
+                          report.description}
+                      </Text>
+                      <Text numberOfLines={1} style={styles.reportIdText}>
+                        Konuşma:{" "}
+                        {getEvidenceValue(report.evidence, "conversationId:") ??
+                          "-"}{" "}
+                        · Mesaj:{" "}
+                        {getEvidenceValue(report.evidence, "messageId:") ?? "-"}
+                      </Text>
+                      {getMessageReportContext(report.evidence).length > 0 ? (
+                        <View style={styles.messageContextList}>
+                          <Text style={styles.messageEvidenceTitle}>
+                            Son {getMessageReportContext(report.evidence).length} mesaj
+                          </Text>
+                          {getMessageReportContext(report.evidence).map(
+                            (item, index) => (
+                              <Text
+                                key={`${report.id}-message-context-${index}`}
+                                style={styles.messageContextText}
+                                numberOfLines={2}
+                              >
+                                {item}
+                              </Text>
+                            ),
+                          )}
+                        </View>
+                      ) : null}
+                    </View>
+                  ) : null}
                   <View style={styles.reportIdRow}>
                     <Text numberOfLines={1} style={styles.reportIdText}>
                       {report.reportedUserId}
@@ -2130,6 +2193,36 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.primary,
       fontWeight: "700",
       marginTop: 2,
+    },
+    messageEvidenceBox: {
+      gap: theme.spacing.xxs,
+      borderRadius: theme.radius.md,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.18)",
+      padding: theme.spacing.sm,
+      backgroundColor: "rgba(233, 64, 87, 0.06)",
+    },
+    messageEvidenceHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+    },
+    messageEvidenceTitle: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    messageEvidenceBody: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+    },
+    messageContextList: {
+      gap: 4,
+      marginTop: theme.spacing.xxs,
+    },
+    messageContextText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
     },
     reportIdRow: {
       borderRadius: theme.radius.pill,

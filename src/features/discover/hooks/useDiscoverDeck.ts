@@ -111,6 +111,11 @@ export const useDiscoverDeck = () => {
     }
 
     return (candidatesQuery.data ?? [])
+      .filter(
+        (candidate) =>
+          !currentUser.blockedUsers?.includes(candidate.id) &&
+          !currentUser.mutedUsers?.includes(candidate.id),
+      )
       .filter((candidate) => !dismissedCandidateIds.has(candidate.id))
       .map((candidate) => ({
         user: candidate,

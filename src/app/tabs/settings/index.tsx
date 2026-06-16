@@ -1,7 +1,6 @@
 // Hesap, bildirim, gizlilik, dil, tema ve hukuki ayarlari sunar.
 import React, { useEffect, useState } from "react";
 import {
-  ActivityIndicator,
   Alert,
   Pressable,
   StyleSheet,
@@ -13,7 +12,7 @@ import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/features/auth/hooks/useSession";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { container } from "@/infrastructure/config/Container";
@@ -49,12 +48,6 @@ interface LocationPreferenceArgs {
   enabled: boolean;
   radiusKm: number;
   refreshLocation?: boolean;
-}
-
-interface BlockedProfilePreview {
-  id: string;
-  name: string;
-  city?: string;
 }
 
 const getLocationPreferenceErrorMessage = (error: unknown) => {
@@ -145,33 +138,6 @@ export default function SettingsScreen() {
     void SecureStore.setItemAsync("settings_language", lang);
   };
   const blockedCount = currentUser?.blockedUsers?.length ?? 0;
-  const blockedProfilesQuery = useQuery({
-    queryKey: ["settings", "blocked-users", currentUser?.blockedUsers ?? []],
-    enabled: Boolean(currentUser && blockedCount > 0),
-    queryFn: async (): Promise<BlockedProfilePreview[]> => {
-      const blockedIds = currentUser?.blockedUsers ?? [];
-
-      const profiles = await Promise.all(
-        blockedIds.map(async (blockedUserId) => {
-          try {
-            const user = await container.userRepository.getUserById(blockedUserId);
-            return {
-              id: user.id,
-              name: user.name,
-              city: user.city,
-            };
-          } catch {
-            return {
-              id: blockedUserId,
-              name: "Kullanıcı",
-            };
-          }
-        }),
-      );
-
-      return profiles;
-    },
-  });
   const profileHidden = currentUser
     ? !(currentUser.isDiscoverable ?? true)
     : false;
@@ -261,39 +227,6 @@ export default function SettingsScreen() {
       );
     },
   });
-  const unblockUserMutation = useMutation({
-    mutationFn: async (blockedUserId: string) => {
-      if (!currentUser) {
-        throw new Error("Engel kaldırmak için oturum gerekli.");
-      }
-
-      await container.userRepository.unblockUser(currentUser.id, blockedUserId);
-      return blockedUserId;
-    },
-    onSuccess: async (blockedUserId) => {
-      if (currentUser) {
-        setCurrentUser({
-          ...currentUser,
-          blockedUsers: (currentUser.blockedUsers ?? []).filter(
-            (candidateId) => candidateId !== blockedUserId,
-          ),
-        });
-      }
-
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: ["settings", "blocked-users"] }),
-        queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
-        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
-      ]);
-    },
-    onError: (error) => {
-      Alert.alert(
-        "Engel kaldırılamadı",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    },
-  });
-
   const updateLocationPreference = (
     enabled: boolean,
     radiusKm = matchRadiusKm,
@@ -424,41 +357,8 @@ export default function SettingsScreen() {
               ? `${blockedCount} kullanıcı engelli. Engellediklerin Keşfet akışında görünmez.`
               : "Profil güvenlik menüsünden engellediğin kişiler Keşfet akışından çıkarılır.",
           icon: "remove-circle-outline",
+          onPress: () => router.push("/tabs/settings/blocked-users"),
         })}
-        {blockedCount > 0 ? (
-          <View style={styles.blockedList}>
-            {blockedProfilesQuery.isLoading ? (
-              <ActivityIndicator color={theme.colors.primary} />
-            ) : (
-              (blockedProfilesQuery.data ?? []).map((blockedUser) => (
-                <View key={blockedUser.id} style={styles.blockedRow}>
-                  <View style={styles.blockedAvatar}>
-                    <Text style={styles.blockedAvatarText}>
-                      {blockedUser.name.slice(0, 1).toUpperCase()}
-                    </Text>
-                  </View>
-                  <View style={styles.rowBody}>
-                    <Text style={styles.rowTitle}>{blockedUser.name}</Text>
-                    <Text style={styles.rowSubtitle}>
-                      {blockedUser.city ?? "Profil erişimi sınırlı"}
-                    </Text>
-                  </View>
-                  <Pressable
-                    accessibilityRole="button"
-                    disabled={unblockUserMutation.isPending}
-                    onPress={() => unblockUserMutation.mutate(blockedUser.id)}
-                    style={({ pressed }) => [
-                      styles.unblockButton,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Text style={styles.unblockButtonText}>Kaldır</Text>
-                  </Pressable>
-                </View>
-              ))
-            )}
-          </View>
-        ) : null}
         {row({
           title: "Hesabı sil",
           subtitle: "Hesap silme talebini uygulama içinden başlat.",
@@ -716,49 +616,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     rowSubtitle: {
       ...theme.typography.caption,
       color: theme.colors.muted,
-    },
-    blockedList: {
-      gap: theme.spacing.xs,
-      paddingTop: theme.spacing.xs,
-    },
-    blockedRow: {
-      minHeight: 54,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      borderRadius: theme.radius.md,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingHorizontal: theme.spacing.sm,
-      backgroundColor: theme.colors.background,
-    },
-    blockedAvatar: {
-      width: 34,
-      height: 34,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.primary,
-    },
-    blockedAvatarText: {
-      ...theme.typography.caption,
-      color: "#FFFFFF",
-      fontWeight: "900",
-    },
-    unblockButton: {
-      minHeight: 34,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.sm,
-      backgroundColor: theme.colors.elevated,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    unblockButtonText: {
-      ...theme.typography.caption,
-      color: theme.colors.primary,
-      fontWeight: "800",
     },
     chipWrap: {
       flexDirection: "row",

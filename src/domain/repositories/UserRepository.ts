@@ -14,6 +14,7 @@ export interface ReportPayload {
   reportedUserId: string;
   category: ReportCategory;
   description?: string;
+  evidence?: string[];
 }
 
 export interface LocationMatchingUpdate {
