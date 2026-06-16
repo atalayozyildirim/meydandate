@@ -56,13 +56,14 @@ export const usePremium = () => {
     },
     onSuccess: async (result) => {
       if (currentUser) {
-        setCurrentUser({
+        const updatedUser = {
           ...currentUser,
           badges: Array.from(new Set([...currentUser.badges, result.badge]))
-        });
-      }
+        };
 
-      await queryClient.invalidateQueries({ queryKey: [queryKeys.profile] });
+        setCurrentUser(updatedUser);
+        queryClient.setQueryData([queryKeys.profile, currentUser.id], updatedUser);
+      }
     }
   });
 

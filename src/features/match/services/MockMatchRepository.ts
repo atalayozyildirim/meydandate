@@ -29,7 +29,7 @@ const getAtalayAdminUser = (): User => {
     cultureImportance: "important",
     interests: ["cem_culture", "turkish_folk_music", "literature", "solidarity"],
     photos: [],
-    badges: ["verified_profile", "community_member"],
+    badges: ["verified_profile", "community_member", "staff_badge"],
     isPremium: true,
     hasPassedEntryTest: false,
     hasCompletedOnboarding: true,

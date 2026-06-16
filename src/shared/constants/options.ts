@@ -47,7 +47,9 @@ export const badgeLabels: Record<Badge, string> = {
   culture_guardian: "Yol Erkânı Destekçisi",
   zulfiqar_sword: "Zülfikar Kılıcı",
   haci_bektas_veli: "Hacı Bektaş Veli",
-  la_fetta_illa: "La Fetta İlla"
+  la_fetta_illa: "La Fetta İlla",
+  night_badge: "Night",
+  staff_badge: "Yetkili Ekip"
 };
 
 export const reportCategoryOptions: Option<ReportCategory>[] = [

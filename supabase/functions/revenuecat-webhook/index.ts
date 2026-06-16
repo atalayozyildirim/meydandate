@@ -45,7 +45,8 @@ type Badge =
   | "culture_guardian"
   | "zulfiqar_sword"
   | "haci_bektas_veli"
-  | "la_fetta_illa";
+  | "la_fetta_illa"
+  | "night_badge";
 type FirePackageAmount = 100 | 500 | 1500;
 
 const premiumEntitlementId =
@@ -68,6 +69,7 @@ const badgeProductById: Record<string, Badge> = {
   "ehlibyte.badge.zulfiqar_sword": "zulfiqar_sword",
   "ehlibyte.badge.haci_bektas_veli": "haci_bektas_veli",
   "ehlibyte.badge.la_fetta_illa": "la_fetta_illa",
+  "ehlibyte.badge.night_badge": "night_badge",
 };
 
 const firePackageByProductId: Record<string, FirePackageAmount> = {

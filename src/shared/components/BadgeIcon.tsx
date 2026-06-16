@@ -34,7 +34,9 @@ type ImageBadge =
   | "populer_profil"
   | "zulfiqar_sword"
   | "haci_bektas_veli"
-  | "la_fetta_illa";
+  | "la_fetta_illa"
+  | "night_badge"
+  | "staff_badge";
 
 // TIP A: Sadece Ionicons ikonu olan rozetler
 type IconBadge = Exclude<Badge, ImageBadge>;
@@ -91,7 +93,7 @@ const iconBadgeConfig: Record<
 // TIP B: Özel PNG/görsel olan rozetler
 // Görseli assets/ klasörüne koy, buraya require() ile ekle
 const imageBadgeAssets: Partial<Record<Badge, ReturnType<typeof require>>> = {
-  premium_member: require("../../../assets/badges/premium.png"),
+  premium_member: require("../../../assets/badges/premium_exclusive.png"),
   muharrem_orucu_2026: require("../../../assets/badges/asure.png"),
   asure_lokmasi: require("../../../assets/badges/asure.png"),
   ilk_eslesme: require("../../../assets/badges/matched.png"),
@@ -99,6 +101,8 @@ const imageBadgeAssets: Partial<Record<Badge, ReturnType<typeof require>>> = {
   zulfiqar_sword: require("../../../assets/badges/zulfikar.png"),
   haci_bektas_veli: require("../../../assets/badges/hacibektasveli.png"),
   la_fetta_illa: require("../../../assets/badges/lafetttailla.png"),
+  night_badge: require("../../../assets/badges/night_badge.png"),
+  staff_badge: require("../../../assets/badges/staff_badge.png"),
 };
 
 const imageBadgeConfig: Partial<
@@ -114,7 +118,7 @@ const imageBadgeConfig: Partial<
   premium_member: {
     bgColor: "rgba(167,139,250,0.26)",
     borderColor: "rgba(216,180,254,0.68)",
-    imageScale: 1.48,
+    imageScale: 1.08,
   },
   muharrem_orucu_2026: {
     bgColor: "rgba(20,184,166,0.25)",
@@ -150,6 +154,16 @@ const imageBadgeConfig: Partial<
     bgColor: "rgba(244,114,182,0.25)",
     borderColor: "rgba(249,168,212,0.70)",
     imageScale: 1.26,
+  },
+  night_badge: {
+    bgColor: "rgba(59,130,246,0.24)",
+    borderColor: "rgba(147,197,253,0.70)",
+    imageScale: 1.08,
+  },
+  staff_badge: {
+    bgColor: "rgba(59,130,246,0.24)",
+    borderColor: "rgba(147,197,253,0.70)",
+    imageScale: 1.08,
   },
 };
 

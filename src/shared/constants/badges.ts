@@ -59,6 +59,13 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     priceLabel: "₺99,99",
     revenueCatProductId: "ehlibyte.badge.la_fetta_illa",
   },
+  {
+    badge: "night_badge",
+    title: "Night",
+    description: "Gece temasını ve özel ilgiyi profilinde taşı.",
+    priceLabel: "₺119,99",
+    revenueCatProductId: "ehlibyte.badge.night_badge",
+  },
 ];
 
 export const earnedBadgeProducts: EarnedBadgeProduct[] = [

@@ -39,6 +39,7 @@ Rozet product id listesi:
 - `ehlibyte.badge.cem_room_supporter` - ₺39,99
 - `ehlibyte.badge.culture_guardian` - ₺49,99
 - `ehlibyte.badge.la_fetta_illa` - ₺99,99
+- `ehlibyte.badge.night_badge` - ₺119,99
 - `ehlibyte.badge.haci_bektas_veli` - ₺129,99
 - `ehlibyte.badge.zulfiqar_sword` - ₺149,99
 

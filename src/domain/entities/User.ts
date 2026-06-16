@@ -40,6 +40,8 @@ export const badgeValues = [
   "zulfiqar_sword",
   "haci_bektas_veli",
   "la_fetta_illa",
+  "night_badge",
+  "staff_badge",
 ] as const;
 
 export const profileKindValues = ["member", "starter", "ai_starter"] as const;

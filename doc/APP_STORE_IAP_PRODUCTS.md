@@ -78,6 +78,7 @@ olmali. Kullanicinin tekrar satin almasina gerek yoktur.
 | `ehlibyte.badge.cem_room_supporter` | Non-Consumable | Cem Odasi Destekcisi    | `₺39,99`       | Meydan/Cem odasi destegi.            |
 | `ehlibyte.badge.culture_guardian`   | Non-Consumable | Yol Erkani Destekcisi   | `₺49,99`       | Topluluk guvenligi ve saygi vurgusu. |
 | `ehlibyte.badge.la_fetta_illa`      | Non-Consumable | La Fetta Illa Rozeti    | `₺99,99`       | Ozel destek rozeti.                  |
+| `ehlibyte.badge.night_badge`        | Non-Consumable | Night Rozeti            | `₺119,99`      | Gece temali ozel destek rozeti.      |
 | `ehlibyte.badge.haci_bektas_veli`   | Non-Consumable | Haci Bektas Veli Rozeti | `₺129,99`      | Ozel destek rozeti.                  |
 | `ehlibyte.badge.zulfiqar_sword`     | Non-Consumable | Zulfikar Kilici Rozeti  | `₺149,99`      | En prestijli ozel rozet.             |
 
@@ -86,6 +87,7 @@ Uygulamada kesin para ile satilacak rozetler:
 - `ehlibyte.badge.zulfikar_sword`
 - `ehlibyte.badge.haci_bektas_veli`
 - `ehlibyte.badge.la_fetta_illa`
+- `ehlibyte.badge.night_badge`
 
 App Store aciklama metni:
 
@@ -133,6 +135,7 @@ Custom/extra products:
 - `ehlibyte.badge.cem_room_supporter`
 - `ehlibyte.badge.culture_guardian`
 - `ehlibyte.badge.la_fetta_illa`
+- `ehlibyte.badge.night_badge`
 - `ehlibyte.badge.haci_bektas_veli`
 - `ehlibyte.badge.zulfiqar_sword`
 
@@ -148,6 +151,7 @@ App Review ve kurulum hizli olsun istiyorsan ilk surumde sunlari acman yeterli:
 6. `ehlibyte.badge.zulfiqar_sword`
 7. `ehlibyte.badge.haci_bektas_veli`
 8. `ehlibyte.badge.la_fetta_illa`
+9. `ehlibyte.badge.night_badge`
 
 Daha sonra dusuk fiyatli destek rozetlerini ekleyebilirsin.
 
