@@ -5,7 +5,7 @@ import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import type { UserProfileUpdate } from "@/domain/entities/User";
+import type { ProfilePromptAnswer, UserProfileUpdate } from "@/domain/entities/User";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import {
@@ -23,11 +23,40 @@ import {
   culturalIdentityOptions,
   cultureImportanceOptions,
   interestOptions,
+  profilePromptOptions,
 } from "@/shared/constants/options";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
 import { useTheme } from "@/shared/theme";
 
+const getProfilePromptDefaults = (
+  currentPrompts: ProfilePromptAnswer[] = [],
+): ProfilePromptAnswer[] =>
+  profilePromptOptions.map((prompt) => {
+    const existing = currentPrompts.find(
+      (candidate) => candidate.questionId === prompt.questionId,
+    );
+
+    return {
+      questionId: prompt.questionId,
+      question: prompt.question,
+      answer: existing?.answer ?? "",
+    };
+  });
+
 const toProfileUpdate = (values: ProfileFormValues): UserProfileUpdate => {
+  const profilePrompts: ProfilePromptAnswer[] = values.profilePrompts.flatMap(
+    (prompt) => {
+      const questionId = prompt.questionId ?? "";
+      const question = prompt.question ?? "";
+      const answer = prompt.answer?.trim() ?? "";
+
+      if (!questionId || !question || !answer) {
+        return [];
+      }
+
+      return [{ questionId, question, answer }];
+    },
+  );
   const update: UserProfileUpdate = {
     name: values.name,
     age: values.age,
@@ -36,6 +65,7 @@ const toProfileUpdate = (values: ProfileFormValues): UserProfileUpdate => {
     culturalIdentity: values.culturalIdentity,
     cultureImportance: values.cultureImportance,
     interests: values.interests,
+    profilePrompts,
   };
 
   if (values.occupation) {
@@ -84,6 +114,7 @@ export default function ProfileEditScreen() {
       culturalIdentity: "prefer_not_to_say",
       cultureImportance: "somewhat_important",
       interests: [],
+      profilePrompts: getProfilePromptDefaults(),
       photoUri: "",
     },
   });
@@ -106,6 +137,7 @@ export default function ProfileEditScreen() {
       culturalIdentity: profile.culturalIdentity,
       cultureImportance: profile.cultureImportance,
       interests: profile.interests,
+      profilePrompts: getProfilePromptDefaults(profile.profilePrompts),
       photoUri: profile.photos[0]?.uri ?? "",
     });
   }, [form, profile]);
@@ -316,6 +348,31 @@ export default function ProfileEditScreen() {
       </Card>
 
       <Card style={styles.section}>
+        <View style={styles.sectionHeading}>
+          <Text style={styles.sectionTitle}>Profil soruları</Text>
+          <Text style={styles.helperText}>Keşfet kartında sohbet başlatan cevaplar.</Text>
+        </View>
+        {profilePromptOptions.map((prompt, index) => (
+          <Controller
+            key={prompt.questionId}
+            control={form.control}
+            name={`profilePrompts.${index}.answer`}
+            render={({ field, fieldState }) => (
+              <Input
+                label={prompt.question}
+                value={field.value}
+                onChangeText={field.onChange}
+                maxLength={220}
+                multiline
+                style={styles.multilineInput}
+                error={fieldState.error?.message}
+              />
+            )}
+          />
+        ))}
+      </Card>
+
+      <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Kültürel beyan</Text>
         <Controller
           control={form.control}
@@ -473,6 +530,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     section: {
       gap: theme.spacing.sm,
+    },
+    sectionHeading: {
+      gap: theme.spacing.xxs,
     },
     sectionTitle: {
       ...theme.typography.subheading,

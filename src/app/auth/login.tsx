@@ -93,7 +93,11 @@ export default function LoginScreen() {
       <AuthLegalNotice />
       <View style={styles.links}>
         <Link href="/auth/register" asChild>
-          <Pressable>
+          <Pressable
+            accessibilityRole="button"
+            hitSlop={8}
+            style={styles.linkButton}
+          >
             <Text style={styles.link}>Hesap oluştur</Text>
           </Pressable>
         </Link>
@@ -108,6 +112,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       justifyContent: "center",
       gap: theme.spacing.sm,
+    },
+    linkButton: {
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.sm,
     },
     link: {
       ...theme.typography.caption,

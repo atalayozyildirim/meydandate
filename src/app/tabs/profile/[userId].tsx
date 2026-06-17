@@ -27,6 +27,8 @@ export default function PublicProfileScreen() {
       <Screen>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Geri dön"
+          hitSlop={8}
           onPress={() => router.back()}
           style={styles.backButton}
         >
@@ -41,12 +43,16 @@ export default function PublicProfileScreen() {
   }
 
   const primaryPhoto = profile.photos[0]?.uri;
+  const visibleProfilePrompts =
+    profile.profilePrompts?.filter((prompt) => prompt.answer.trim()) ?? [];
 
   return (
     <Screen>
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
+          accessibilityLabel="Geri dön"
+          hitSlop={8}
           onPress={() => router.back()}
           style={styles.backButton}
         >
@@ -63,6 +69,22 @@ export default function PublicProfileScreen() {
       </Text>
       <Text style={styles.city}>{sanitizePlainText(profile.city, 80)}</Text>
       <Text style={styles.bio}>{sanitizePlainText(profile.bio, 280)}</Text>
+
+      {visibleProfilePrompts.length > 0 ? (
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Profil soruları</Text>
+          {visibleProfilePrompts.map((prompt) => (
+            <View key={prompt.questionId} style={styles.promptItem}>
+              <Text style={styles.promptQuestion}>
+                {sanitizePlainText(prompt.question, 160)}
+              </Text>
+              <Text style={styles.promptAnswer}>
+                {sanitizePlainText(prompt.answer, 220)}
+              </Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Rozetler</Text>
@@ -212,5 +234,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     detail: {
       ...theme.typography.body,
       color: theme.colors.muted,
+    },
+    promptItem: {
+      gap: theme.spacing.xxs,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+    },
+    promptQuestion: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "800",
+    },
+    promptAnswer: {
+      ...theme.typography.body,
+      color: theme.colors.text,
     },
   });

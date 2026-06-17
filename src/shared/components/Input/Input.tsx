@@ -7,7 +7,7 @@ interface InputProps extends TextInputProps {
   error?: string | undefined;
 }
 
-export const Input = ({ label, error, ...props }: InputProps) => {
+export const Input = ({ label, error, style, ...props }: InputProps) => {
   const theme = useTheme();
   const styles = createStyles(theme, Boolean(error));
 
@@ -16,7 +16,7 @@ export const Input = ({ label, error, ...props }: InputProps) => {
       <Text style={styles.label}>{label}</Text>
       <TextInput
         placeholderTextColor={theme.colors.muted}
-        style={styles.input}
+        style={[styles.input, style]}
         selectionColor={theme.colors.primary}
         {...props}
       />

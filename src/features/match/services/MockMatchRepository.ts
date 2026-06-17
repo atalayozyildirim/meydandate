@@ -56,14 +56,23 @@ const hasExistingMatch = (userId: string, targetUserId: string) =>
 
 export class MockMatchRepository implements MatchRepository {
   async swipe(userId: string, targetUserId: string, action: Like["action"]): Promise<SwipeResult> {
-    const like: Like = {
-      id: createId("like"),
-      fromUserId: userId,
-      toUserId: targetUserId,
-      action,
-      createdAt: new Date().toISOString()
-    };
-    mockDatabase.likes.push(like);
+    const existingLike = mockDatabase.likes.find(
+      (like) => like.fromUserId === userId && like.toUserId === targetUserId,
+    );
+    const timestamp = new Date().toISOString();
+
+    if (existingLike) {
+      existingLike.action = action;
+      existingLike.createdAt = timestamp;
+    } else {
+      mockDatabase.likes.push({
+        id: createId("like"),
+        fromUserId: userId,
+        toUserId: targetUserId,
+        action,
+        createdAt: timestamp
+      });
+    }
 
     if (action === "pass") {
       return { action };
@@ -82,7 +91,6 @@ export class MockMatchRepository implements MatchRepository {
 
     const currentUser = findUser(userId);
     const targetUser = findUser(targetUserId);
-    const timestamp = new Date().toISOString();
     const match: Match = {
       id: createId("match"),
       users: [currentUser, targetUser],
@@ -107,6 +115,76 @@ export class MockMatchRepository implements MatchRepository {
     });
 
     return { action, match };
+  }
+
+  async undoLastSwipe(userId: string) {
+    const user = findUser(userId);
+
+    if (!user.isPremium) {
+      throw new Error("Geri al Premium ile kullanılabilir.");
+    }
+
+    const lastLike = [...mockDatabase.likes]
+      .filter((like) => like.fromUserId === userId)
+      .sort((first, second) => second.createdAt.localeCompare(first.createdAt))[0];
+
+    if (!lastLike) {
+      throw new Error("Geri alınacak işlem yok.");
+    }
+
+    mockDatabase.likes = mockDatabase.likes.filter((like) => like.id !== lastLike.id);
+    const match = mockDatabase.matches.find((candidate) =>
+      candidate.users.every((candidateUser) =>
+        candidateUser.id === userId || candidateUser.id === lastLike.toUserId,
+      ),
+    );
+
+    if (match) {
+      mockDatabase.matches = mockDatabase.matches.filter(
+        (candidate) => candidate.id !== match.id,
+      );
+      mockDatabase.conversations = mockDatabase.conversations.filter(
+        (conversation) =>
+          !conversation.participants.every((participant) =>
+            participant.id === userId || participant.id === lastLike.toUserId,
+          ),
+      );
+    }
+
+    return {
+      targetUserId: lastLike.toUserId,
+      action: lastLike.action,
+      matchRemoved: Boolean(match),
+    };
+  }
+
+  async listLikedMe(userId: string) {
+    const user = findUser(userId);
+
+    if (!user.isPremium) {
+      throw new Error("Seni beğenenleri görmek Premium ile kullanılabilir.");
+    }
+
+    const ownActions = new Set(
+      mockDatabase.likes
+        .filter((like) => like.fromUserId === userId)
+        .map((like) => like.toUserId),
+    );
+
+    return mockDatabase.likes
+      .filter(
+        (like) =>
+          like.toUserId === userId &&
+          like.action !== "pass" &&
+          !ownActions.has(like.fromUserId) &&
+          !hasExistingMatch(userId, like.fromUserId),
+      )
+      .sort((first, second) => second.createdAt.localeCompare(first.createdAt))
+      .map((like) => ({
+        user: findUser(like.fromUserId),
+        action: like.action as "like" | "super_like",
+        likedAt: like.createdAt,
+      }));
   }
 
   async listMatches(userId: string): Promise<Match[]> {

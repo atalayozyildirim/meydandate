@@ -1,5 +1,11 @@
 // Discover sekmesi swipe kartlarini, animasyonlari ve match modalini calistirir.
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   Alert,
   Pressable,
@@ -12,8 +18,10 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useFocusEffect, useRouter } from "expo-router";
+import { Audio } from "expo-av";
 import * as Location from "expo-location";
+import LottieView from "lottie-react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -26,7 +34,11 @@ import Animated, {
   withSpring,
   withTiming,
 } from "react-native-reanimated";
-import type { LikeAction, Match } from "@/domain/entities/Match";
+import type {
+  CulturalCompatibility,
+  LikeAction,
+  Match,
+} from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { SwipeProfileCard } from "@/features/discover/components/SwipeProfileCard";
 import { useDiscoverDeck } from "@/features/discover/hooks/useDiscoverDeck";
@@ -44,23 +56,110 @@ import { OptionChip } from "@/shared/components/OptionChip";
 import { Screen } from "@/shared/components/Screen";
 import { queryKeys } from "@/shared/constants/queryKeys";
 import {
+  cultureImportanceOptions,
+  interestOptions,
+} from "@/shared/constants/options";
+import {
   clampMatchRadiusKm,
   DEFAULT_MATCH_RADIUS_KM,
 } from "@/shared/utils/location";
+import { formatScore } from "@/shared/utils/score";
+import { sanitizePlainText } from "@/shared/utils/sanitize";
 import { useTheme } from "@/shared/theme";
 import { container } from "@/infrastructure/config/Container";
+import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
+
+// eslint-disable-next-line global-require
+const loveAnimation = require("../../../../assets/lottie/love.json");
+// eslint-disable-next-line global-require
+const discoverMusicTracks = [
+  require("../../../../assets/music/felek.mp3"),
+  require("../../../../assets/music/arayıarayı.mp3"),
+] as const;
 
 const SWIPE_THRESHOLD = 110;
 const SUPER_LIKE_THRESHOLD = -120;
 const OFFSCREEN_DISTANCE = 520;
 const MAX_ROTATION_DEGREES = 14;
 const locationRadiusOptions = [10, 25, 50, 100, 250] as const;
+const discoverMusicPreferenceKey = "ehlibyte-discover-music-muted";
+const discoverMusicStorage = new SecureStorageService();
 
 interface LocationPreferenceArgs {
   enabled: boolean;
   radiusKm: number;
   refreshLocation?: boolean;
 }
+
+interface DiscoverCard {
+  user: User;
+  compatibility: CulturalCompatibility;
+}
+
+const getCultureImportanceLabel = (value: User["cultureImportance"]) =>
+  cultureImportanceOptions.find((option) => option.value === value)?.label ??
+  value;
+
+const getInterestLabel = (value: User["interests"][number]) =>
+  interestOptions.find((option) => option.value === value)?.label ?? value;
+
+const getCompatibilityReasons = (currentUser: User | null, candidate: User) => {
+  if (!currentUser) {
+    return ["Profil detayları yüklendiğinde daha net sinyaller gösterilir."];
+  }
+
+  const reasons: string[] = [];
+  const sharedInterests = currentUser.interests.filter((interest) =>
+    candidate.interests.includes(interest),
+  );
+
+  if (sharedInterests.length > 0) {
+    reasons.push(
+      `Ortak ilgi: ${sharedInterests.slice(0, 3).map(getInterestLabel).join(", ")}`,
+    );
+  }
+
+  if (
+    currentUser.hometown &&
+    candidate.hometown &&
+    currentUser.hometown.toLocaleLowerCase("tr-TR") ===
+      candidate.hometown.toLocaleLowerCase("tr-TR")
+  ) {
+    reasons.push(`Aynı memleket sinyali: ${sanitizePlainText(candidate.hometown, 80)}`);
+  }
+
+  if (
+    currentUser.favoritePoet &&
+    candidate.favoritePoet &&
+    currentUser.favoritePoet.toLocaleLowerCase("tr-TR") ===
+      candidate.favoritePoet.toLocaleLowerCase("tr-TR")
+  ) {
+    reasons.push(`Favori ozan ortak: ${sanitizePlainText(candidate.favoritePoet, 80)}`);
+  }
+
+  if (
+    currentUser.favoriteSong &&
+    candidate.favoriteSong &&
+    currentUser.favoriteSong.toLocaleLowerCase("tr-TR") ===
+      candidate.favoriteSong.toLocaleLowerCase("tr-TR")
+  ) {
+    reasons.push(`Favori türkü ortak: ${sanitizePlainText(candidate.favoriteSong, 80)}`);
+  }
+
+  if (currentUser.cultureImportance === candidate.cultureImportance) {
+    reasons.push(
+      `Kültür önemi aynı: ${getCultureImportanceLabel(candidate.cultureImportance)}`,
+    );
+  }
+
+  if (candidate.profilePrompts?.some((prompt) => prompt.answer.trim())) {
+    reasons.push("Profil sorularında sohbet açabilecek cevaplar var.");
+  }
+
+  return reasons.length > 0
+    ? reasons
+    : ["Uyum skoru; kültürel beyan, ilgi alanları ve yaşam tarzı sinyallerinden hesaplanıyor."];
+};
 
 const getLocationPreferenceErrorMessage = (error: unknown) => {
   const message = error instanceof Error ? error.message : "";
@@ -110,6 +209,7 @@ interface SwipeActionButtonProps {
   onPress: () => void;
   icon: ReactNode;
   background?: ReactNode;
+  overlay?: ReactNode;
   style?: StyleProp<ViewStyle>;
 }
 
@@ -120,6 +220,7 @@ const SwipeActionButton = ({
   onPress,
   icon,
   background,
+  overlay,
   style,
 }: SwipeActionButtonProps) => {
   const pressScale = useSharedValue(1);
@@ -159,7 +260,9 @@ const SwipeActionButton = ({
       <Pressable
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
+        accessibilityState={{ disabled }}
         disabled={disabled}
+        hitSlop={8}
         onPress={onPress}
         onPressIn={() => {
           pressScale.value = withSpring(0.92, {
@@ -176,6 +279,7 @@ const SwipeActionButton = ({
       >
         {icon}
       </Pressable>
+      {overlay}
     </Animated.View>
   );
 };
@@ -206,7 +310,7 @@ export default function DiscoverScreen() {
   const insets = useSafeAreaInsets();
   const currentUser = useAuthStore((state) => state.currentUser);
   const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
-  const { height } = useWindowDimensions();
+  const { height, width } = useWindowDimensions();
   const {
     deck,
     specialInvite,
@@ -216,17 +320,29 @@ export default function DiscoverScreen() {
     dismissCandidate,
     restoreCandidate,
     swipe,
+    isUndoingSwipe,
+    undoLastSwipe,
     refresh,
     acceptSpecialInvite,
     declineSpecialInvite,
   } = useDiscoverDeck();
   const { fireBalance, sendFire, isSendingFire } = useFire();
   const [activeSafetyUser, setActiveSafetyUser] = useState<User | null>(null);
+  const [compatibilityCard, setCompatibilityCard] =
+    useState<DiscoverCard | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
   const [isMatchVisible, setIsMatchVisible] = useState(false);
   const [isLocationSheetVisible, setIsLocationSheetVisible] = useState(false);
+  const [isDiscoverFocused, setIsDiscoverFocused] = useState(false);
+  const [isMusicPreferenceLoaded, setIsMusicPreferenceLoaded] = useState(false);
+  const [isMusicMuted, setIsMusicMuted] = useState(false);
+  const [isLoveEffectVisible, setIsLoveEffectVisible] = useState(false);
   const failedSwipeIdsRef = useRef<Set<string>>(new Set());
   const hasAutoOpenedLocationSheetRef = useRef(false);
+  const soundRef = useRef<Audio.Sound | null>(null);
+  const musicTrackIndexRef = useRef(0);
+  const shouldPlayMusicRef = useRef(false);
+  const [loveEffectKey, setLoveEffectKey] = useState(0);
   const locationMatchingEnabled = currentUser?.matchByLocation ?? false;
   const hasProfileLocation =
     typeof currentUser?.locationLatitude === "number" &&
@@ -249,9 +365,9 @@ export default function DiscoverScreen() {
       : null;
   const locationShortcutLabel = locationMatchingEnabled
     ? hasProfileLocation
-      ? `${locationRadiusKm} km yakinda`
+      ? `${locationRadiusKm} km yakında`
       : "Konum yenilenmeli"
-    : "Konuma gore kapali";
+    : "Konuma göre kapalı";
   const locationSheetSubtitle = locationMatchingEnabled
     ? hasProfileLocation
       ? `Yakındaki profiller ${locationRadiusKm} km içinde. ${locationUpdatedLabel ? `Son: ${locationUpdatedLabel}` : ""}`
@@ -260,16 +376,153 @@ export default function DiscoverScreen() {
 
   const activeCard = deck[0];
   const nextCard = deck[1];
-  const cardHeight = Math.min(Math.max(height * 0.58, 430), 540);
+  const isCompactViewport = width < 380 || height < 720;
+  const cardHeight = Math.min(
+    Math.max(
+      height * (isCompactViewport ? 0.5 : 0.58),
+      isCompactViewport ? 360 : 430,
+    ),
+    isCompactViewport ? 470 : 540,
+  );
+  const sideActionSize = isCompactViewport ? 52 : 58;
+  const miniActionSize = isCompactViewport ? 44 : 50;
+  const fireActionSize = isCompactViewport ? 60 : 66;
+  const sideIconSize = isCompactViewport ? 28 : 30;
+  const secondaryIconSize = isCompactViewport ? 26 : 28;
+  const fireIconSize = isCompactViewport ? 31 : 34;
   const translateX = useSharedValue(0);
   const translateY = useSharedValue(0);
   const fireScale = useSharedValue(1);
   const firePulse = useSharedValue(0);
 
+  useFocusEffect(
+    useCallback(() => {
+      setIsDiscoverFocused(true);
+
+      return () => {
+        setIsDiscoverFocused(false);
+      };
+    }, []),
+  );
+
+  useEffect(() => {
+    let mounted = true;
+
+    void discoverMusicStorage
+      .getItem(discoverMusicPreferenceKey)
+      .then((storedPreference) => {
+        if (!mounted) {
+          return;
+        }
+
+        setIsMusicMuted(storedPreference === "true");
+        setIsMusicPreferenceLoaded(true);
+      })
+      .catch(() => {
+        if (mounted) {
+          setIsMusicPreferenceLoaded(true);
+        }
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isMusicPreferenceLoaded) {
+      return undefined;
+    }
+
+    let cancelled = false;
+    shouldPlayMusicRef.current = isDiscoverFocused && !isMusicMuted;
+
+    const unloadCurrentSound = async () => {
+      const currentSound = soundRef.current;
+      soundRef.current = null;
+
+      if (currentSound) {
+        await currentSound.unloadAsync().catch(() => undefined);
+      }
+    };
+
+    const playTrack = async (trackIndex: number) => {
+      if (cancelled || !shouldPlayMusicRef.current) {
+        return;
+      }
+
+      await unloadCurrentSound();
+
+      if (cancelled || !shouldPlayMusicRef.current) {
+        return;
+      }
+
+      await Audio.setAudioModeAsync({
+        playsInSilentModeIOS: true,
+        staysActiveInBackground: false,
+        shouldDuckAndroid: true,
+      }).catch(() => undefined);
+
+      const { sound } = await Audio.Sound.createAsync(
+        discoverMusicTracks[trackIndex],
+        {
+          shouldPlay: true,
+          isLooping: false,
+          volume: 0.42,
+        },
+      );
+
+      if (cancelled || !shouldPlayMusicRef.current) {
+        await sound.unloadAsync().catch(() => undefined);
+        return;
+      }
+
+      soundRef.current = sound;
+      sound.setOnPlaybackStatusUpdate((status) => {
+        if (
+          !status.isLoaded ||
+          cancelled ||
+          !shouldPlayMusicRef.current ||
+          !status.didJustFinish
+        ) {
+          return;
+        }
+
+        musicTrackIndexRef.current =
+          (musicTrackIndexRef.current + 1) % discoverMusicTracks.length;
+        void playTrack(musicTrackIndexRef.current).catch(() => undefined);
+      });
+    };
+
+    if (!shouldPlayMusicRef.current) {
+      void unloadCurrentSound();
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    void playTrack(musicTrackIndexRef.current).catch(() => undefined);
+
+    return () => {
+      cancelled = true;
+      shouldPlayMusicRef.current = false;
+      void unloadCurrentSound();
+    };
+  }, [isDiscoverFocused, isMusicMuted, isMusicPreferenceLoaded]);
+
   useEffect(() => {
     translateX.value = 0;
     translateY.value = 0;
   }, [activeCard?.user.id, translateX, translateY]);
+
+  useEffect(() => {
+    if (
+      compatibilityCard &&
+      compatibilityCard.user.id !== activeCard?.user.id
+    ) {
+      setCompatibilityCard(null);
+    }
+  }, [activeCard?.user.id, compatibilityCard]);
 
   useEffect(() => {
     if (
@@ -353,6 +606,28 @@ export default function DiscoverScreen() {
     );
   };
 
+  const showPremiumFeatureAlert = (feature: string, description: string) => {
+    Alert.alert(feature, description, [
+      { text: "Vazgeç", style: "cancel" },
+      {
+        text: "Premium'u incele",
+        onPress: () => router.push("/tabs/store"),
+      },
+    ]);
+  };
+
+  const setDiscoverMusicMutedPreference = (nextValue: boolean) => {
+    setIsMusicMuted(nextValue);
+    void discoverMusicStorage
+      .setItem(discoverMusicPreferenceKey, String(nextValue))
+      .catch(() => undefined);
+  };
+
+  const playLoveEffect = () => {
+    setLoveEffectKey((current) => current + 1);
+    setIsLoveEffectVisible(true);
+  };
+
   const ensureSwipeIsAllowed = (action: LikeAction) => {
     if (action !== "super_like" || currentUser?.isPremium) {
       return true;
@@ -360,6 +635,31 @@ export default function DiscoverScreen() {
 
     showPremiumRequiredAlert();
     return false;
+  };
+
+  const handleUndoLastSwipe = async () => {
+    if (!currentUser?.isPremium) {
+      showPremiumFeatureAlert(
+        "Geri al Premium",
+        "Son kaydırmayı geri almak Ehlibyte Premium ile kullanılabilir.",
+      );
+      return;
+    }
+
+    try {
+      const result = await undoLastSwipe();
+      Alert.alert(
+        "Geri alındı",
+        result.matchRemoved
+          ? "Son hamle ve açılan eşleşme kaldırıldı."
+          : "Son hamle geri alındı; profil tekrar akışa eklendi.",
+      );
+    } catch (error) {
+      Alert.alert(
+        "Geri alınamadı",
+        error instanceof Error ? error.message : "Son işlem geri alınamadı.",
+      );
+    }
   };
 
   const handleSwipeResult = async (
@@ -410,6 +710,11 @@ export default function DiscoverScreen() {
     const targetUserId = activeCard.user.id;
     dismissCandidate(targetUserId);
     void handleSwipeResult(targetUserId, action);
+  };
+
+  const handleLikeButtonPress = () => {
+    playLoveEffect();
+    triggerButtonSwipe("like");
   };
 
   const handleAcceptSpecialInvite = async () => {
@@ -582,6 +887,10 @@ export default function DiscoverScreen() {
     }
   };
 
+  const compatibilityReasons = compatibilityCard
+    ? getCompatibilityReasons(currentUser ?? null, compatibilityCard.user)
+    : [];
+
   if (isLoading) {
     return <Loading label="Profiller hazırlanıyor" />;
   }
@@ -620,6 +929,21 @@ export default function DiscoverScreen() {
             <Ionicons name="flame" size={15} color={theme.colors.primary} />
             <Text style={styles.count}>{fireBalance}</Text>
           </View>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Seni beğenenleri aç"
+            onPress={() => router.push("/tabs/likes")}
+            style={({ pressed }) => [
+              styles.iconButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name="heart-circle-outline"
+              size={19}
+              color={theme.colors.primary}
+            />
+          </Pressable>
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Konum ve keşfet ayarlarını aç"
@@ -678,10 +1002,10 @@ export default function DiscoverScreen() {
             />
           </View>
           <View style={styles.locationTextWrap}>
-            <Text style={styles.locationShortcutTitle}>
-              Konuma gore eslesme
+            <Text numberOfLines={1} style={styles.locationShortcutTitle}>
+              Konuma göre eşleşme
             </Text>
-            <Text style={styles.locationShortcutSubtitle}>
+            <Text numberOfLines={1} style={styles.locationShortcutSubtitle}>
               {locationShortcutLabel}
             </Text>
           </View>
@@ -752,6 +1076,10 @@ export default function DiscoverScreen() {
                   compatibility={activeCard.compatibility}
                   height={cardHeight}
                   onOpenSafety={() => setActiveSafetyUser(activeCard.user)}
+                  onOpenProfile={() =>
+                    router.push(`/tabs/profile/${activeCard.user.id}`)
+                  }
+                  onOpenCompatibility={() => setCompatibilityCard(activeCard)}
                 />
                 <View pointerEvents="none" style={styles.stampLayer}>
                   <Animated.Text
@@ -803,26 +1131,39 @@ export default function DiscoverScreen() {
               ))}
             </View>
           </View>
-          <View style={styles.actions}>
+          <View style={[styles.actions, isCompactViewport && styles.compactActions]}>
             <SwipeActionButton
               accessibilityLabel="Bu profili geç"
               accentColor={theme.colors.danger}
-              style={[styles.roundAction, styles.passAction]}
+              style={[
+                styles.roundAction,
+                styles.passAction,
+                { width: sideActionSize, height: sideActionSize },
+              ]}
               onPress={() => triggerButtonSwipe("pass")}
               icon={
-                <Ionicons name="close" size={30} color={theme.colors.danger} />
+                <Ionicons
+                  name="close"
+                  size={sideIconSize}
+                  color={theme.colors.danger}
+                />
               }
             />
             <SwipeActionButton
-              accessibilityLabel="Profil detayını aç"
+              accessibilityLabel="Son kaydırmayı geri al"
               accentColor={theme.colors.border}
-              style={[styles.roundAction, styles.infoAction]}
-              onPress={() => router.push(`/tabs/profile/${activeCard.user.id}`)}
+              style={[
+                styles.roundAction,
+                styles.undoAction,
+                { width: miniActionSize, height: miniActionSize },
+              ]}
+              disabled={isUndoingSwipe}
+              onPress={() => void handleUndoLastSwipe()}
               icon={
                 <Ionicons
-                  name="person-circle-outline"
-                  size={28}
-                  color={theme.colors.text}
+                  name="arrow-undo-outline"
+                  size={secondaryIconSize - 2}
+                  color={theme.colors.warning}
                 />
               }
             />
@@ -830,7 +1171,11 @@ export default function DiscoverScreen() {
               accessibilityLabel="Bu profile Fire gönder"
               disabled={isSendingFire}
               accentColor={theme.colors.primary}
-              style={[styles.roundAction, styles.fireAction]}
+              style={[
+                styles.roundAction,
+                styles.fireAction,
+                { width: fireActionSize, height: fireActionSize },
+              ]}
               onPress={() => void sendFireToActiveCard()}
               background={
                 <Animated.View
@@ -843,7 +1188,7 @@ export default function DiscoverScreen() {
                   <Animated.View style={fireButtonStyle}>
                     <Ionicons
                       name="flame"
-                      size={34}
+                      size={fireIconSize}
                       color={theme.colors.primary}
                     />
                   </Animated.View>
@@ -856,12 +1201,16 @@ export default function DiscoverScreen() {
             <SwipeActionButton
               accessibilityLabel="Super Like gönder"
               accentColor={theme.colors.secondary}
-              style={[styles.roundAction, styles.superAction]}
+              style={[
+                styles.roundAction,
+                styles.superAction,
+                { width: sideActionSize, height: sideActionSize },
+              ]}
               onPress={() => triggerButtonSwipe("super_like")}
               icon={
                 <Ionicons
                   name="flash-outline"
-                  size={28}
+                  size={secondaryIconSize}
                   color={theme.colors.secondary}
                 />
               }
@@ -869,10 +1218,32 @@ export default function DiscoverScreen() {
             <SwipeActionButton
               accessibilityLabel="Bu profili beğen"
               accentColor={theme.colors.primary}
-              style={[styles.roundAction, styles.likeAction]}
-              onPress={() => triggerButtonSwipe("like")}
+              style={[
+                styles.roundAction,
+                styles.likeAction,
+                { width: sideActionSize, height: sideActionSize },
+              ]}
+              onPress={handleLikeButtonPress}
               icon={
-                <Ionicons name="heart" size={30} color={theme.colors.primary} />
+                <Ionicons
+                  name="heart"
+                  size={sideIconSize}
+                  color={theme.colors.primary}
+                />
+              }
+              overlay={
+                isLoveEffectVisible ? (
+                  <View pointerEvents="none" style={styles.loveEffect}>
+                    <LottieView
+                      key={loveEffectKey}
+                      source={loveAnimation}
+                      autoPlay
+                      loop={false}
+                      onAnimationFinish={() => setIsLoveEffectVisible(false)}
+                      style={styles.loveEffectAnimation}
+                    />
+                  </View>
+                ) : null
               }
             />
           </View>
@@ -900,7 +1271,7 @@ export default function DiscoverScreen() {
       >
         <View style={styles.locationSheetHeader}>
           <View style={styles.locationSheetTitleWrap}>
-            <Text style={styles.locationSheetTitle}>Konuma gore eslesme</Text>
+            <Text style={styles.locationSheetTitle}>Konuma göre eşleşme</Text>
             <Text style={styles.locationSheetSubtitle}>
               {locationSheetSubtitle}
             </Text>
@@ -910,6 +1281,40 @@ export default function DiscoverScreen() {
             disabled={!currentUser || locationMatchingMutation.isPending}
             onValueChange={(enabled) =>
               updateLocationPreference(enabled, locationRadiusKm, enabled)
+            }
+            trackColor={{
+              true: theme.colors.primary,
+              false: theme.colors.border,
+            }}
+            thumbColor="#FFFFFF"
+          />
+        </View>
+        <View style={styles.musicSettingRow}>
+          <View
+            style={[
+              styles.locationIconWrap,
+              !isMusicMuted && styles.locationIconWrapActive,
+            ]}
+          >
+            <Ionicons
+              name={isMusicMuted ? "volume-mute-outline" : "volume-high-outline"}
+              size={16}
+              color={isMusicMuted ? theme.colors.muted : theme.colors.primary}
+            />
+          </View>
+          <View style={styles.musicSettingTextWrap}>
+            <Text style={styles.musicSettingTitle}>Keşfet müziği</Text>
+            <Text style={styles.musicSettingSubtitle}>
+              {isMusicMuted
+                ? "Müzik kapalı; Keşfet sessiz açılır."
+                : "Keşfet açılınca müzik otomatik çalar."}
+            </Text>
+          </View>
+          <Switch
+            value={!isMusicMuted}
+            disabled={!isMusicPreferenceLoaded}
+            onValueChange={(enabled) =>
+              setDiscoverMusicMutedPreference(!enabled)
             }
             trackColor={{
               true: theme.colors.primary,
@@ -937,8 +1342,8 @@ export default function DiscoverScreen() {
           </View>
           <Text style={styles.locationSheetInfoText}>
             {hasProfileLocation
-              ? `${locationRadiusKm} km yaricap aktif`
-              : "Konum kaydi henuz yok"}
+              ? `${locationRadiusKm} km yarıçap aktif`
+              : "Konum kaydı henüz yok"}
           </Text>
         </View>
         <View style={styles.locationChipWrap}>
@@ -968,6 +1373,68 @@ export default function DiscoverScreen() {
           }
           onPress={() => updateLocationPreference(true, locationRadiusKm, true)}
         />
+      </BottomSheet>
+      <BottomSheet
+        visible={Boolean(compatibilityCard)}
+        onClose={() => setCompatibilityCard(null)}
+      >
+        {compatibilityCard ? (
+          <>
+            <View style={styles.compatibilityHeader}>
+              <View style={styles.compatibilityIcon}>
+                <Ionicons
+                  name="star"
+                  size={18}
+                  color={theme.colors.primary}
+                />
+              </View>
+              <View style={styles.compatibilityTitleWrap}>
+                <Text style={styles.compatibilityTitle}>Uyum detayı</Text>
+                <Text style={styles.compatibilitySubtitle}>
+                  {sanitizePlainText(compatibilityCard.user.name, 80)} ile
+                  eşleşme sinyalleri
+                </Text>
+              </View>
+            </View>
+            <View style={styles.compatibilityScoreGrid}>
+              {[
+                {
+                  label: "Kültür",
+                  value: compatibilityCard.compatibility.cultural,
+                },
+                {
+                  label: "İlgi",
+                  value: compatibilityCard.compatibility.interests,
+                },
+                {
+                  label: "Tarz",
+                  value: compatibilityCard.compatibility.lifestyle,
+                },
+              ].map((item) => (
+                <View key={item.label} style={styles.compatibilityScoreItem}>
+                  <Text style={styles.compatibilityScore}>
+                    {formatScore(item.value)}
+                  </Text>
+                  <Text style={styles.compatibilityScoreLabel}>
+                    {item.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            <View style={styles.compatibilityReasonList}>
+              {compatibilityReasons.map((reason) => (
+                <View key={reason} style={styles.compatibilityReason}>
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={16}
+                    color={theme.colors.success}
+                  />
+                  <Text style={styles.compatibilityReasonText}>{reason}</Text>
+                </View>
+              ))}
+            </View>
+          </>
+        ) : null}
       </BottomSheet>
       <MatchModal
         match={match}
@@ -1126,15 +1593,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "space-between",
       alignItems: "center",
       alignSelf: "center",
-      gap: theme.spacing.xs,
+      gap: theme.spacing.sm,
       marginTop: -4,
-      paddingHorizontal: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
       paddingVertical: 7,
       borderRadius: 32,
       borderWidth: 1,
       borderColor: "rgba(255, 91, 112, 0.18)",
       backgroundColor: theme.isDark ? "#141721" : "#FFFFFF",
       zIndex: 4,
+    },
+    compactActions: {
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.xs,
+      paddingVertical: 6,
+      borderRadius: 28,
     },
     adBanner: {
       marginHorizontal: theme.spacing.sm,
@@ -1265,12 +1738,107 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flex: 1,
       color: theme.colors.text,
     },
+    musicSettingRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      minHeight: 58,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.14)",
+      backgroundColor: theme.isDark ? "#161925" : "#FCFCFE",
+    },
+    musicSettingTextWrap: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    musicSettingTitle: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "800",
+    },
+    musicSettingSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
     locationChipWrap: {
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.sm,
       marginTop: theme.spacing.xs,
       marginBottom: theme.spacing.xs,
+    },
+    compatibilityHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    compatibilityIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.isDark ? "#231821" : "#FFF1F4",
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.16)",
+    },
+    compatibilityTitleWrap: {
+      flex: 1,
+      gap: theme.spacing.xxs,
+    },
+    compatibilityTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+    },
+    compatibilitySubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    compatibilityScoreGrid: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+    },
+    compatibilityScoreItem: {
+      flex: 1,
+      minHeight: 78,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 2,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.14)",
+      backgroundColor: theme.isDark ? "#141721" : "#FFF7F8",
+    },
+    compatibilityScore: {
+      fontSize: 24,
+      lineHeight: 30,
+      fontWeight: "900",
+      color: theme.colors.text,
+    },
+    compatibilityScoreLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    compatibilityReasonList: {
+      gap: theme.spacing.xs,
+    },
+    compatibilityReason: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      gap: theme.spacing.xs,
+      borderRadius: 16,
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+    },
+    compatibilityReasonText: {
+      ...theme.typography.caption,
+      flex: 1,
+      color: theme.colors.text,
+      lineHeight: 19,
     },
     passAction: {
       borderColor: theme.colors.danger,
@@ -1280,11 +1848,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.colors.secondary,
       backgroundColor: theme.isDark ? "#201B2E" : "#F8F0FF",
     },
-    infoAction: {
-      width: 48,
-      height: 48,
-      borderColor: "rgba(156, 163, 175, 0.22)",
-      backgroundColor: theme.isDark ? "#151824" : "#F8FAFC",
+    undoAction: {
+      borderColor: "rgba(245, 158, 11, 0.32)",
+      backgroundColor: theme.isDark ? "#211D16" : "#FFF8E7",
     },
     fireAction: {
       width: 62,
@@ -1323,6 +1889,18 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     likeAction: {
       borderColor: theme.colors.primary,
       backgroundColor: theme.isDark ? "#221821" : "#FFF4F6",
+    },
+    loveEffect: {
+      position: "absolute",
+      left: -42,
+      top: -48,
+      width: 136,
+      height: 126,
+      zIndex: 8,
+    },
+    loveEffectAnimation: {
+      width: "100%",
+      height: "100%",
     },
     pressed: {
       opacity: 0.76,

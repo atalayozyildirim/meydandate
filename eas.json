@@ -35,7 +35,7 @@
     "production": {
       "ios": {
         "ascAppId": "6779316827",
-        "ascApiKeyPath": "/Users/atalay/Downloads/AuthKey_Y72Z3WDVG8.p8",
+        "ascApiKeyPath": "/Users/atalay/ehlibyte/AuthKey_Y72Z3WDVG8.p8",
         "ascApiKeyId": "Y72Z3WDVG8",
         "ascApiKeyIssuerId": "8ed5dd05-1a6f-4c89-b9c8-7a95fa6d9397"
       }

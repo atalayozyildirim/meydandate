@@ -28,6 +28,18 @@ export const profileSchema = z.object({
   culturalIdentity: z.enum(culturalIdentityValues),
   cultureImportance: z.enum(cultureImportanceValues),
   interests: z.array(z.enum(interestValues)).min(1, "En az bir ilgi alanı seçin."),
+  profilePrompts: z
+    .array(
+      z.object({
+        questionId: safeRequiredText(1, 64, "Soru gerekli.", "Soru kodu çok uzun."),
+        question: safeRequiredText(1, 160, "Soru gerekli.", "Soru 160 karakteri geçemez."),
+        answer: z
+          .string()
+          .transform((value) => sanitizePlainText(value).trim())
+          .pipe(z.string().max(220, "Cevap 220 karakteri geçemez.")),
+      }),
+    )
+    .max(4),
   photoUri: z.string().optional()
 });
 

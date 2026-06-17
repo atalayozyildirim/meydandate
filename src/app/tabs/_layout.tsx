@@ -172,6 +172,15 @@ export default function TabsLayout() {
         }}
       />
       <Tabs.Screen
+        name="likes/index"
+        options={{
+          href: null,
+          tabBarStyle: {
+            display: "none",
+          },
+        }}
+      />
+      <Tabs.Screen
         name="chat/index"
         options={{
           title: "Mesaj",

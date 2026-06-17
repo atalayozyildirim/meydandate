@@ -1,4 +1,4 @@
-import type { ProfilePhoto, User } from "@/domain/entities/User";
+import type { ProfilePhoto, ProfilePromptAnswer, User } from "@/domain/entities/User";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 
 type SupabaseUserRow = Partial<User> & {
@@ -26,6 +26,7 @@ export const publicUserColumns = [
   "cultureImportance",
   "interests",
   "photos",
+  "profilePrompts",
   "badges",
   "profileKind",
   "isPremium",
@@ -81,6 +82,36 @@ const normalizePhotos = (photos: unknown): ProfilePhoto[] => {
   });
 };
 
+const normalizeProfilePrompts = (prompts: unknown): ProfilePromptAnswer[] => {
+  if (!Array.isArray(prompts)) {
+    return [];
+  }
+
+  return prompts.flatMap((prompt) => {
+    if (!prompt || typeof prompt !== "object") {
+      return [];
+    }
+
+    const rawPrompt = prompt as Partial<ProfilePromptAnswer>;
+    const questionId =
+      typeof rawPrompt.questionId === "string" ? rawPrompt.questionId.trim() : "";
+    const question =
+      typeof rawPrompt.question === "string"
+        ? sanitizePlainText(rawPrompt.question, 160)
+        : "";
+    const answer =
+      typeof rawPrompt.answer === "string"
+        ? sanitizePlainText(rawPrompt.answer, 220)
+        : "";
+
+    if (!questionId || !question || !answer) {
+      return [];
+    }
+
+    return [{ questionId, question, answer }];
+  });
+};
+
 export const mapSupabaseUser = (row: SupabaseUserRow): User => ({
   id: row.id ?? "",
   name: sanitizePlainText(row.name, 80),
@@ -103,6 +134,7 @@ export const mapSupabaseUser = (row: SupabaseUserRow): User => ({
   cultureImportance: row.cultureImportance ?? "somewhat_important",
   interests: row.interests ?? [],
   photos: normalizePhotos(row.photos),
+  profilePrompts: normalizeProfilePrompts(row.profilePrompts),
   badges: row.badges ?? [],
   profileKind: row.profileKind ?? "member",
   isPremium: row.isPremium ?? false,

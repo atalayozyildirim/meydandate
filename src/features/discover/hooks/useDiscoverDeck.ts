@@ -61,6 +61,7 @@ export const useDiscoverDeck = () => {
           ) ?? currentCandidates,
       );
       void Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.likedMe] }),
         queryClient.invalidateQueries({ queryKey: [queryKeys.matches] }),
         queryClient.invalidateQueries({ queryKey: [queryKeys.conversations] })
       ]);
@@ -167,6 +168,25 @@ export const useDiscoverDeck = () => {
     });
   }, []);
 
+  const undoSwipeMutation = useMutation({
+    mutationFn: () => {
+      if (!currentUser) {
+        throw new Error("Geri almak için oturum gerekli.");
+      }
+
+      return container.matchRepository.undoLastSwipe(currentUser.id);
+    },
+    onSuccess: async (result) => {
+      restoreCandidate(result.targetUserId);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.matches] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.conversations] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.likedMe] }),
+      ]);
+    },
+  });
+
   const swipe = async (targetUserId: string, action: LikeAction): Promise<Match | null> => {
     const result = await swipeMutation.mutateAsync({ targetUserId, action });
     return result.match ?? null;
@@ -178,10 +198,12 @@ export const useDiscoverDeck = () => {
     isLoading: candidatesQuery.isLoading || specialInviteQuery.isLoading,
     isRefreshing: candidatesQuery.isFetching || specialInviteQuery.isFetching,
     isSwiping: swipeMutation.isPending,
+    isUndoingSwipe: undoSwipeMutation.isPending,
     isHandlingSpecialInvite: acceptSpecialInviteMutation.isPending || declineSpecialInviteMutation.isPending,
     dismissCandidate,
     restoreCandidate,
     swipe,
+    undoLastSwipe: undoSwipeMutation.mutateAsync,
     refresh: async () => {
       await Promise.all([
         candidatesQuery.refetch(),

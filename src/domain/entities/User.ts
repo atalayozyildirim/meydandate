@@ -58,6 +58,12 @@ export interface ProfilePhoto {
   isPrimary: boolean;
 }
 
+export interface ProfilePromptAnswer {
+  questionId: string;
+  question: string;
+  answer: string;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -74,6 +80,7 @@ export interface User {
   cultureImportance: CultureImportance;
   interests: Interest[];
   photos: ProfilePhoto[];
+  profilePrompts?: ProfilePromptAnswer[];
   badges: Badge[];
   profileKind?: ProfileKind;
   isPremium: boolean;
@@ -107,6 +114,7 @@ export interface UserProfileUpdate {
   cultureImportance?: CultureImportance;
   interests?: Interest[];
   photos?: ProfilePhoto[];
+  profilePrompts?: ProfilePromptAnswer[];
   hasPassedEntryTest?: boolean;
   hasCompletedOnboarding?: boolean;
   isDiscoverable?: boolean;

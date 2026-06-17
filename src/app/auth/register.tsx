@@ -122,7 +122,11 @@ export default function RegisterScreen() {
         onToggleAccepted={() => setAcceptedLegal((current) => !current)}
       />
       <Link href="/auth/login" asChild>
-        <Pressable>
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          style={styles.linkButton}
+        >
           <Text style={styles.link}>Zaten hesabım var</Text>
         </Pressable>
       </Link>
@@ -132,6 +136,12 @@ export default function RegisterScreen() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
+    linkButton: {
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.sm,
+    },
     link: {
       ...theme.typography.caption,
       color: theme.colors.primary,

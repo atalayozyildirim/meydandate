@@ -68,6 +68,25 @@ export const conversationStarters = [
   "Son dinlediğin şarkı neydi?"
 ] as const;
 
+export const profilePromptOptions = [
+  {
+    questionId: "relationship_intent",
+    question: "Burada ne arıyorum?",
+  },
+  {
+    questionId: "ideal_conversation",
+    question: "Güzel bir sohbet benim için...",
+  },
+  {
+    questionId: "cultural_memory",
+    question: "Bana iyi gelen kültürel anı...",
+  },
+  {
+    questionId: "weekend_ritual",
+    question: "Hafta sonu ritüelim...",
+  },
+] as const;
+
 export const premiumFeatures = [
   "Reklamları kaldır",
   "Super Like",

@@ -2,7 +2,13 @@ import type {
   MatchRepository,
   SwipeResult,
 } from "@/domain/repositories/MatchRepository";
-import type { Match, LikeAction, SpecialMatchInvite } from "@/domain/entities/Match";
+import type {
+  LikedMeProfile,
+  Match,
+  LikeAction,
+  SpecialMatchInvite,
+  UndoSwipeResult,
+} from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 import { supabase } from "./client";
@@ -26,6 +32,23 @@ type PendingSpecialInviteRow = {
   created_at: string;
 };
 
+type RecordSwipeRow = {
+  action: LikeAction;
+  match_id?: string | null;
+  matched?: boolean | null;
+};
+
+type UndoSwipeRow = {
+  target_user_id: string;
+  action: LikeAction;
+  match_removed?: boolean | null;
+};
+
+type LikedMeRow = Partial<User> & {
+  likeAction?: LikeAction;
+  likedAt?: string;
+};
+
 const minimalPublicUserColumns = [
   "id",
   "name",
@@ -36,6 +59,7 @@ const minimalPublicUserColumns = [
   "cultureImportance",
   "interests",
   "photos",
+  "profilePrompts",
   "badges",
   "isPremium",
   "hasPassedEntryTest",
@@ -55,6 +79,7 @@ const createMissingMatchUser = (id: string, createdAt: string): User => ({
   cultureImportance: "not_important",
   interests: [],
   photos: [],
+  profilePrompts: [],
   badges: [],
   isPremium: false,
   hasPassedEntryTest: true,
@@ -64,6 +89,28 @@ const createMissingMatchUser = (id: string, createdAt: string): User => ({
 });
 
 export class SupabaseMatchRepository implements MatchRepository {
+  private async notifyMatchEvent(
+    targetUserId: string,
+    action: LikeAction,
+    matchId?: string | null,
+  ) {
+    if (action === "pass") {
+      return;
+    }
+
+    const { error } = await supabase.functions.invoke("send-match-event-push", {
+      body: {
+        targetUserId,
+        action,
+        matchId: matchId ?? null,
+      },
+    });
+
+    if (error && __DEV__) {
+      console.info("Match bildirimi gönderilemedi", error.message);
+    }
+  }
+
   private async getExistingMatchBetween(
     userId: string,
     targetUserId: string,
@@ -215,65 +262,91 @@ export class SupabaseMatchRepository implements MatchRepository {
     targetUserId: string,
     action: LikeAction,
   ): Promise<SwipeResult> {
-    // Record the swipe
-    const { error: swipeError } = await supabase.from("swipes").insert({
-      userId,
-      targetUserId,
-      action,
+    const { data, error } = await supabase
+      .rpc("record_swipe", {
+        target_user_id: targetUserId,
+        next_action: action,
+      })
+      .maybeSingle();
+    const result = data as RecordSwipeRow | null;
+
+    if (error || !result) {
+      if (error && __DEV__) {
+        console.info("record_swipe hatası", error.message);
+      }
+
+      const message = error?.message ?? "";
+
+      if (/Swipe target unavailable|Swipe target not found/i.test(message)) {
+        throw new Error("Bu profil artık görüntülenemiyor.");
+      }
+
+      if (/Requester profile is not eligible/i.test(message)) {
+        throw new Error("Profilin keşfet işlemleri için hazır değil.");
+      }
+
+      throw new Error("Swipe kaydedilemedi. Lütfen tekrar dene.");
+    }
+
+    void this.notifyMatchEvent(targetUserId, result.action, result.match_id);
+
+    if (result.match_id) {
+      return {
+        action: result.action,
+        match: await this.getMatchById(result.match_id),
+      };
+    }
+
+    return { action: result.action };
+  }
+
+  async undoLastSwipe(_userId: string): Promise<UndoSwipeResult> {
+    const { data, error } = await supabase
+      .rpc("undo_last_swipe")
+      .maybeSingle();
+    const result = data as UndoSwipeRow | null;
+
+    if (error || !result) {
+      throw new Error(
+        error?.message === "Premium required"
+          ? "Geri al Premium ile kullanılabilir."
+          : "Son işlem geri alınamadı.",
+      );
+    }
+
+    return {
+      targetUserId: result.target_user_id,
+      action: result.action,
+      matchRemoved: Boolean(result.match_removed),
+    };
+  }
+
+  async listLikedMe(_userId: string): Promise<LikedMeProfile[]> {
+    const { data, error } = await supabase.rpc("list_liked_me_profiles", {
+      limit_count: 24,
     });
 
-    if (swipeError?.code === "23505") {
-      const existingMatch = await this.getExistingMatchBetween(userId, targetUserId);
-
-      return existingMatch
-        ? {
-            action,
-            match: existingMatch,
-          }
-        : { action };
+    if (error) {
+      throw new Error(
+        error.message === "Premium required"
+          ? "Seni beğenenleri görmek Premium ile kullanılabilir."
+          : "Seni beğenenler yüklenemedi.",
+      );
     }
 
-    if (swipeError) {
-      throw new Error("Swipe kaydedilemedi");
-    }
-
-    // Check if there's a mutual positive action. Super Like also counts as intent to match.
-    if (action !== "pass") {
-      const { data: targetProfile } = await supabase
-        .from("users")
-        .select("profileKind")
-        .eq("id", targetUserId)
-        .maybeSingle();
-
-      if (
-        targetProfile &&
-        ["starter", "ai_starter"].includes(
-          String((targetProfile as { profileKind?: string }).profileKind ?? "member"),
-        )
-      ) {
-        return {
-          action,
-          match: await this.createMatchBetween(userId, targetUserId),
-        };
+    return ((data ?? []) as LikedMeRow[]).flatMap((row) => {
+      if (row.likeAction !== "like" && row.likeAction !== "super_like") {
+        return [];
       }
 
-      const { data: reverseSwipe } = await supabase
-        .from("swipes")
-        .select("*")
-        .eq("userId", targetUserId)
-        .eq("targetUserId", userId)
-        .neq("action", "pass")
-        .single();
-
-      if (reverseSwipe) {
-        return {
-          action,
-          match: await this.createMatchBetween(userId, targetUserId),
-        };
-      }
-    }
-
-    return { action };
+      return [
+        {
+          user: mapSupabaseUser(row),
+          action: row.likeAction,
+          likedAt: row.likedAt ?? new Date(0).toISOString(),
+        },
+      ];
+    });
   }
 
   async listMatches(userId: string): Promise<Match[]> {

@@ -16,6 +16,8 @@ interface SwipeProfileCardProps {
   compatibility: CulturalCompatibility;
   height: number;
   onOpenSafety: () => void;
+  onOpenProfile?: () => void;
+  onOpenCompatibility?: () => void;
 }
 
 const SwipeProfileCardComponent = ({
@@ -23,8 +25,11 @@ const SwipeProfileCardComponent = ({
   compatibility,
   height,
   onOpenSafety,
+  onOpenProfile,
+  onOpenCompatibility,
 }: SwipeProfileCardProps) => {
   const theme = useTheme();
+  const isCompactCard = height < 430;
   const styles = createStyles(theme);
   const primaryPhoto =
     user.photos.find((photo) => photo.isPrimary)?.uri ??
@@ -32,6 +37,25 @@ const SwipeProfileCardComponent = ({
   const hasActiveBoost = isProfileBoostActive(user.boostedUntil);
   const distanceLabel = formatDistanceKm(user.distanceKm);
   const isStarterProfile = (user.profileKind ?? "member") !== "member";
+  const featuredPrompt = user.profilePrompts?.find((prompt) =>
+    prompt.answer.trim(),
+  );
+  const scoreItems = (
+    <>
+      <View style={styles.scoreItem}>
+        <Text style={styles.score}>{formatScore(compatibility.cultural)}</Text>
+        <Text numberOfLines={1} style={styles.scoreLabel}>Kültür</Text>
+      </View>
+      <View style={styles.scoreItem}>
+        <Text style={styles.score}>{formatScore(compatibility.interests)}</Text>
+        <Text numberOfLines={1} style={styles.scoreLabel}>İlgi</Text>
+      </View>
+      <View style={styles.scoreItem}>
+        <Text style={styles.score}>{formatScore(compatibility.lifestyle)}</Text>
+        <Text style={styles.scoreLabel}>Tarz</Text>
+      </View>
+    </>
+  );
 
   return (
     <Card style={[styles.card, { height }]}>
@@ -62,34 +86,93 @@ const SwipeProfileCardComponent = ({
             </View>
           ) : null}
         </View>
-        <Pressable accessibilityRole="button" onPress={onOpenSafety} style={styles.safetyButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${user.name} profili için güvenlik seçeneklerini aç`}
+          hitSlop={8}
+          onPress={onOpenSafety}
+          style={({ pressed }) => [
+            styles.safetyButton,
+            pressed && styles.pressed,
+          ]}
+        >
           <Ionicons name="shield-outline" size={20} color="#FFFFFF" />
         </Pressable>
-        <LinearGradient colors={["transparent", "rgba(0,0,0,0.28)", "rgba(0,0,0,0.78)"]} style={styles.photoOverlay}>
-          <Text style={styles.name}>
-            {user.name}, {user.age}
-          </Text>
+        <LinearGradient
+          colors={["transparent", "rgba(0,0,0,0.28)", "rgba(0,0,0,0.78)"]}
+          style={[
+            styles.photoOverlay,
+            isCompactCard && styles.compactPhotoOverlay,
+          ]}
+        >
+          {onOpenProfile ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${user.name} profilini aç`}
+              hitSlop={8}
+              onPress={onOpenProfile}
+              style={({ pressed }) => [
+                styles.nameButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                style={styles.name}
+              >
+                {user.name}, {user.age}
+              </Text>
+              <Ionicons
+                name="person-circle-outline"
+                size={26}
+                color="#FFFFFF"
+              />
+            </Pressable>
+          ) : (
+            <Text
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.82}
+              style={styles.name}
+            >
+              {user.name}, {user.age}
+            </Text>
+          )}
           <View style={styles.metaRow}>
             <Ionicons name="location" size={16} color="#FFFFFF" />
-            <Text style={styles.city}>
+            <Text numberOfLines={1} style={styles.city}>
               {distanceLabel ? `${distanceLabel} · ${user.city}` : user.city}
             </Text>
           </View>
-          <Text numberOfLines={2} style={styles.bio}>{user.bio}</Text>
-          <View style={styles.scoreGrid}>
-            <View style={styles.scoreItem}>
-              <Text style={styles.score}>{formatScore(compatibility.cultural)}</Text>
-              <Text style={styles.scoreLabel}>Kultur</Text>
+          <Text numberOfLines={isCompactCard ? 1 : 2} style={styles.bio}>{user.bio}</Text>
+          {!isCompactCard && featuredPrompt ? (
+            <View style={styles.promptPreview}>
+              <Text numberOfLines={1} style={styles.promptQuestion}>
+                {featuredPrompt.question}
+              </Text>
+              <Text numberOfLines={1} style={styles.promptAnswer}>
+                {featuredPrompt.answer}
+              </Text>
             </View>
-            <View style={styles.scoreItem}>
-              <Text style={styles.score}>{formatScore(compatibility.interests)}</Text>
-              <Text style={styles.scoreLabel}>Ilgi</Text>
-            </View>
-            <View style={styles.scoreItem}>
-              <Text style={styles.score}>{formatScore(compatibility.lifestyle)}</Text>
-              <Text style={styles.scoreLabel}>Tarz</Text>
-            </View>
-          </View>
+          ) : null}
+          {onOpenCompatibility ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={`${user.name} ile uyum detayını aç`}
+              hitSlop={8}
+              onPress={onOpenCompatibility}
+              style={({ pressed }) => [
+                styles.scoreGrid,
+                pressed && styles.pressed,
+              ]}
+            >
+              {scoreItems}
+            </Pressable>
+          ) : (
+            <View style={styles.scoreGrid}>{scoreItems}</View>
+          )}
         </LinearGradient>
       </ImageBackground>
     </Card>
@@ -118,6 +201,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingTop: 140,
       gap: theme.spacing.sm
     },
+    compactPhotoOverlay: {
+      padding: theme.spacing.sm,
+      paddingTop: 96,
+      gap: theme.spacing.xs
+    },
     safetyButton: {
       alignSelf: "flex-end",
       margin: theme.spacing.md,
@@ -127,6 +215,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "rgba(0, 0, 0, 0.38)"
+    },
+    pressed: {
+      opacity: 0.76
     },
     topBadges: {
       position: "absolute",
@@ -165,10 +256,16 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: "#FFFFFF"
     },
     name: {
+      flex: 1,
       fontSize: 31,
       lineHeight: 36,
       fontWeight: "900",
       color: "#FFFFFF"
+    },
+    nameButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     metaRow: {
       flexDirection: "row",
@@ -177,11 +274,31 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     city: {
       ...theme.typography.body,
+      flex: 1,
       color: "#FFFFFF"
     },
     bio: {
       ...theme.typography.body,
       color: "rgba(255, 255, 255, 0.88)"
+    },
+    promptPreview: {
+      gap: 2,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.18)",
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      backgroundColor: "rgba(0, 0, 0, 0.28)",
+    },
+    promptQuestion: {
+      ...theme.typography.caption,
+      color: "rgba(255, 255, 255, 0.72)",
+      fontWeight: "800",
+    },
+    promptAnswer: {
+      ...theme.typography.caption,
+      color: "#FFFFFF",
+      fontWeight: "900",
     },
     scoreGrid: {
       flexDirection: "row",

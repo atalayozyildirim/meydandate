@@ -127,7 +127,13 @@ export default function BlockedUsersSettingsScreen() {
   return (
     <Screen scroll={false} style={styles.screen}>
       <View style={styles.header}>
-        <Pressable onPress={() => router.back()} style={styles.backButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Geri dön"
+          hitSlop={8}
+          onPress={() => router.back()}
+          style={styles.backButton}
+        >
           <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
         </Pressable>
         <View style={styles.headerText}>

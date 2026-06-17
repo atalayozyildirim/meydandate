@@ -35,6 +35,18 @@ export interface Match {
   lastMessagePreview?: string;
 }
 
+export interface LikedMeProfile {
+  user: User;
+  action: Extract<LikeAction, "like" | "super_like">;
+  likedAt: string;
+}
+
+export interface UndoSwipeResult {
+  targetUserId: string;
+  action: LikeAction;
+  matchRemoved: boolean;
+}
+
 export type SpecialMatchInviteStatus = "pending" | "accepted" | "declined" | "cancelled";
 
 export interface SpecialMatchInvite {

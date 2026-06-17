@@ -192,7 +192,13 @@ export default function FeedPostDetailScreen() {
     return (
       <Screen>
         <View style={styles.topBar}>
-          <Pressable onPress={() => router.back()} style={styles.iconButton}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Geri dön"
+            hitSlop={8}
+            onPress={() => router.back()}
+            style={styles.iconButton}
+          >
             <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
           </Pressable>
           <Text style={styles.topTitle}>Post</Text>
@@ -208,7 +214,13 @@ export default function FeedPostDetailScreen() {
   return (
     <Screen scroll={false} style={styles.screen}>
       <View style={styles.topBar}>
-        <Pressable onPress={() => router.back()} style={styles.iconButton}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Geri dön"
+          hitSlop={8}
+          onPress={() => router.back()}
+          style={styles.iconButton}
+        >
           <Ionicons name="chevron-back" size={24} color={theme.colors.text} />
         </Pressable>
         <View style={styles.topCopy}>

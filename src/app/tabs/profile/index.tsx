@@ -22,6 +22,8 @@ export default function ProfileScreen() {
   }
 
   const primaryPhoto = profile.photos[0]?.uri;
+  const visibleProfilePrompts =
+    profile.profilePrompts?.filter((prompt) => prompt.answer.trim()) ?? [];
 
   return (
     <Screen>
@@ -29,6 +31,9 @@ export default function ProfileScreen() {
         <Text style={styles.kicker}>Profil</Text>
         <View style={styles.headerActions}>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Ayarları aç"
+            hitSlop={8}
             onPress={() => router.push("/tabs/settings")}
             style={styles.iconButton}
           >
@@ -39,6 +44,9 @@ export default function ProfileScreen() {
             />
           </Pressable>
           <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Profili düzenle"
+            hitSlop={8}
             onPress={() => router.push("/tabs/profile/edit")}
             style={styles.iconButton}
           >
@@ -58,6 +66,18 @@ export default function ProfileScreen() {
       </Text>
       <Text style={styles.city}>{profile.city}</Text>
       <Text style={styles.bio}>{profile.bio}</Text>
+
+      {visibleProfilePrompts.length > 0 ? (
+        <Card style={styles.section}>
+          <Text style={styles.sectionTitle}>Profil soruları</Text>
+          {visibleProfilePrompts.map((prompt) => (
+            <View key={prompt.questionId} style={styles.promptItem}>
+              <Text style={styles.promptQuestion}>{prompt.question}</Text>
+              <Text style={styles.promptAnswer}>{prompt.answer}</Text>
+            </View>
+          ))}
+        </Card>
+      ) : null}
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Rozetler</Text>
@@ -237,6 +257,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     storeText: {
       flex: 1,
+      minWidth: 0,
       gap: theme.spacing.xxs,
     },
     storeDescription: {
@@ -260,5 +281,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     detail: {
       ...theme.typography.body,
       color: theme.colors.muted,
+    },
+    promptItem: {
+      gap: theme.spacing.xxs,
+      borderRadius: theme.radius.lg,
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+    },
+    promptQuestion: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "800",
+    },
+    promptAnswer: {
+      ...theme.typography.body,
+      color: theme.colors.text,
     },
   });

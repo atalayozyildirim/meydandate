@@ -40,7 +40,7 @@ export default function ForgotPasswordScreen() {
         name="phoneNumber"
         render={({ field, fieldState }) => (
           <Input
-            label="Telefon numarasi"
+            label="Telefon numarası"
             keyboardType="phone-pad"
             textContentType="telephoneNumber"
             autoComplete="tel"
@@ -53,9 +53,13 @@ export default function ForgotPasswordScreen() {
           />
         )}
       />
-      <Button label="Yardim al" onPress={onSubmit} />
+      <Button label="Yardım al" onPress={onSubmit} />
       <Link href="/auth/login" asChild>
-        <Pressable>
+        <Pressable
+          accessibilityRole="button"
+          hitSlop={8}
+          style={styles.linkButton}
+        >
           <Text style={styles.link}>Girişe dön</Text>
         </Pressable>
       </Link>
@@ -65,6 +69,12 @@ export default function ForgotPasswordScreen() {
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
+    linkButton: {
+      minHeight: 44,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.sm,
+    },
     link: {
       ...theme.typography.caption,
       color: theme.colors.primary,

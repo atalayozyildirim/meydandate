@@ -721,6 +721,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     productTitle: {
       ...theme.typography.subheading,
+      flexShrink: 1,
       color: theme.colors.text,
     },
     productCaption: {
@@ -729,6 +730,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     productPrice: {
       ...theme.typography.subheading,
+      flexShrink: 1,
       color: theme.colors.primary,
     },
     productRequirement: {
@@ -753,6 +755,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     actionButton: {
       minWidth: 104,
       minHeight: 46,
+      flexShrink: 0,
       paddingHorizontal: theme.spacing.sm,
     },
     restoreButton: {
