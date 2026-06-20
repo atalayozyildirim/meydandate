@@ -8,6 +8,7 @@ import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { formatAuthErrorMessage } from "@/features/auth/utils/authErrorMessages";
+import { appAuthRedirectUrl } from "@/features/auth/utils/oauthRedirect";
 import { useTheme } from "@/shared/theme";
 
 const buildCallbackUrlFromParams = (params: Record<string, string | string[]>) => {
@@ -25,7 +26,7 @@ const buildCallbackUrlFromParams = (params: Record<string, string | string[]>) =
   });
 
   const queryString = searchParams.toString();
-  return `${Linking.createURL("auth/callback")}${queryString ? `?${queryString}` : ""}`;
+  return `${appAuthRedirectUrl}${queryString ? `?${queryString}` : ""}`;
 };
 
 const hasOAuthPayload = (params: Record<string, string | string[]>) =>

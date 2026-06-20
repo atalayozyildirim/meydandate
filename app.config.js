@@ -32,9 +32,20 @@ const isPlaceholder = (value) =>
 const isValidAdMobAppId = (value) => /^ca-app-pub-\d+~\d+$/.test(value);
 
 const resolveAdMobAppId = (name, fallback) => {
-  const value = readEnv(name) || fallback;
+  const configuredValue = readEnv(name);
+  const value =
+    configuredValue &&
+    !isPlaceholder(configuredValue) &&
+    isValidAdMobAppId(configuredValue)
+      ? configuredValue
+      : fallback;
 
-  if (isProduction && (isPlaceholder(readEnv(name)) || !isValidAdMobAppId(value))) {
+  if (
+    isProduction &&
+    (!configuredValue ||
+      isPlaceholder(configuredValue) ||
+      !isValidAdMobAppId(configuredValue))
+  ) {
     console.warn(
       `${name} is not configured with a production AdMob app id. Falling back to Google test app id for this build.`,
     );

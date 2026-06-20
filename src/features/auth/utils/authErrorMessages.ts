@@ -1,7 +1,6 @@
 import type { SocialAuthProvider } from "@/domain/repositories/AuthRepository";
 import { env } from "@/infrastructure/config/env";
-
-const appCallbackUrl = "ehlibyte://auth/callback";
+import { appAuthRedirectUrl, supabaseRedirectUrlPattern } from "./oauthRedirect";
 
 const providerLabels: Record<SocialAuthProvider, string> = {
   apple: "Apple",
@@ -34,7 +33,7 @@ export const formatAuthErrorMessage = (
     return [
       `${providerLabel} giriş ayarında redirect URL eksik veya yanlış.`,
       `Google Cloud tarafında Web OAuth Client > Authorized redirect URIs alanına şunu ekle: ${getSupabaseCallbackUrl()}`,
-      `Supabase > Authentication > URL Configuration > Additional Redirect URLs alanında şu da olmalı: ${appCallbackUrl}`,
+      `Supabase > Authentication > URL Configuration > Additional Redirect URLs alanında şu da olmalı: ${appAuthRedirectUrl} veya ${supabaseRedirectUrlPattern}`,
     ].join("\n\n");
   }
 
@@ -60,12 +59,10 @@ export const formatAuthErrorMessage = (
     ])
   ) {
     return [
-      "Apple giris ayarinda iOS native kimlik dogrulamasi ile Supabase client ID listesi uyusmuyor.",
-      "Bu projede iOS Apple girisi artik native calisiyor. Supabase > Authentication > Providers > Apple ekranindaki Client IDs alanina App ID eklenmeli: com.ehlibyte.app",
-      "Expo Go ile test ediyorsan ayni listeye host.exp.Exponent de ekle. Development build kullaniyorsan kendi bundle identifier de listede olmali.",
-      "Services ID ve web Return URL ayari yalnizca web OAuth fallback icin gerekir; iOS native giriste esas dogrulanan deger bundle identifier tarafidir.",
-      "Son kod degisikligi native Apple girisine gectigi icin uygulamayi yeniden ac ve gerekiyorsa yeni development build/TestFlight build al.",
-      `Deep link callback icin Supabase > Authentication > URL Configuration > Additional Redirect URLs alaninda su da olmali: ${appCallbackUrl}`,
+      "Apple giriş ayarı Supabase tarafında eksik.",
+      "Supabase > Authentication > Providers > Apple > Client IDs alanına com.ehlibyte.app ekle.",
+      `URL Configuration > Additional Redirect URLs içinde ${appAuthRedirectUrl} veya ${supabaseRedirectUrlPattern} olmalı.`,
+      "Bunları kaydettikten sonra uygulamayı kapatıp tekrar aç.",
     ].join("\n\n");
   }
 
@@ -76,7 +73,7 @@ export const formatAuthErrorMessage = (
   if (hasAny(message, ["callback kodu bulunamadı", "auth session missing", "code verifier"])) {
     return [
       `${providerLabel} dönüşü alındı ama oturum tamamlanamadı.`,
-      `Supabase Additional Redirect URLs içinde ${appCallbackUrl} olduğundan emin ol ve giriş akışını baştan başlat.`,
+      `Supabase Additional Redirect URLs içinde ${appAuthRedirectUrl} veya ${supabaseRedirectUrlPattern} olduğundan emin ol ve giriş akışını baştan başlat.`,
     ].join("\n\n");
   }
 

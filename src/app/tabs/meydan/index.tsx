@@ -7,14 +7,19 @@ import {
   Text,
   TextInput,
   View,
+  type StyleProp,
+  type ViewStyle,
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { ResizeMode, Video } from "expo-av";
+import type { ComponentType } from "react";
+import { VideoView, useVideoPlayer } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
+import type { LiveKitJoinInfo } from "@/domain/repositories/LiveRoomRepository";
 import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
+import { BottomSheet } from "@/shared/components/BottomSheet";
 import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
@@ -22,6 +27,85 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { useLiveRoom } from "@/features/live/hooks/useLiveRoom";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
+import { isExpoGo } from "@/shared/utils/expoRuntime";
+
+type LiveKitRoomProps = {
+  serverUrl: string;
+  token: string;
+  connect: boolean;
+  audio: boolean;
+  video: boolean;
+  onError?: (error: Error) => void;
+  onConnected?: () => void;
+};
+
+const resolveLiveKitRoomComponent = () => {
+  if (isExpoGo) {
+    return undefined;
+  }
+
+  try {
+    return require("@livekit/react-native").LiveKitRoom as
+      | ComponentType<LiveKitRoomProps>
+      | undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const LiveKitRoomComponent = resolveLiveKitRoomComponent();
+
+const DirectVideoStage = ({
+  isLive,
+  playbackUrl,
+  shouldSyncPlayback,
+  syncedPositionMillis,
+  style,
+}: {
+  isLive: boolean;
+  playbackUrl: string;
+  shouldSyncPlayback: boolean;
+  syncedPositionMillis: number;
+  style: StyleProp<ViewStyle>;
+}) => {
+  const player = useVideoPlayer({ uri: playbackUrl }, (videoPlayer) => {
+    videoPlayer.loop = false;
+    videoPlayer.muted = false;
+    videoPlayer.volume = 1;
+
+    if (shouldSyncPlayback) {
+      videoPlayer.currentTime = syncedPositionMillis / 1000;
+    }
+
+    if (isLive) {
+      videoPlayer.play();
+    }
+  });
+
+  useEffect(() => {
+    if (shouldSyncPlayback) {
+      player.currentTime = syncedPositionMillis / 1000;
+    }
+
+    if (isLive) {
+      player.play();
+    } else {
+      player.pause();
+    }
+  }, [isLive, player, playbackUrl, shouldSyncPlayback, syncedPositionMillis]);
+
+  return (
+    <VideoView
+      player={player}
+      style={style}
+      contentFit="cover"
+      nativeControls={false}
+      allowsFullscreen={false}
+      fullscreenOptions={{ enable: false }}
+      allowsPictureInPicture={false}
+    />
+  );
+};
 
 const roomId = "meydan-erkani";
 const formatMessageTime = (value: string) =>
@@ -29,24 +113,6 @@ const formatMessageTime = (value: string) =>
     hour: "2-digit",
     minute: "2-digit",
   }).format(new Date(value));
-
-const ceremonySteps = [
-  {
-    title: "Duyuru",
-    description:
-      "Yönetici canlı erkân, sohbet veya deyiş etkinliğini takvime alır.",
-  },
-  {
-    title: "Canlı yayın",
-    description:
-      "Yayın açıldığında video bu ekranda başlar; katılan canlar listede görünür.",
-  },
-  {
-    title: "Saygılı katılım",
-    description:
-      "Oda sadece izleme ve topluluk katılımı içindir; uygunsuz mesaj/sohbet banlanır.",
-  },
-];
 
 type StreamSource =
   | {
@@ -307,7 +373,6 @@ export default function MeydanRoomScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
-  const videoRef = useRef<Video>(null);
   const embedWebViewRef = useRef<WebView>(null);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const {
@@ -320,33 +385,59 @@ export default function MeydanRoomScreen() {
     sendMessage,
     startRoom,
     stopRoom,
+    getLiveKitToken,
+    setParticipantStage,
     isJoining,
     isSendingMessage,
     isManagingRoom,
+    isConnectingLiveKit,
+    isManagingStage,
   } = useLiveRoom(roomId);
   const [adminTitle, setAdminTitle] = useState("");
   const [adminDescription, setAdminDescription] = useState("");
   const [streamUrl, setStreamUrl] = useState("");
   const [chatDraft, setChatDraft] = useState("");
   const [isEmbedMuted, setIsEmbedMuted] = useState(true);
+  const [isAdminSettingsOpen, setIsAdminSettingsOpen] = useState(false);
+  const [liveKitInfo, setLiveKitInfo] = useState<LiveKitJoinInfo | null>(null);
+  const [liveKitError, setLiveKitError] = useState<string | null>(null);
   const participants = room?.participants ?? [];
+  const speakers = participants.filter(
+    (participant) => participant.stageStatus === "speaker",
+  );
+  const listeners = participants.filter(
+    (participant) => participant.stageStatus !== "speaker",
+  );
+  const currentParticipant = participants.find(
+    (participant) => participant.isCurrentUser,
+  );
   const participantCount = room?.participantCount ?? participants.length;
   const messages = room?.messages ?? [];
   const isLive = room?.status === "live";
   const hasStream = Boolean(room?.streamUrl);
+  const isLiveKitRoom = room?.voiceProvider !== "stream" || hasStream;
   const canManageRoom = Boolean(room?.canManage);
+  const canPublishToLiveKit = Boolean(
+    liveKitInfo?.canPublish ||
+      canManageRoom ||
+      currentParticipant?.stageStatus === "speaker",
+  );
   const roomStatusLabel = isLive
     ? "Canlı"
     : room?.status === "offline"
       ? "Kapalı"
       : "Planlandı";
   const stageTitle = isLive
-    ? "Yayın bağlantısı hazırlanıyor"
+    ? isLiveKitRoom
+      ? "Meydan Space açık"
+      : "Yayın bağlantısı hazırlanıyor"
     : room?.status === "offline"
       ? "Yayın sona erdi"
       : "Yayın yakında başlayacak";
   const stageDescription = isLive
-    ? "Canlı görüntü birkaç saniye içinde burada görünür. Sohbet ve katılımcılar açık."
+    ? isLiveKitRoom
+      ? "Dinleyici olarak katıl; admin veya moderatör seni sahneye aldığında mikrofon açılır."
+      : "Canlı görüntü birkaç saniye içinde burada görünür. Sohbet ve katılımcılar açık."
     : room?.status === "offline"
       ? "Bir sonraki buluşma duyurulduğunda bu oda yeniden açılır."
       : "Yayın saati geldiğinde görüntü otomatik olarak burada başlar.";
@@ -394,34 +485,52 @@ export default function MeydanRoomScreen() {
   }, [room]);
 
   useEffect(() => {
+    if (!isJoined || !isLive || !isLiveKitRoom) {
+      setLiveKitInfo(null);
+      setLiveKitError(null);
+      return;
+    }
+
+    let isActive = true;
+
+    void getLiveKitToken()
+      .then((info) => {
+        if (!isActive) {
+          return;
+        }
+
+        setLiveKitInfo(info);
+        setLiveKitError(null);
+      })
+      .catch((error) => {
+        if (!isActive) {
+          return;
+        }
+
+        setLiveKitInfo(null);
+        setLiveKitError(
+          error instanceof Error ? error.message : "LiveKit bağlantısı kurulamadı.",
+        );
+      });
+
+    return () => {
+      isActive = false;
+    };
+  }, [
+    currentParticipant?.stageStatus,
+    getLiveKitToken,
+    isJoined,
+    isLive,
+    isLiveKitRoom,
+  ]);
+
+  useEffect(() => {
     setIsEmbedMuted(true);
   }, [
     room?.startedAt,
     streamSource?.kind,
     streamSource?.kind === "youtube" ? streamSource.videoId : undefined,
     streamSource?.kind === "kick" ? streamSource.channel : undefined,
-  ]);
-
-  useEffect(() => {
-    if (streamSource?.kind !== "direct") {
-      return;
-    }
-
-    void videoRef.current
-      ?.setStatusAsync({
-        shouldPlay: isLive,
-        ...(shouldSyncDirectPlayback
-          ? { positionMillis: syncedPositionMillis }
-          : {}),
-      })
-      .catch(() => undefined);
-  }, [
-    isLive,
-    room?.startedAt,
-    shouldSyncDirectPlayback,
-    streamSource?.kind,
-    streamSource?.kind === "direct" ? streamSource.playbackUrl : undefined,
-    syncedPositionMillis,
   ]);
 
   const toggleEmbedSound = () => {
@@ -464,15 +573,7 @@ export default function MeydanRoomScreen() {
   const handleStartRoom = async () => {
     const nextStreamUrl = streamUrl.trim();
 
-    if (!nextStreamUrl) {
-      Alert.alert(
-        "Yayın URL'i gerekli",
-        "Canlı yayını başlatmak için HTTPS stream URL gir.",
-      );
-      return;
-    }
-
-    if (!resolveStreamSource(nextStreamUrl)) {
+    if (nextStreamUrl && !resolveStreamSource(nextStreamUrl)) {
       Alert.alert(
         "Yayın linki desteklenmiyor",
         "YouTube video/canlı linki, Kick kanal linki veya direkt MP4/HLS URL gir.",
@@ -485,12 +586,26 @@ export default function MeydanRoomScreen() {
         title: adminTitle.trim() || "Meydan",
         description:
           adminDescription.trim() ||
-          "Admin yayını açtığında herkes aynı canlı akışı ve sohbeti burada görür.",
-        streamUrl: nextStreamUrl,
+          "Admin veya moderatör başlattığında herkes canlı ses odasında buluşur.",
+        streamUrl: nextStreamUrl || undefined,
       });
     } catch (error) {
       Alert.alert(
         "Yayın başlatılamadı",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const handleSetParticipantStage = async (
+    targetUserId: string,
+    stageStatus: "listener" | "speaker",
+  ) => {
+    try {
+      await setParticipantStage({ targetUserId, stageStatus });
+    } catch (error) {
+      Alert.alert(
+        "Sahne güncellenemedi",
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
@@ -556,18 +671,37 @@ export default function MeydanRoomScreen() {
     <Screen style={styles.screen}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View style={styles.liveBadge}>
-            <View style={[styles.liveDot, !isLive && styles.liveDotIdle]} />
-            <Text style={styles.liveText}>{roomStatusLabel}</Text>
+          <View style={styles.headerStatusRow}>
+            <View style={styles.liveBadge}>
+              <View style={[styles.liveDot, !isLive && styles.liveDotIdle]} />
+              <Text style={styles.liveText}>{roomStatusLabel}</Text>
+            </View>
+            <View style={styles.countBadge}>
+              <Ionicons
+                name="people-outline"
+                size={15}
+                color={theme.colors.primary}
+              />
+              <Text style={styles.countText}>{participantCount}</Text>
+            </View>
           </View>
-          <View style={styles.countBadge}>
-            <Ionicons
-              name="people-outline"
-              size={15}
-              color={theme.colors.primary}
-            />
-            <Text style={styles.countText}>{participantCount}</Text>
-          </View>
+          {canManageRoom ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Meydan ayarları"
+              onPress={() => setIsAdminSettingsOpen(true)}
+              style={({ pressed }) => [
+                styles.adminSettingsButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="settings-outline"
+                size={19}
+                color={theme.colors.text}
+              />
+            </Pressable>
+          ) : null}
         </View>
         <Text style={styles.title}>{room?.title ?? "Sanal Cem odası"}</Text>
         <Text style={styles.description}>
@@ -577,7 +711,224 @@ export default function MeydanRoomScreen() {
       </View>
 
       <View style={styles.stage}>
-        {hasStream && room?.streamUrl && streamSource ? (
+        {isLiveKitRoom ? (
+          <View style={styles.spaceStage}>
+            {liveKitInfo && LiveKitRoomComponent ? (
+              <LiveKitRoomComponent
+                serverUrl={liveKitInfo.serverUrl}
+                token={liveKitInfo.token}
+                connect
+                audio={canPublishToLiveKit}
+                video={false}
+                onError={(error) => setLiveKitError(error.message)}
+                onConnected={() => setLiveKitError(null)}
+              />
+            ) : null}
+            <View style={styles.spaceHeader}>
+              <View style={styles.spaceIcon}>
+                <Ionicons name="mic" size={22} color="#FFFFFF" />
+              </View>
+              <View style={styles.spaceHeaderText}>
+                <Text style={styles.stageTitle}>{stageTitle}</Text>
+                <Text style={styles.stageDescription}>
+                  {stageDescription}
+                </Text>
+              </View>
+            </View>
+
+            {hasStream && streamSource ? (
+              <View style={styles.spaceShareFrame}>
+                <View style={styles.spaceShareHeader}>
+                  <View style={styles.spaceShareTitleRow}>
+                    <Ionicons
+                      name="desktop-outline"
+                      size={15}
+                      color="rgba(255, 255, 255, 0.78)"
+                    />
+                    <Text style={styles.spaceShareTitle}>Ekran paylaşımı</Text>
+                  </View>
+                  {streamSource.kind === "youtube" ||
+                  streamSource.kind === "kick" ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel={
+                        isEmbedMuted ? "Paylaşım sesini aç" : "Paylaşım sesini kapat"
+                      }
+                      onPress={toggleEmbedSound}
+                      style={styles.spaceShareSoundButton}
+                    >
+                      <Ionicons
+                        name={isEmbedMuted ? "volume-mute" : "volume-high"}
+                        size={15}
+                        color="#FFFFFF"
+                      />
+                    </Pressable>
+                  ) : null}
+                </View>
+                {streamSource.kind === "youtube" || streamSource.kind === "kick" ? (
+                  <WebView
+                    ref={embedWebViewRef}
+                    key={`space-share-${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.kind}-${
+                      streamSource.kind === "youtube"
+                        ? streamSource.videoId
+                        : `${streamSource.channel}-${isEmbedMuted ? "muted" : "sound"}`
+                    }`}
+                    source={{
+                      html: streamSource.embedHtml,
+                      baseUrl:
+                        streamSource.kind === "youtube"
+                          ? "https://www.youtube-nocookie.com"
+                          : "https://player.kick.com",
+                    }}
+                    style={styles.spaceShareVideo}
+                    containerStyle={styles.spaceShareContainer}
+                    originWhitelist={["*"]}
+                    javaScriptEnabled
+                    domStorageEnabled
+                    scrollEnabled={false}
+                    bounces={false}
+                    allowsInlineMediaPlayback
+                    mediaPlaybackRequiresUserAction={false}
+                    allowsFullscreenVideo={false}
+                    automaticallyAdjustContentInsets={false}
+                  />
+                ) : (
+                  <DirectVideoStage
+                    key={`space-share-${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.playbackUrl}`}
+                    playbackUrl={streamSource.playbackUrl}
+                    style={styles.spaceShareVideo}
+                    isLive={isLive}
+                    shouldSyncPlayback={shouldSyncDirectPlayback}
+                    syncedPositionMillis={syncedPositionMillis}
+                  />
+                )}
+              </View>
+            ) : null}
+
+            <View style={styles.speakerStrip}>
+              {(speakers.length > 0 ? speakers : participants.slice(0, 2)).map(
+                (participant) => (
+                  <Pressable
+                    key={participant.id}
+                    style={styles.speakerCard}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/tabs/profile/[userId]",
+                        params: { userId: participant.id },
+                      })
+                    }
+                  >
+                    <View style={styles.speakerAvatarWrap}>
+                      <Avatar
+                        name={participant.isCurrentUser ? "Sen" : participant.name}
+                        uri={participant.photoUri}
+                        size={54}
+                      />
+                      <View style={styles.micStateDot}>
+                        <Ionicons
+                          name={participant.isMuted ? "mic-off" : "mic"}
+                          size={12}
+                          color="#FFFFFF"
+                        />
+                      </View>
+                    </View>
+                    <Text numberOfLines={1} style={styles.speakerName}>
+                      {participant.isCurrentUser ? "Sen" : participant.name}
+                    </Text>
+                    <Text numberOfLines={1} style={styles.speakerRole}>
+                      {participant.stageStatus === "speaker"
+                        ? "Sahnede"
+                        : "Dinleyici"}
+                    </Text>
+                  </Pressable>
+                ),
+              )}
+            </View>
+
+            {canManageRoom && listeners.length > 0 ? (
+              <View style={styles.stageControlPanel}>
+                <Text style={styles.stageControlTitle}>Sahneye al</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  contentContainerStyle={styles.stageControlList}
+                >
+                  {listeners.slice(0, 12).map((participant) => (
+                    <Pressable
+                      key={participant.id}
+                      disabled={isManagingStage}
+                      style={styles.stageControlChip}
+                      onPress={() =>
+                        void handleSetParticipantStage(participant.id, "speaker")
+                      }
+                    >
+                      <Avatar
+                        name={participant.name}
+                        uri={participant.photoUri}
+                        size={28}
+                      />
+                      <Text numberOfLines={1} style={styles.stageControlText}>
+                        {participant.isCurrentUser ? "Sen" : participant.name}
+                      </Text>
+                      <Ionicons
+                        name="arrow-up-circle"
+                        size={17}
+                        color={theme.colors.primary}
+                      />
+                    </Pressable>
+                  ))}
+                </ScrollView>
+              </View>
+            ) : null}
+
+            {canManageRoom && speakers.length > 0 ? (
+              <View style={styles.stageControlPanel}>
+                <Text style={styles.stageControlTitle}>Sahnede</Text>
+                <View style={styles.liveSpeakerActions}>
+                  {speakers.map((participant) => (
+                    <Pressable
+                      key={participant.id}
+                      disabled={isManagingStage || participant.isCurrentUser}
+                      style={styles.liveSpeakerAction}
+                      onPress={() =>
+                        void handleSetParticipantStage(participant.id, "listener")
+                      }
+                    >
+                      <Text numberOfLines={1} style={styles.liveSpeakerActionText}>
+                        {participant.isCurrentUser ? "Sen" : participant.name}
+                      </Text>
+                      <Ionicons
+                        name="arrow-down-circle-outline"
+                        size={17}
+                        color="rgba(255, 255, 255, 0.78)"
+                      />
+                    </Pressable>
+                  ))}
+                </View>
+              </View>
+            ) : null}
+
+            {liveKitError ? (
+              <View style={styles.liveKitErrorBox}>
+                <Ionicons name="warning-outline" size={15} color="#FFD166" />
+                <Text style={styles.liveKitErrorText}>{liveKitError}</Text>
+              </View>
+            ) : null}
+            {isExpoGo ? (
+              <View style={styles.liveKitErrorBox}>
+                <Ionicons
+                  name="phone-portrait-outline"
+                  size={15}
+                  color="#FFD166"
+                />
+                <Text style={styles.liveKitErrorText}>
+                  Canlı ses Expo Go'da açılmaz. Test için development build veya
+                  EAS build kullan.
+                </Text>
+              </View>
+            ) : null}
+          </View>
+        ) : hasStream && room?.streamUrl && streamSource ? (
           streamSource.kind === "youtube" || streamSource.kind === "kick" ? (
             <View style={styles.embedStage}>
               <WebView
@@ -631,24 +982,13 @@ export default function MeydanRoomScreen() {
             </View>
           ) : (
             <View style={styles.videoFrame}>
-              <Video
-                ref={videoRef}
+              <DirectVideoStage
                 key={`${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.playbackUrl}`}
-                source={{ uri: streamSource.playbackUrl }}
+                playbackUrl={streamSource.playbackUrl}
                 style={styles.video}
-                resizeMode={ResizeMode.COVER}
-                shouldPlay={isLive}
-                isMuted={false}
-                isLooping={false}
-                progressUpdateIntervalMillis={1000}
-                status={{
-                  shouldPlay: isLive,
-                  isMuted: false,
-                  isLooping: false,
-                  ...(shouldSyncDirectPlayback
-                    ? { positionMillis: syncedPositionMillis }
-                    : {}),
-                }}
+                isLive={isLive}
+                shouldSyncPlayback={shouldSyncDirectPlayback}
+                syncedPositionMillis={syncedPositionMillis}
               />
               <View pointerEvents="none" style={styles.videoOverlay}>
                 {isLive ? (
@@ -671,9 +1011,21 @@ export default function MeydanRoomScreen() {
         )}
         <View style={styles.stageMeta}>
           <Text style={styles.stageMetaText}>{participantCount} katılımcı</Text>
+          {isLiveKitRoom ? (
+            <Text style={styles.stageMetaText}>
+              {speakers.length} sahnede
+            </Text>
+          ) : null}
           <Text style={styles.stageMetaText}>
-            {isJoined ? "Odasındasın" : "Dışarıdasın"}
+            {isJoined
+              ? liveKitInfo?.canPublish || canPublishToLiveKit
+                ? "Mikrofon yetkili"
+                : "Dinliyorsun"
+              : "Dışarıdasın"}
           </Text>
+          {isConnectingLiveKit ? (
+            <Text style={styles.stageMetaText}>Bağlanıyor</Text>
+          ) : null}
         </View>
       </View>
 
@@ -699,14 +1051,18 @@ export default function MeydanRoomScreen() {
       ) : null}
 
       {canManageRoom ? (
-        <View style={styles.adminPanel}>
+        <BottomSheet
+          visible={isAdminSettingsOpen}
+          onClose={() => setIsAdminSettingsOpen(false)}
+        >
+          <View style={styles.adminPanel}>
           <View style={styles.adminPanelHeader}>
             <Ionicons
               name="shield-checkmark"
               size={19}
               color={theme.colors.primary}
             />
-            <Text style={styles.sectionTitle}>Admin yayını</Text>
+            <Text style={styles.sectionTitle}>Meydan yönetimi</Text>
           </View>
           <Input
             label="Başlık"
@@ -715,13 +1071,13 @@ export default function MeydanRoomScreen() {
             placeholder="Meydan"
           />
           <Input
-            label="HTTPS yayın URL'i, YouTube veya Kick linki"
+            label="Ekran paylaşımı / video URL'i"
             value={streamUrl}
             onChangeText={setStreamUrl}
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            placeholder="https://..."
+            placeholder="Boş bırak: sadece Space"
           />
           <TextInput
             value={adminDescription}
@@ -741,14 +1097,15 @@ export default function MeydanRoomScreen() {
               onPress={() => void handleStopRoom()}
             />
             <Button
-              label={isLive ? "Yayını güncelle" : "Yayını başlat"}
+              label={isLive ? "Odayı güncelle" : "Space başlat"}
               loading={isManagingRoom}
               style={styles.adminActionButton}
               icon={<Ionicons name="radio" size={18} color="#FFFFFF" />}
               onPress={() => void handleStartRoom()}
             />
           </View>
-        </View>
+          </View>
+        </BottomSheet>
       ) : null}
 
       <View style={styles.section}>
@@ -950,28 +1307,6 @@ export default function MeydanRoomScreen() {
         </View>
       </View>
 
-      <View style={styles.purposePanel}>
-        <Text style={styles.sectionTitle}>Bu odanın amacı</Text>
-        <Text style={styles.purposeText}>
-          Planlı erkân, deyiş, soru-cevap ve topluluk buluşmalarını tek ekranda
-          izlemek ve saygılı bir sohbet alanı açmak.
-        </Text>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Erkân akışı</Text>
-        {ceremonySteps.map((step, index) => (
-          <View key={step.title} style={styles.stepRow}>
-            <View style={styles.stepNumber}>
-              <Text style={styles.stepNumberText}>{index + 1}</Text>
-            </View>
-            <View style={styles.stepText}>
-              <Text style={styles.stepTitle}>{step.title}</Text>
-              <Text style={styles.stepDescription}>{step.description}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
     </Screen>
   );
 }
@@ -991,6 +1326,24 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+    },
+    headerStatusRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    adminSettingsButton: {
+      width: 40,
+      height: 40,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.14)",
+    },
+    pressed: {
+      opacity: 0.78,
     },
     liveBadge: {
       alignSelf: "flex-start",
@@ -1038,18 +1391,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.primary,
     },
-    purposePanel: {
-      gap: theme.spacing.xs,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.12)",
-      padding: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-    },
-    purposeText: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
     stage: {
       minHeight: 198,
       borderRadius: 24,
@@ -1086,6 +1427,183 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       gap: theme.spacing.xs,
       padding: theme.spacing.md,
+    },
+    spaceStage: {
+      gap: theme.spacing.md,
+      padding: theme.spacing.md,
+      backgroundColor: "#11131B",
+    },
+    spaceHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    spaceIcon: {
+      width: 46,
+      height: 46,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+    },
+    spaceHeaderText: {
+      flex: 1,
+      gap: 2,
+    },
+    spaceShareFrame: {
+      overflow: "hidden",
+      borderRadius: 20,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.12)",
+      backgroundColor: "#07080D",
+    },
+    spaceShareHeader: {
+      minHeight: 38,
+      paddingHorizontal: theme.spacing.sm,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      backgroundColor: "rgba(255, 255, 255, 0.06)",
+    },
+    spaceShareTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    spaceShareTitle: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
+      color: "rgba(255, 255, 255, 0.78)",
+    },
+    spaceShareSoundButton: {
+      width: 30,
+      height: 30,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(255, 255, 255, 0.12)",
+    },
+    spaceShareVideo: {
+      width: "100%",
+      height: 170,
+      backgroundColor: "#000000",
+    },
+    spaceShareContainer: {
+      backgroundColor: "#000000",
+    },
+    speakerStrip: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.sm,
+    },
+    speakerCard: {
+      width: "30.8%",
+      minHeight: 114,
+      borderRadius: 18,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xxs,
+      padding: theme.spacing.sm,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.10)",
+    },
+    speakerAvatarWrap: {
+      position: "relative",
+    },
+    micStateDot: {
+      position: "absolute",
+      right: -3,
+      bottom: -3,
+      width: 24,
+      height: 24,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(233, 64, 87, 0.96)",
+      borderWidth: 2,
+      borderColor: "#11131B",
+    },
+    speakerName: {
+      ...theme.typography.caption,
+      color: "#FFFFFF",
+      textAlign: "center",
+    },
+    speakerRole: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "700",
+      color: "rgba(255, 255, 255, 0.62)",
+      textAlign: "center",
+    },
+    stageControlPanel: {
+      gap: theme.spacing.xs,
+    },
+    stageControlTitle: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "800",
+      color: "rgba(255, 255, 255, 0.66)",
+      textTransform: "uppercase",
+    },
+    stageControlList: {
+      gap: theme.spacing.xs,
+      paddingRight: theme.spacing.md,
+    },
+    stageControlChip: {
+      minHeight: 40,
+      maxWidth: 160,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingLeft: 6,
+      paddingRight: theme.spacing.sm,
+      backgroundColor: "rgba(255, 255, 255, 0.09)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.10)",
+    },
+    stageControlText: {
+      maxWidth: 82,
+      ...theme.typography.caption,
+      color: "#FFFFFF",
+    },
+    liveSpeakerActions: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
+    },
+    liveSpeakerAction: {
+      minHeight: 34,
+      maxWidth: "48%",
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.10)",
+    },
+    liveSpeakerActionText: {
+      flexShrink: 1,
+      ...theme.typography.caption,
+      color: "#FFFFFF",
+    },
+    liveKitErrorBox: {
+      borderRadius: 14,
+      padding: theme.spacing.sm,
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+      backgroundColor: "rgba(255, 209, 102, 0.10)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 209, 102, 0.24)",
+    },
+    liveKitErrorText: {
+      flex: 1,
+      ...theme.typography.caption,
+      color: "rgba(255, 255, 255, 0.78)",
     },
     stageIcon: {
       width: 42,

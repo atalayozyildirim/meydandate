@@ -124,11 +124,13 @@ const SwipeProfileCardComponent = ({
               >
                 {user.name}, {user.age}
               </Text>
-              <Ionicons
-                name="person-circle-outline"
-                size={26}
-                color="#FFFFFF"
-              />
+              <View style={styles.profileCta}>
+                <Ionicons name="person-outline" size={15} color="#FFFFFF" />
+                <Text numberOfLines={1} style={styles.profileCtaText}>
+                  Profili gör
+                </Text>
+                <Ionicons name="chevron-forward" size={14} color="#FFFFFF" />
+              </View>
             </Pressable>
           ) : (
             <Text
@@ -266,6 +268,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
+      minHeight: 42,
+    },
+    profileCta: {
+      minHeight: 36,
+      maxWidth: 118,
+      flexShrink: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 3,
+      paddingHorizontal: theme.spacing.sm,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.30)",
+      backgroundColor: "rgba(0, 0, 0, 0.34)",
+    },
+    profileCtaText: {
+      ...theme.typography.caption,
+      color: "#FFFFFF",
+      fontWeight: "900",
+      letterSpacing: 0,
     },
     metaRow: {
       flexDirection: "row",

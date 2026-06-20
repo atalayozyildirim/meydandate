@@ -1,10 +1,12 @@
 import type {
   LiveChatMessage,
+  LiveParticipantStageStatus,
   LiveParticipant,
   LiveRoom,
   LiveRoomStatus,
 } from "@/domain/entities/LiveRoom";
 import type {
+  LiveKitJoinInfo,
   LiveRoomRepository,
   StartLiveRoomPayload,
 } from "@/domain/repositories/LiveRoomRepository";
@@ -18,6 +20,8 @@ type LiveRoomRow = {
   title: string;
   description: string;
   status: LiveRoomStatus;
+  voice_provider: "livekit" | "stream" | null;
+  livekit_room_name: string | null;
   stream_url: string | null;
   started_at: string | null;
 };
@@ -26,6 +30,8 @@ type LiveParticipantRow = {
   room_id: string;
   user_id: string;
   role: string;
+  stage_status: LiveParticipantStageStatus | null;
+  is_muted: boolean | null;
   joined_at: string;
 };
 
@@ -103,7 +109,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
   async getRoom(roomId: string): Promise<LiveRoom> {
     const { data: roomData, error: roomError } = await supabase
       .from("live_rooms")
-      .select("id,title,description,status,stream_url,started_at")
+      .select("id,title,description,status,voice_provider,livekit_room_name,stream_url,started_at")
       .eq("id", roomId)
       .maybeSingle();
 
@@ -125,8 +131,9 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     ] = await Promise.all([
       supabase
         .from("live_room_participants")
-        .select("room_id,user_id,role,joined_at")
+        .select("room_id,user_id,role,stage_status,is_muted,joined_at")
         .eq("room_id", roomId)
+        .order("stage_status", { ascending: false })
         .order("joined_at", { ascending: false }),
       supabase
         .from("live_room_messages")
@@ -134,7 +141,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
         .eq("room_id", roomId)
         .order("created_at", { ascending: false })
         .limit(50),
-      supabase.rpc("is_admin"),
+      supabase.rpc("is_moderator"),
       this.getCurrentUserId(),
     ]);
 
@@ -162,6 +169,8 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
           id: participant.user_id,
           name: user?.name ?? "Üye",
           role: participant.role,
+          stageStatus: participant.stage_status ?? "listener",
+          isMuted: participant.is_muted ?? true,
           photoUri: user?.photos?.[0]?.uri,
           isPremium: user?.isPremium ?? false,
           isCurrentUser: participant.user_id === currentUserId,
@@ -190,8 +199,13 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
       title: room.title,
       description: room.description,
       status: room.status,
+      voiceProvider: room.voice_provider ?? (room.stream_url ? "stream" : "livekit"),
+      ...(room.livekit_room_name ? { livekitRoomName: room.livekit_room_name } : {}),
       ...(room.stream_url ? { streamUrl: room.stream_url } : {}),
       participantCount: participants.length,
+      speakerCount: participants.filter(
+        (participant) => participant.stageStatus === "speaker",
+      ).length,
       participants,
       messages,
       canManage: Boolean(canManageData),
@@ -204,7 +218,9 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
       {
         room_id: roomId,
         user_id: userId,
-        role: "Izleyici",
+        role: "Dinleyici",
+        stage_status: "listener",
+        is_muted: true,
       },
       { onConflict: "room_id,user_id", ignoreDuplicates: true },
     );
@@ -258,7 +274,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     const { data, error } = await supabase.rpc("admin_start_live_room", {
       target_description: payload.description,
       target_room_id: roomId,
-      target_stream_url: payload.streamUrl.trim(),
+      target_stream_url: payload.streamUrl?.trim() ?? "",
       target_title: payload.title,
     });
 
@@ -285,5 +301,43 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
     }
 
     return this.getRoom((data as LiveRoomRow).id);
+  }
+
+  async getLiveKitToken(
+    roomId: string,
+    accessToken?: string | null,
+  ): Promise<LiveKitJoinInfo> {
+    const { data, error } = await supabase.functions.invoke("livekit-token", {
+      headers: accessToken
+        ? {
+            Authorization: `Bearer ${accessToken}`,
+          }
+        : undefined,
+      body: { roomId },
+    });
+
+    if (error || !data) {
+      throw createSupabaseRepositoryError("LiveKit token alınamadı", error);
+    }
+
+    return data as LiveKitJoinInfo;
+  }
+
+  async setParticipantStage(
+    roomId: string,
+    targetUserId: string,
+    stageStatus: LiveParticipantStageStatus,
+  ): Promise<LiveRoom> {
+    const { error } = await supabase.rpc("moderator_set_live_participant_stage", {
+      target_room_id: roomId,
+      target_stage_status: stageStatus,
+      target_user_id: targetUserId,
+    });
+
+    if (error) {
+      throw createSupabaseRepositoryError("Sahne durumu güncellenemedi", error);
+    }
+
+    return this.getRoom(roomId);
   }
 }

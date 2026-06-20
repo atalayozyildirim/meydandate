@@ -5,13 +5,13 @@ import type {
   SocialAuthProvider,
   VerifyOtpPayload,
 } from "@/domain/repositories/AuthRepository";
+import { appAuthRedirectUrl } from "@/features/auth/utils/oauthRedirect";
+import { testAccount } from "@/shared/constants/testAccount";
 import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
-import * as Linking from "expo-linking";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { supabase } from "./client";
 import { mapSupabaseUser } from "./userMapper";
-import { testAccount } from "@/shared/constants/testAccount";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -19,8 +19,6 @@ const signOutAndThrow = async (message: string): Promise<never> => {
   await supabase.auth.signOut();
   throw new Error(message);
 };
-
-const authRedirectUrl = Linking.createURL("auth/callback");
 
 const readCallbackParam = (callbackUrl: string, key: string) => {
   const url = new URL(callbackUrl);
@@ -48,6 +46,32 @@ export class SupabaseAuthRepository implements AuthRepository {
     const { data, error } = await supabase.rpc("get_my_profile").maybeSingle();
 
     return error ? null : data;
+  }
+
+  private async ensureOwnProfile(input: {
+    email?: string | null;
+    phoneNumber?: string | null;
+    name?: string | null;
+    photos?: Array<{ id: string; uri: string; isPrimary: boolean }>;
+  }) {
+    const { data, error } = await supabase
+      .rpc("ensure_my_profile", {
+        profile_email: input.email ?? null,
+        profile_name: input.name ?? null,
+        profile_phone_number: input.phoneNumber ?? null,
+        profile_photos: input.photos ?? [],
+      })
+      .maybeSingle();
+
+    if (error || !data) {
+      throw new Error(
+        error?.message
+          ? `Profil oluşturulamadı: ${error.message}`
+          : "Profil oluşturulamadı.",
+      );
+    }
+
+    return data;
   }
 
   private getSocialProfileName(user: SupabaseAuthUser, fallbackName?: string) {
@@ -109,25 +133,12 @@ export class SupabaseAuthRepository implements AuthRepository {
       return profile;
     }
 
-    const { error } = await supabase.from("users").insert({
-      id: user.id,
+    profile = await this.ensureOwnProfile({
       email: user.email ?? `${user.id}@oauth.ehlibyte.local`,
-      ...(user.phone ? { phoneNumber: user.phone } : {}),
       name: this.getSocialProfileName(user, fallbackName),
-      age: 18,
-      city: "",
-      bio: "",
-      culturalIdentity: "prefer_not_to_say",
-      cultureImportance: "somewhat_important",
-      interests: [],
+      phoneNumber: user.phone,
       photos: socialPhotos,
     });
-
-    if (error) {
-      return signOutAndThrow("Sosyal giriş tamamlandı ancak profil oluşturulamadı.");
-    }
-
-    profile = await this.getMyProfile();
 
     if (!profile) {
       return signOutAndThrow("Sosyal giriş profili yüklenemedi.");
@@ -276,38 +287,20 @@ export class SupabaseAuthRepository implements AuthRepository {
       return signOutAndThrow("Bu telefon numarası zaten kayıtlı.");
     }
 
-    const shouldCreateProfile =
-      payload.purpose === "register" ||
-      (payload.purpose === "login" && payload.phoneNumber === testAccount.phoneNumber);
-
-    if (!profile && shouldCreateProfile) {
-      const newProfile = {
-        id: data.user.id,
+    if (!profile) {
+      profile = await this.ensureOwnProfile({
+        email:
+          data.user.email ??
+          `${payload.phoneNumber.replace(/\D/g, "")}@phone.ehlibyte.local`,
         name:
           payload.name ??
           data.user.user_metadata?.name ??
           (payload.phoneNumber === testAccount.phoneNumber
             ? testAccount.name
             : "Yeni Üye"),
-        email: data.user.email ?? `${payload.phoneNumber.replace(/\D/g, "")}@phone.ehlibyte.local`,
         phoneNumber: data.user.phone ?? payload.phoneNumber,
-        age: 18,
-        city: "",
-        bio: "",
-        culturalIdentity: "prefer_not_to_say",
-        cultureImportance: "somewhat_important",
-        interests: [],
         photos: [],
-      };
-      const { error: profileError } = await supabase
-        .from("users")
-        .insert(newProfile);
-
-      if (profileError) {
-        return signOutAndThrow("Telefon doğrulandı ancak profil oluşturulamadı.");
-      }
-
-      profile = await this.getMyProfile();
+      });
     }
 
     if (!profile) {
@@ -329,7 +322,7 @@ export class SupabaseAuthRepository implements AuthRepository {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider,
       options: {
-        redirectTo: authRedirectUrl,
+        redirectTo: appAuthRedirectUrl,
         skipBrowserRedirect: true,
       },
     });
@@ -339,7 +332,7 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
 
     try {
-      const result = await WebBrowser.openAuthSessionAsync(data.url, authRedirectUrl);
+      const result = await WebBrowser.openAuthSessionAsync(data.url, appAuthRedirectUrl);
 
       if (result.type !== "success" || !("url" in result)) {
         throw new Error(`${provider === "apple" ? "Apple" : "Google"} girişi iptal edildi.`);

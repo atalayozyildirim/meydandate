@@ -4,10 +4,12 @@ import {
   useEffect,
   useRef,
   useState,
+  type ComponentProps,
   type ReactNode,
 } from "react";
 import {
   Alert,
+  Platform,
   Pressable,
   StyleSheet,
   Switch,
@@ -19,7 +21,8 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import { Audio } from "expo-av";
+import Constants from "expo-constants";
+import { requireOptionalNativeModule } from "expo-modules-core";
 import * as Location from "expo-location";
 import LottieView from "lottie-react-native";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -68,6 +71,7 @@ import { sanitizePlainText } from "@/shared/utils/sanitize";
 import { useTheme } from "@/shared/theme";
 import { container } from "@/infrastructure/config/Container";
 import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
+import type { AudioPlayer } from "expo-audio";
 
 // eslint-disable-next-line global-require
 const loveAnimation = require("../../../../assets/lottie/love.json");
@@ -76,6 +80,44 @@ const discoverMusicTracks = [
   require("../../../../assets/music/felek.mp3"),
   require("../../../../assets/music/arayıarayı.mp3"),
 ] as const;
+type AudioModule = typeof import("expo-audio");
+type DiscoverSound = AudioPlayer;
+
+let audioModule: AudioModule | null = null;
+
+const isExpoGo = () =>
+  Constants.appOwnership === "expo" ||
+  Constants.executionEnvironment === "storeClient";
+
+const canUseDiscoverAudio = () => {
+  if (isExpoGo()) {
+    return false;
+  }
+
+  try {
+    return Boolean(requireOptionalNativeModule("ExpoAudio"));
+  } catch {
+    return false;
+  }
+};
+
+const loadAudio = async () => {
+  if (audioModule) {
+    return audioModule;
+  }
+
+  if (!canUseDiscoverAudio()) {
+    return null;
+  }
+
+  try {
+    audioModule = await import("expo-audio");
+  } catch {
+    return null;
+  }
+
+  return audioModule;
+};
 
 const SWIPE_THRESHOLD = 110;
 const SUPER_LIKE_THRESHOLD = -120;
@@ -213,6 +255,224 @@ interface SwipeActionButtonProps {
   style?: StyleProp<ViewStyle>;
 }
 
+type IoniconName = ComponentProps<typeof Ionicons>["name"];
+type ActionGlyphVariant = "pass" | "undo" | "fire" | "super" | "like";
+
+interface ActionGlyphProps {
+  color: string;
+  name: IoniconName;
+  size: number;
+  variant: ActionGlyphVariant;
+}
+
+const ActionGlyph = ({ color, name, size, variant }: ActionGlyphProps) => (
+  <View style={actionGlyphStyles.wrap}>
+    <View
+      style={[
+        actionGlyphStyles.outerRing,
+        {
+          borderColor: `${color}66`,
+          backgroundColor: `${color}12`,
+        },
+      ]}
+    />
+    {variant === "pass" ? (
+      <>
+        <View
+          style={[
+            actionGlyphStyles.cutStroke,
+            actionGlyphStyles.cutStrokeLeft,
+            { backgroundColor: color },
+          ]}
+        />
+        <View
+          style={[
+            actionGlyphStyles.cutStroke,
+            actionGlyphStyles.cutStrokeRight,
+            { backgroundColor: color },
+          ]}
+        />
+      </>
+    ) : null}
+    {variant === "undo" ? (
+      <>
+        <View
+          style={[
+            actionGlyphStyles.trailDot,
+            actionGlyphStyles.trailDotOne,
+            { backgroundColor: color },
+          ]}
+        />
+        <View
+          style={[
+            actionGlyphStyles.trailDot,
+            actionGlyphStyles.trailDotTwo,
+            { backgroundColor: color },
+          ]}
+        />
+      </>
+    ) : null}
+    {variant === "fire" ? (
+      <>
+        <View
+          style={[
+            actionGlyphStyles.spark,
+            actionGlyphStyles.sparkTop,
+            { backgroundColor: color },
+          ]}
+        />
+        <View
+          style={[
+            actionGlyphStyles.spark,
+            actionGlyphStyles.sparkSide,
+            { backgroundColor: color },
+          ]}
+        />
+      </>
+    ) : null}
+    {variant === "super" ? (
+      <>
+        <View
+          style={[
+            actionGlyphStyles.boltRay,
+            actionGlyphStyles.boltRayTop,
+            { backgroundColor: color },
+          ]}
+        />
+        <View
+          style={[
+            actionGlyphStyles.boltRay,
+            actionGlyphStyles.boltRayBottom,
+            { backgroundColor: color },
+          ]}
+        />
+      </>
+    ) : null}
+    {variant === "like" ? (
+      <>
+        <View
+          style={[
+            actionGlyphStyles.heartDot,
+            actionGlyphStyles.heartDotLeft,
+            { backgroundColor: color },
+          ]}
+        />
+        <View
+          style={[
+            actionGlyphStyles.heartDot,
+            actionGlyphStyles.heartDotRight,
+            { backgroundColor: color },
+          ]}
+        />
+      </>
+    ) : null}
+    <View style={[actionGlyphStyles.core, { borderColor: `${color}30` }]}>
+      <Ionicons name={name} size={size} color={color} />
+    </View>
+  </View>
+);
+
+const actionGlyphStyles = StyleSheet.create({
+  wrap: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  outerRing: {
+    position: "absolute",
+    width: "74%",
+    height: "74%",
+    borderRadius: 999,
+    borderWidth: 1,
+  },
+  core: {
+    width: "58%",
+    height: "58%",
+    borderRadius: 999,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+  },
+  cutStroke: {
+    position: "absolute",
+    width: 4,
+    height: "44%",
+    borderRadius: 999,
+  },
+  cutStrokeLeft: {
+    transform: [{ rotate: "45deg" }],
+  },
+  cutStrokeRight: {
+    transform: [{ rotate: "-45deg" }],
+  },
+  trailDot: {
+    position: "absolute",
+    width: 5,
+    height: 5,
+    borderRadius: 999,
+    opacity: 0.86,
+  },
+  trailDotOne: {
+    left: "22%",
+    top: "32%",
+  },
+  trailDotTwo: {
+    left: "31%",
+    bottom: "23%",
+    opacity: 0.54,
+  },
+  spark: {
+    position: "absolute",
+    width: 4,
+    height: 10,
+    borderRadius: 999,
+  },
+  sparkTop: {
+    top: "14%",
+  },
+  sparkSide: {
+    right: "21%",
+    top: "33%",
+    transform: [{ rotate: "48deg" }],
+    opacity: 0.72,
+  },
+  boltRay: {
+    position: "absolute",
+    width: 3,
+    height: 13,
+    borderRadius: 999,
+  },
+  boltRayTop: {
+    top: "16%",
+    right: "27%",
+    transform: [{ rotate: "38deg" }],
+  },
+  boltRayBottom: {
+    bottom: "15%",
+    left: "28%",
+    transform: [{ rotate: "38deg" }],
+    opacity: 0.56,
+  },
+  heartDot: {
+    position: "absolute",
+    width: 6,
+    height: 6,
+    borderRadius: 999,
+  },
+  heartDotLeft: {
+    left: "22%",
+    top: "27%",
+    opacity: 0.68,
+  },
+  heartDotRight: {
+    right: "20%",
+    bottom: "25%",
+    opacity: 0.9,
+  },
+});
+
 const SwipeActionButton = ({
   accessibilityLabel,
   accentColor,
@@ -339,7 +599,7 @@ export default function DiscoverScreen() {
   const [isLoveEffectVisible, setIsLoveEffectVisible] = useState(false);
   const failedSwipeIdsRef = useRef<Set<string>>(new Set());
   const hasAutoOpenedLocationSheetRef = useRef(false);
-  const soundRef = useRef<Audio.Sound | null>(null);
+  const soundRef = useRef<DiscoverSound | null>(null);
   const musicTrackIndexRef = useRef(0);
   const shouldPlayMusicRef = useRef(false);
   const [loveEffectKey, setLoveEffectKey] = useState(0);
@@ -377,12 +637,18 @@ export default function DiscoverScreen() {
   const activeCard = deck[0];
   const nextCard = deck[1];
   const isCompactViewport = width < 380 || height < 720;
+  const nativeTabAvoidance = Platform.OS === "ios" ? 86 : 72;
+  const bottomContentPadding = Math.max(
+    insets.bottom + nativeTabAvoidance + 22,
+    nativeTabAvoidance + 34,
+  );
+  const cardHeightOffset = nativeTabAvoidance * (isCompactViewport ? 0.62 : 0.76);
   const cardHeight = Math.min(
     Math.max(
-      height * (isCompactViewport ? 0.5 : 0.58),
-      isCompactViewport ? 360 : 430,
+      height * (isCompactViewport ? 0.48 : 0.55) - cardHeightOffset,
+      isCompactViewport ? 320 : 390,
     ),
-    isCompactViewport ? 470 : 540,
+    isCompactViewport ? 420 : 486,
   );
   const sideActionSize = isCompactViewport ? 52 : 58;
   const miniActionSize = isCompactViewport ? 44 : 50;
@@ -430,7 +696,7 @@ export default function DiscoverScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isMusicPreferenceLoaded) {
+    if (!isMusicPreferenceLoaded || !canUseDiscoverAudio()) {
       return undefined;
     }
 
@@ -442,7 +708,8 @@ export default function DiscoverScreen() {
       soundRef.current = null;
 
       if (currentSound) {
-        await currentSound.unloadAsync().catch(() => undefined);
+        currentSound.pause();
+        currentSound.remove();
       }
     };
 
@@ -457,28 +724,36 @@ export default function DiscoverScreen() {
         return;
       }
 
+      const Audio = await loadAudio();
+
+      if (!Audio) {
+        shouldPlayMusicRef.current = false;
+        return;
+      }
+
       await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-        shouldDuckAndroid: true,
+        playsInSilentMode: true,
+        shouldPlayInBackground: false,
+        interruptionModeAndroid: "duckOthers",
+        interruptionMode: "mixWithOthers",
       }).catch(() => undefined);
 
-      const { sound } = await Audio.Sound.createAsync(
+      const sound = Audio.createAudioPlayer(
         discoverMusicTracks[trackIndex],
         {
-          shouldPlay: true,
-          isLooping: false,
-          volume: 0.42,
+          updateInterval: 500,
         },
       );
+      sound.loop = false;
+      sound.volume = 0.42;
 
       if (cancelled || !shouldPlayMusicRef.current) {
-        await sound.unloadAsync().catch(() => undefined);
+        sound.remove();
         return;
       }
 
       soundRef.current = sound;
-      sound.setOnPlaybackStatusUpdate((status) => {
+      sound.addListener("playbackStatusUpdate", (status) => {
         if (
           !status.isLoaded ||
           cancelled ||
@@ -492,6 +767,7 @@ export default function DiscoverScreen() {
           (musicTrackIndexRef.current + 1) % discoverMusicTracks.length;
         void playTrack(musicTrackIndexRef.current).catch(() => undefined);
       });
+      sound.play();
     };
 
     if (!shouldPlayMusicRef.current) {
@@ -816,7 +1092,7 @@ export default function DiscoverScreen() {
         { translateX: translateX.value },
         { translateY: translateY.value },
         { rotate: `${rotation}deg` },
-      ],
+      ] as const,
     };
   });
 
@@ -844,7 +1120,7 @@ export default function DiscoverScreen() {
           fireScale.value * interpolate(firePulse.value, [0, 1], [1, 1.08]),
       },
       { translateY: interpolate(firePulse.value, [0, 1], [0, -2]) },
-    ],
+    ] as const,
   }));
 
   const fireAuraStyle = useAnimatedStyle(() => ({
@@ -901,7 +1177,7 @@ export default function DiscoverScreen() {
       style={[
         styles.screen,
         {
-          paddingBottom: Math.max(insets.bottom + 28, 36),
+          paddingBottom: bottomContentPadding,
         },
       ]}
     >
@@ -1142,9 +1418,10 @@ export default function DiscoverScreen() {
               ]}
               onPress={() => triggerButtonSwipe("pass")}
               icon={
-                <Ionicons
+                <ActionGlyph
+                  variant="pass"
                   name="close"
-                  size={sideIconSize}
+                  size={sideIconSize - 4}
                   color={theme.colors.danger}
                 />
               }
@@ -1160,9 +1437,10 @@ export default function DiscoverScreen() {
               disabled={isUndoingSwipe}
               onPress={() => void handleUndoLastSwipe()}
               icon={
-                <Ionicons
+                <ActionGlyph
+                  variant="undo"
                   name="arrow-undo-outline"
-                  size={secondaryIconSize - 2}
+                  size={secondaryIconSize - 5}
                   color={theme.colors.warning}
                 />
               }
@@ -1185,10 +1463,11 @@ export default function DiscoverScreen() {
               }
               icon={
                 <>
-                  <Animated.View style={fireButtonStyle}>
-                    <Ionicons
+                  <Animated.View style={[styles.fireGlyphWrap, fireButtonStyle]}>
+                    <ActionGlyph
+                      variant="fire"
                       name="flame"
-                      size={fireIconSize}
+                      size={fireIconSize - 7}
                       color={theme.colors.primary}
                     />
                   </Animated.View>
@@ -1208,9 +1487,10 @@ export default function DiscoverScreen() {
               ]}
               onPress={() => triggerButtonSwipe("super_like")}
               icon={
-                <Ionicons
+                <ActionGlyph
+                  variant="super"
                   name="flash-outline"
-                  size={secondaryIconSize}
+                  size={secondaryIconSize - 3}
                   color={theme.colors.secondary}
                 />
               }
@@ -1225,9 +1505,10 @@ export default function DiscoverScreen() {
               ]}
               onPress={handleLikeButtonPress}
               icon={
-                <Ionicons
+                <ActionGlyph
+                  variant="like"
                   name="heart"
-                  size={sideIconSize}
+                  size={sideIconSize - 4}
                   color={theme.colors.primary}
                 />
               }
@@ -1590,22 +1871,26 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     actions: {
       width: "100%",
       flexDirection: "row",
-      justifyContent: "space-between",
+      justifyContent: "center",
       alignItems: "center",
       alignSelf: "center",
-      gap: theme.spacing.sm,
-      marginTop: -4,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: 7,
-      borderRadius: 32,
+      gap: theme.spacing.xs,
+      marginTop: -2,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: 8,
+      borderRadius: 34,
       borderWidth: 1,
-      borderColor: "rgba(255, 91, 112, 0.18)",
-      backgroundColor: theme.isDark ? "#141721" : "#FFFFFF",
+      borderColor: theme.isDark ? "rgba(255, 91, 112, 0.22)" : "rgba(233, 64, 87, 0.16)",
+      backgroundColor: theme.isDark ? "rgba(19, 22, 32, 0.96)" : "rgba(255, 255, 255, 0.96)",
       zIndex: 4,
+      shadowColor: "#000000",
+      shadowOpacity: theme.isDark ? 0.18 : 0.08,
+      shadowRadius: 18,
+      shadowOffset: { width: 0, height: 10 },
     },
     compactActions: {
-      gap: theme.spacing.xs,
-      paddingHorizontal: theme.spacing.xs,
+      gap: 5,
+      paddingHorizontal: 7,
       paddingVertical: 6,
       borderRadius: 28,
     },
@@ -1652,7 +1937,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       borderWidth: 1,
       overflow: "visible",
-      backgroundColor: theme.isDark ? "#181C27" : "#FFFFFF",
+      backgroundColor: theme.isDark ? "#171B25" : "#FFFFFF",
+      shadowColor: "#000000",
+      shadowOpacity: theme.isDark ? 0.2 : 0.06,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 5 },
     },
     locationShortcut: {
       flexDirection: "row",
@@ -1841,23 +2130,31 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       lineHeight: 19,
     },
     passAction: {
-      borderColor: theme.colors.danger,
-      backgroundColor: theme.isDark ? "#1D1820" : "#FFF5F6",
+      borderColor: "rgba(248, 113, 113, 0.72)",
+      backgroundColor: theme.isDark ? "#20181D" : "#FFF5F5",
     },
     superAction: {
-      borderColor: theme.colors.secondary,
-      backgroundColor: theme.isDark ? "#201B2E" : "#F8F0FF",
+      borderColor: "rgba(168, 85, 247, 0.72)",
+      backgroundColor: theme.isDark ? "#211A31" : "#F8F0FF",
     },
     undoAction: {
-      borderColor: "rgba(245, 158, 11, 0.32)",
-      backgroundColor: theme.isDark ? "#211D16" : "#FFF8E7",
+      borderColor: "rgba(245, 158, 11, 0.58)",
+      backgroundColor: theme.isDark ? "#221D14" : "#FFF8E7",
     },
     fireAction: {
       width: 62,
       height: 62,
-      borderColor: theme.colors.primary,
+      borderColor: "rgba(255, 91, 112, 0.88)",
       borderWidth: 2,
-      backgroundColor: theme.isDark ? "#261821" : "#FFF0F3",
+      backgroundColor: theme.isDark ? "#281721" : "#FFF0F3",
+      shadowColor: theme.colors.primary,
+      shadowOpacity: theme.isDark ? 0.28 : 0.18,
+      shadowRadius: 14,
+      shadowOffset: { width: 0, height: 8 },
+    },
+    fireGlyphWrap: {
+      width: "100%",
+      height: "100%",
     },
     fireAura: {
       position: "absolute",
@@ -1887,8 +2184,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "900",
     },
     likeAction: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.isDark ? "#221821" : "#FFF4F6",
+      borderColor: "rgba(255, 91, 112, 0.76)",
+      backgroundColor: theme.isDark ? "#241721" : "#FFF4F6",
     },
     loveEffect: {
       position: "absolute",

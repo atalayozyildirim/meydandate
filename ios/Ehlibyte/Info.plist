@@ -4,6 +4,8 @@
   <dict>
     <key>CADisableMinimumFrameDurationOnPhone</key>
     <true/>
+    <key>CFBundleAllowMixedLocalizations</key>
+    <true/>
     <key>CFBundleDevelopmentRegion</key>
     <string>$(DEVELOPMENT_LANGUAGE)</string>
     <key>CFBundleDisplayName</key>
@@ -29,6 +31,11 @@
         <array>
           <string>ehlibyte</string>
           <string>com.ehlibyte.app</string>
+        </array>
+      </dict>
+      <dict>
+        <key>CFBundleURLSchemes</key>
+        <array>
           <string>com.googleusercontent.apps.88965241358-06fo7k0brkki4mubo35vsvv2asjgs1op</string>
         </array>
       </dict>
@@ -55,17 +62,27 @@
       </dict>
     </dict>
     <key>NSCameraUsageDescription</key>
-    <string>Profil ve post fotoğrafı çekmek için kamera erişimine izin verin.</string>
+    <string>Profil ve akış fotoğrafı çekebilmen için kameraya erişim gerekiyor.</string>
+    <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <key>NSLocationAlwaysUsageDescription</key>
+    <string>Allow $(PRODUCT_NAME) to access your location</string>
+    <key>NSLocationWhenInUseUsageDescription</key>
+    <string>Yakındaki eşleşmeleri göstermek için konumuna erişmek istiyoruz.</string>
     <key>NSMicrophoneUsageDescription</key>
-    <string>Allow $(PRODUCT_NAME) to access your microphone</string>
+    <string>Meydan canlı ses odalarında konuşabilmen için mikrofon erişimi gerekiyor.</string>
+    <key>NSPhotoLibraryAddUsageDescription</key>
+    <string>Paylaştığın görselleri kaydedebilmek için fotoğraf kütüphanesine erişim gerekiyor.</string>
     <key>NSPhotoLibraryUsageDescription</key>
-    <string>Profil ve post fotoğrafı seçmek için fotoğraf kütüphanesine erişim gerekiyor.</string>
+    <string>Profil ve akış fotoğrafı seçebilmen için fotoğraf kütüphanene erişim gerekiyor.</string>
     <key>NSUserActivityTypes</key>
     <array>
       <string>$(PRODUCT_BUNDLE_IDENTIFIER).expo.index_route</string>
     </array>
     <key>NSUserTrackingUsageDescription</key>
     <string>Bu kimlik sana daha ilgili reklamlar sunmak icin kullanilabilir.</string>
+    <key>RCTNewArchEnabled</key>
+    <true/>
     <key>UILaunchStoryboardName</key>
     <string>SplashScreen</string>
     <key>UIRequiredDeviceCapabilities</key>

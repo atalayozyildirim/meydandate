@@ -1,5 +1,6 @@
 // Cem odasinin canli verisini ve katilim aksiyonlarini yonetir.
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { LiveParticipantStageStatus } from "@/domain/entities/LiveRoom";
 import type { StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { messageFilteringMiddleware } from "@/features/moderation/middleware/messageFilteringMiddleware";
@@ -109,6 +110,36 @@ export const useLiveRoom = (roomId: string) => {
     },
   });
 
+  const liveKitTokenMutation = useMutation({
+    mutationFn: () => {
+      if (!currentUser) {
+        throw new Error("Live odaya katılmak için oturum gerekli.");
+      }
+
+      return container.liveRoomRepository.getLiveKitToken(roomId, accessToken);
+    },
+  });
+
+  const setParticipantStageMutation = useMutation({
+    mutationFn: ({
+      targetUserId,
+      stageStatus,
+    }: {
+      targetUserId: string;
+      stageStatus: LiveParticipantStageStatus;
+    }) =>
+      container.liveRoomRepository.setParticipantStage(
+        roomId,
+        targetUserId,
+        stageStatus,
+        accessToken,
+      ),
+    onSuccess: async (room) => {
+      queryClient.setQueryData([queryKeys.liveRoom, roomId], room);
+      await queryClient.invalidateQueries({ queryKey: [queryKeys.liveRoom, roomId] });
+    },
+  });
+
   const isJoined = Boolean(
     currentUser &&
       query.data?.participants.some(
@@ -126,8 +157,12 @@ export const useLiveRoom = (roomId: string) => {
     sendMessage: sendMessageMutation.mutateAsync,
     startRoom: startRoomMutation.mutateAsync,
     stopRoom: stopRoomMutation.mutateAsync,
+    getLiveKitToken: liveKitTokenMutation.mutateAsync,
+    setParticipantStage: setParticipantStageMutation.mutateAsync,
     isJoining: joinMutation.isPending || leaveMutation.isPending,
     isSendingMessage: sendMessageMutation.isPending,
     isManagingRoom: startRoomMutation.isPending || stopRoomMutation.isPending,
+    isConnectingLiveKit: liveKitTokenMutation.isPending,
+    isManagingStage: setParticipantStageMutation.isPending,
   };
 };

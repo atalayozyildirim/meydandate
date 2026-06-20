@@ -1,21 +1,40 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import * as Notifications from "expo-notifications";
 import { supabase } from "@/infrastructure/supabase/client";
 
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: true,
-  }),
-});
+type NotificationsModule = typeof import("expo-notifications");
+
+let notificationsModule: NotificationsModule | null = null;
+
+const isExpoGo = () =>
+  Constants.appOwnership === "expo" ||
+  Constants.executionEnvironment === "storeClient";
+
+const loadNotifications = async () => {
+  if (notificationsModule) {
+    return notificationsModule;
+  }
+
+  notificationsModule = await import("expo-notifications");
+  notificationsModule.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+    }),
+  });
+
+  return notificationsModule;
+};
 
 export const registerPushNotifications = async (userId: string) => {
-  if (Platform.OS === "web") {
+  if (Platform.OS === "web" || isExpoGo()) {
     return;
   }
 
+  const Notifications = await loadNotifications();
   const existingPermission = await Notifications.getPermissionsAsync();
   let status = existingPermission.status;
 

@@ -1,14 +1,14 @@
 // Backend olmadiginda canli oda akisini kirilmadan gosteren fallback repository.
 import type { LiveRoom, LiveParticipant, LiveChatMessage } from "@/domain/entities/LiveRoom";
-import type { LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
+import type { LiveKitJoinInfo, LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { createId } from "@/shared/utils/id";
 
 const participants: LiveParticipant[] = [
-  { id: "zeynep", name: "Zeynep", role: "Dinleyici" },
-  { id: "cem", name: "Cem", role: "Deyis" },
-  { id: "elif", name: "Elif", role: "Paylasim" },
-  { id: "mert", name: "Mert", role: "Canli" },
+  { id: "zeynep", name: "Zeynep", role: "Dinleyici", stageStatus: "listener", isMuted: true },
+  { id: "cem", name: "Cem", role: "Konusmaci", stageStatus: "speaker", isMuted: false },
+  { id: "elif", name: "Elif", role: "Dinleyici", stageStatus: "listener", isMuted: true },
+  { id: "mert", name: "Mert", role: "Dinleyici", stageStatus: "listener", isMuted: true },
 ];
 
 let roomStatus: LiveRoom["status"] = "scheduled";
@@ -24,8 +24,11 @@ const createRoom = (): LiveRoom => ({
   title: roomTitle,
   description: roomDescription,
   status: roomStatus,
+  voiceProvider: "livekit",
+  livekitRoomName: "ehlibyte-meydan-erkani",
   streamUrl: roomStreamUrl,
   participantCount: roomParticipants.length,
+  speakerCount: roomParticipants.filter((participant) => participant.stageStatus === "speaker").length,
   participants: roomParticipants,
   messages: roomMessages,
   canManage: true,
@@ -46,7 +49,7 @@ export class MockLiveRoomRepository implements LiveRoomRepository {
     }
 
     const joinedParticipants = [
-      { id: user.id, name: user.name, role: "Sen", isCurrentUser: true },
+      { id: user.id, name: user.name, role: "Sen", stageStatus: "listener" as const, isMuted: true, isCurrentUser: true },
       ...room.participants.filter((participant) => participant.id !== user.id),
     ];
     roomParticipants = joinedParticipants;
@@ -99,6 +102,35 @@ export class MockLiveRoomRepository implements LiveRoomRepository {
   async stopRoom(): Promise<LiveRoom> {
     roomStatus = "offline";
     roomStartedAt = undefined;
+
+    return createRoom();
+  }
+
+  async getLiveKitToken(_roomId: string): Promise<LiveKitJoinInfo> {
+    return {
+      serverUrl: "ws://localhost:7880",
+      token: "mock-livekit-token",
+      roomName: "ehlibyte-meydan-erkani",
+      identity: "mock-user",
+      canPublish: true,
+    };
+  }
+
+  async setParticipantStage(
+    _roomId: string,
+    targetUserId: string,
+    stageStatus: "listener" | "invited" | "speaker",
+  ): Promise<LiveRoom> {
+    roomParticipants = roomParticipants.map((participant) =>
+      participant.id === targetUserId
+        ? {
+            ...participant,
+            role: stageStatus === "speaker" ? "Konusmaci" : "Dinleyici",
+            stageStatus,
+            isMuted: stageStatus !== "speaker",
+          }
+        : participant,
+    );
 
     return createRoom();
   }

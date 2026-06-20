@@ -1,7 +1,7 @@
 import { Image, StyleSheet, View } from "react-native";
 import { useTheme } from "@/shared/theme";
 
-const zulfiqarSwordImage = require("../../../assets/zulfiqar-sword.png");
+const zulfiqarSwordImage = require("../../../assets/badges/zulfikar.png");
 
 interface ZulfiqarBadgeIconProps {
   size?: number;

@@ -1,6 +1,6 @@
 // Premium, boost ve rozet alımlarını sade bir mağaza ekranında toplar.
-import { useEffect } from "react";
-import { Alert, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import Animated, {
   useAnimatedStyle,
@@ -45,6 +45,19 @@ const premiumPlans = [
   featured?: boolean;
 }>;
 
+type StoreCategory = "premium" | "fire" | "badges" | "earned";
+
+const storeCategories = [
+  { key: "premium", label: "Premium", icon: "sparkles-outline" },
+  { key: "fire", label: "Fire", icon: "flame-outline" },
+  { key: "badges", label: "Rozetler", icon: "ribbon-outline" },
+  { key: "earned", label: "Görev", icon: "trophy-outline" },
+] satisfies Array<{
+  key: StoreCategory;
+  label: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}>;
+
 const getFirePackageCaption = (amount: FirePackageAmount) => {
   if (amount === 100) {
     return "Kartlara küçük dokunuşlar için";
@@ -60,6 +73,8 @@ const getFirePackageCaption = (amount: FirePackageAmount) => {
 export default function StoreScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
+  const [selectedCategory, setSelectedCategory] =
+    useState<StoreCategory>("premium");
   const { profile, isLoading: isProfileLoading } = useProfile();
   const isMockPaymentMode = !env.useRevenueCatPayments || isExpoGo;
   const {
@@ -255,7 +270,46 @@ export default function StoreScreen() {
         </View>
       ) : null}
 
-      <View style={styles.salesSection}>
+      <View style={styles.categoryRail}>
+        {storeCategories.map((category) => {
+          const selected = selectedCategory === category.key;
+
+          return (
+            <Pressable
+              key={category.key}
+              accessibilityRole="button"
+              accessibilityState={{ selected }}
+              onPress={() => setSelectedCategory(category.key)}
+              style={({ pressed }) => [
+                styles.categoryChip,
+                selected && styles.categoryChipActive,
+                pressed && styles.categoryChipPressed,
+              ]}
+            >
+              <Ionicons
+                name={category.icon}
+                size={16}
+                color={selected ? "#FFFFFF" : theme.colors.muted}
+              />
+              <Text
+                style={[
+                  styles.categoryChipText,
+                  selected && styles.categoryChipTextActive,
+                ]}
+              >
+                {category.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      <View
+        style={[
+          styles.salesSection,
+          selectedCategory !== "premium" && styles.hiddenSection,
+        ]}
+      >
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.sectionEyebrow}>En güçlü paket</Text>
@@ -373,7 +427,12 @@ export default function StoreScreen() {
         </Card>
       </View>
 
-      <View style={styles.salesSection}>
+      <View
+        style={[
+          styles.salesSection,
+          selectedCategory !== "fire" && styles.hiddenSection,
+        ]}
+      >
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.sectionEyebrow}>Boost bakiyesi</Text>
@@ -423,7 +482,12 @@ export default function StoreScreen() {
         </View>
       </View>
 
-      <View style={styles.salesSection}>
+      <View
+        style={[
+          styles.salesSection,
+          selectedCategory !== "badges" && styles.hiddenSection,
+        ]}
+      >
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.sectionEyebrow}>Profil vitrini</Text>
@@ -464,7 +528,12 @@ export default function StoreScreen() {
         </View>
       </View>
 
-      <View style={styles.salesSection}>
+      <View
+        style={[
+          styles.salesSection,
+          selectedCategory !== "earned" && styles.hiddenSection,
+        ]}
+      >
         <View style={styles.sectionHeaderRow}>
           <View style={styles.sectionHeaderCopy}>
             <Text style={styles.sectionEyebrow}>Başarıyla kazan</Text>
@@ -571,6 +640,51 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.warning,
       flex: 1,
+    },
+    categoryRail: {
+      minHeight: 48,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      padding: 4,
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.04)"
+        : "rgba(255, 255, 255, 0.72)",
+    },
+    categoryChip: {
+      flex: 1,
+      minHeight: 40,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+      paddingHorizontal: 6,
+    },
+    categoryChipActive: {
+      backgroundColor: theme.colors.primary,
+      shadowColor: theme.colors.primary,
+      shadowOpacity: 0.22,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 4 },
+    },
+    categoryChipPressed: {
+      opacity: 0.84,
+    },
+    categoryChipText: {
+      fontSize: 12,
+      lineHeight: 16,
+      fontWeight: "900",
+      color: theme.colors.muted,
+    },
+    categoryChipTextActive: {
+      color: "#FFFFFF",
+    },
+    hiddenSection: {
+      display: "none",
     },
     salesSection: {
       gap: theme.spacing.sm,

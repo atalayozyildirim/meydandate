@@ -1,8 +1,13 @@
 // Uygulama kok layout'u providerlari, session bootstrap'i ve stack router'i kurar.
 import "react-native-gesture-handler";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
+import {
+  DarkTheme as NavigationDarkTheme,
+  DefaultTheme as NavigationDefaultTheme,
+  ThemeProvider as NavigationThemeProvider,
+} from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { ThemeProvider, useTheme } from "@/shared/theme";
@@ -16,6 +21,23 @@ const RootNavigator = () => {
   const theme = useTheme();
   const initializeSession = useAuthStore((state) => state.initializeSession);
   const currentUser = useAuthStore((state) => state.currentUser);
+  const navigationTheme = useMemo(() => {
+    const baseTheme = theme.isDark ? NavigationDarkTheme : NavigationDefaultTheme;
+
+    return {
+      ...baseTheme,
+      dark: theme.isDark,
+      colors: {
+        ...baseTheme.colors,
+        primary: theme.colors.primary,
+        background: theme.colors.background,
+        card: theme.colors.surface,
+        text: theme.colors.text,
+        border: theme.colors.border,
+        notification: theme.colors.primary,
+      },
+    };
+  }, [theme]);
 
   useEffect(() => {
     void initializeSession();
@@ -36,7 +58,7 @@ const RootNavigator = () => {
   }, [currentUser?.id]);
 
   return (
-    <>
+    <NavigationThemeProvider value={navigationTheme}>
       <StatusBar style={theme.isDark ? "light" : "dark"} />
       <Stack
         screenOptions={{
@@ -44,7 +66,7 @@ const RootNavigator = () => {
           contentStyle: { backgroundColor: theme.colors.background },
         }}
       />
-    </>
+    </NavigationThemeProvider>
   );
 };
 

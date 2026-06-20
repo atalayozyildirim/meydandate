@@ -380,7 +380,7 @@ export function AdminDashboard() {
 
       {/* Modal */}
       {showModal && (
-        <Modal visible={showModal} transparent animationType="slide">
+        <Modal visible={showModal} transparent animationType="fade">
           <View style={styles.modal}>
             <View style={styles.modalContent}>
               <Text style={styles.modalTitle}>

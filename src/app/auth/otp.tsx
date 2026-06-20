@@ -8,6 +8,7 @@ import { otpSchema, type OtpFormValues } from "@/features/auth/schemas/authSchem
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
+import { Loading } from "@/shared/components/Loading";
 import { formatOtpInput, formatPhoneNumberInput } from "@/shared/utils/phone";
 import { useTheme } from "@/shared/theme";
 
@@ -23,6 +24,7 @@ export default function OtpScreen() {
   const clearPendingOtp = useAuthStore((state) => state.clearPendingOtp);
   const isSubmitting = useAuthStore((state) => state.isSubmitting);
   const [resendSeconds, setResendSeconds] = useState(RESEND_SECONDS);
+  const [isCompleting, setIsCompleting] = useState(false);
   const form = useForm<OtpFormValues>({
     resolver: zodResolver(otpSchema),
     defaultValues: { token: "" },
@@ -41,16 +43,23 @@ export default function OtpScreen() {
     return () => clearInterval(timer);
   }, [resendSeconds]);
 
-  if (!pendingOtp) {
+  if (!pendingOtp && !isCompleting) {
     return <Redirect href="/auth/login" />;
   }
 
+  if (!pendingOtp) {
+    return <Loading label="Oturum açılıyor" />;
+  }
+
   const onSubmit = form.handleSubmit(async (values) => {
+    const purpose = pendingOtp.purpose;
+    setIsCompleting(true);
+
     try {
-      const purpose = pendingOtp.purpose;
       await verifyOtp(values.token);
       router.replace(purpose === "register" ? "/approval-test" : "/");
     } catch (error) {
+      setIsCompleting(false);
       Alert.alert(
         "Kod doğrulanamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
@@ -103,14 +112,14 @@ export default function OtpScreen() {
 
       <Button
         label="Telefonu doğrula"
-        loading={isSubmitting}
-        disabled={token.replace(/\D/g, "").length !== 6}
+        loading={isSubmitting || isCompleting}
+        disabled={isCompleting || token.replace(/\D/g, "").length !== 6}
         onPress={onSubmit}
       />
       <Button
         label={resendSeconds > 0 ? `Tekrar gönder (${resendSeconds})` : "Kodu tekrar gönder"}
         variant="ghost"
-        disabled={isSubmitting || resendSeconds > 0}
+        disabled={isSubmitting || isCompleting || resendSeconds > 0}
         onPress={() => void resend()}
       />
       <Pressable accessibilityRole="button" onPress={goBack}>

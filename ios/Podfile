@@ -7,35 +7,11 @@ podfile_properties = JSON.parse(File.read(File.join(__dir__, 'Podfile.properties
 ENV['RCT_NEW_ARCH_ENABLED'] = podfile_properties['newArchEnabled'] == 'true' ? '1' : '0'
 ENV['EX_DEV_CLIENT_NETWORK_INSPECTOR'] = podfile_properties['EX_DEV_CLIENT_NETWORK_INSPECTOR']
 
-platform :ios, podfile_properties['ios.deploymentTarget'] || '13.0'
+platform :ios, podfile_properties['ios.deploymentTarget'] || '15.1'
 install! 'cocoapods',
   :deterministic_uuids => false
 
 prepare_react_native_project!
-
-# If you are using a `react-native-flipper` your iOS build will fail when `NO_FLIPPER=1` is set.
-# because `react-native-flipper` depends on (FlipperKit,...), which will be excluded. To fix this,
-# you can also exclude `react-native-flipper` in `react-native.config.js`
-#
-# ```js
-# module.exports = {
-#   dependencies: {
-#     ...(process.env.NO_FLIPPER ? { 'react-native-flipper': { platforms: { ios: null } } } : {}),
-#   }
-# }
-# ```
-flipper_config = FlipperConfiguration.disabled
-if ENV['NO_FLIPPER'] == '1' then
-  # Explicitly disabled through environment variables
-  flipper_config = FlipperConfiguration.disabled
-elsif podfile_properties.key?('ios.flipper') then
-  # Configure Flipper in Podfile.properties.json
-  if podfile_properties['ios.flipper'] == 'true' then
-    flipper_config = FlipperConfiguration.enabled(["Debug", "Release"])
-  elsif podfile_properties['ios.flipper'] != 'false' then
-    flipper_config = FlipperConfiguration.enabled(["Debug", "Release"], { 'Flipper' => podfile_properties['ios.flipper'] })
-  end
-end
 
 target 'Ehlibyte' do
   use_expo_modules!
@@ -51,10 +27,7 @@ target 'Ehlibyte' do
     :path => config[:reactNativePath],
     :hermes_enabled => podfile_properties['expo.jsEngine'] == nil || podfile_properties['expo.jsEngine'] == 'hermes',
     :fabric_enabled => flags[:fabric_enabled],
-    # An absolute path to your application root.
     :app_path => "#{Pod::Config.instance.installation_root}/..",
-    # Note that if you have use_frameworks! enabled, Flipper will not work if enabled
-    :flipper_configuration => flipper_config
   )
 
   post_install do |installer|
@@ -63,18 +36,14 @@ target 'Ehlibyte' do
       config[:reactNativePath],
       :mac_catalyst_enabled => false
     )
-    __apply_Xcode_12_5_M1_post_install_workaround(installer)
 
-    # React Native 0.72 Yoga sources use legacy literal-operator spacing that
-    # recent Xcode versions warn about. Yoga marks all warnings as errors.
     installer.pods_project.targets.each do |target|
-      next unless target.name == 'Yoga'
+      next unless target.name == 'fmt'
 
-      target.source_build_phase.files.each do |file|
-        next unless file.settings && file.settings['COMPILER_FLAGS']
-
-        file.settings['COMPILER_FLAGS'] = file.settings['COMPILER_FLAGS']
-          .gsub('-Werror', '-Wno-deprecated-literal-operator')
+      target.build_configurations.each do |config|
+        definitions = config.build_settings['GCC_PREPROCESSOR_DEFINITIONS'] ||= ['$(inherited)']
+        definitions << 'FMT_USE_CONSTEVAL=0' unless definitions.include?('FMT_USE_CONSTEVAL=0')
+        config.build_settings['CLANG_CXX_LANGUAGE_STANDARD'] = 'gnu++17'
       end
     end
 

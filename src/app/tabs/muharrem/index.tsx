@@ -50,6 +50,8 @@ const loadNotifications = async (): Promise<NotificationsModule | null> => {
     notifications.setNotificationHandler({
       handleNotification: async () => ({
         shouldShowAlert: true,
+        shouldShowBanner: true,
+        shouldShowList: true,
         shouldPlaySound: true,
         shouldSetBadge: false,
       }),

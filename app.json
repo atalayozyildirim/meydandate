@@ -3,7 +3,7 @@
     "name": "Ehlibyte",
     "slug": "ehlibyte",
     "version": "1.0.0",
-    "sdkVersion": "49.0.0",
+    "sdkVersion": "54.0.0",
     "platforms": ["ios", "android"],
     "scheme": "ehlibyte",
     "userInterfaceStyle": "automatic",
@@ -15,10 +15,17 @@
       "backgroundColor": "#FFF5F7"
     },
     "plugins": [
+      "expo-router",
+      "@livekit/react-native-expo-plugin",
+      "@config-plugins/react-native-webrtc",
+      "expo-apple-authentication",
       [
-        "expo-router",
+        "expo-splash-screen",
         {
-          "unstable_src": "src/app"
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 180,
+          "resizeMode": "contain",
+          "backgroundColor": "#FFF5F7"
         }
       ],
       [
@@ -51,6 +58,7 @@
         "NSPhotoLibraryUsageDescription": "Profil ve post fotoğrafı seçmek için fotoğraf kütüphanesine erişim gerekiyor.",
         "NSPhotoLibraryAddUsageDescription": "Paylaştığın görselleri kaydedebilmek için fotoğraf kütüphanesine erişim gerekiyor.",
         "NSCameraUsageDescription": "Profil ve post fotoğrafı çekmek için kamera erişimine izin verin.",
+        "NSMicrophoneUsageDescription": "Meydan canlı ses odalarında konuşabilmen için mikrofon erişimi gerekiyor.",
         "NSLocationWhenInUseUsageDescription": "Yakındaki eşleşmeleri göstermek için konumuna erişmek istiyoruz."
       },
       "entitlements": {
@@ -59,7 +67,13 @@
     },
     "android": {
       "package": "com.ehlibyte.app",
-      "permissions": ["READ_MEDIA_IMAGES", "READ_EXTERNAL_STORAGE"],
+      "permissions": [
+        "READ_MEDIA_IMAGES",
+        "READ_EXTERNAL_STORAGE",
+        "RECORD_AUDIO",
+        "MODIFY_AUDIO_SETTINGS",
+        "BLUETOOTH_CONNECT"
+      ],
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#FF4458"

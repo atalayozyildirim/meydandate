@@ -1,6 +1,6 @@
 // Canli oda verisini backend live endpoint'lerinden okur.
-import type { LiveRoom } from "@/domain/entities/LiveRoom";
-import type { LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
+import type { LiveParticipantStageStatus, LiveRoom } from "@/domain/entities/LiveRoom";
+import type { LiveKitJoinInfo, LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
 import type { ApiClient } from "@/infrastructure/api/ApiClient";
 
 export class ApiLiveRoomRepository implements LiveRoomRepository {
@@ -70,5 +70,31 @@ export class ApiLiveRoomRepository implements LiveRoomRepository {
         token: accessToken ?? undefined,
       },
     );
+  }
+
+  getLiveKitToken(roomId: string, accessToken?: string | null): Promise<LiveKitJoinInfo> {
+    return this.apiClient.http.request<LiveKitJoinInfo>(
+      `/live/rooms/${roomId}/livekit-token`,
+      {
+        method: "POST",
+        token: accessToken ?? undefined,
+      },
+    );
+  }
+
+  setParticipantStage(
+    roomId: string,
+    targetUserId: string,
+    stageStatus: LiveParticipantStageStatus,
+    accessToken?: string | null,
+  ): Promise<LiveRoom> {
+    return this.apiClient.http.request<
+      LiveRoom,
+      { targetUserId: string; stageStatus: LiveParticipantStageStatus }
+    >(`/live/rooms/${roomId}/participants/stage`, {
+      method: "POST",
+      body: { targetUserId, stageStatus },
+      token: accessToken ?? undefined,
+    });
   }
 }
