@@ -32,16 +32,25 @@ const slides: Array<{
     description:
       "Ehlibyte; ortak kültür, ilgi alanları ve niyetler etrafında güvenli tanışmalar için tasarlandı.",
     icon: "heart",
-    highlights: ["Gerçek profiller", "Anlamlı eşleşmeler", "Ortak ilgi alanları"],
+    highlights: [
+      "Gerçek profiller",
+      "Anlamlı eşleşmeler",
+      "Aynı müzik zevkiniz olan insanlarla eşleş",
+      "Ortak ilgi alanları",
+    ],
     colors: ["#FF4458", "#8A2387"],
   },
   {
     eyebrow: "Meydan ve akış",
     title: "Sohbetin tam ortasında ol.",
     description:
-      "Topluluk paylaşımlarını takip et, fotoğraflı postlar yayınla ve canlı Meydan odalarına katıl.",
+      "Topluluk paylaşımlarını takip et, Spotify'da aynı müziği dinlediğin insanlarla eşleş ve canlı Meydan odalarına katıl.",
     icon: "people",
-    highlights: ["Fotoğraflı postlar", "Canlı oda sohbeti", "Muharrem takvimi"],
+    highlights: [
+      "Fotoğraflı postlar",
+      "Canlı oda sohbeti",
+      "Spotfiy eşleştirmeleri",
+    ],
     colors: ["#8A2387", "#4F46E5"],
   },
   {
@@ -50,7 +59,11 @@ const slides: Array<{
     description:
       "Moderasyon, bildirme ve gizlilik araçlarıyla saygılı bir alanı birlikte koruyoruz.",
     icon: "shield-checkmark",
-    highlights: ["İçerik moderasyonu", "Engelle ve bildir", "Gizlilik kontrolleri"],
+    highlights: [
+      "İçerik moderasyonu",
+      "Engelle ve bildir",
+      "Gizlilik kontrolleri",
+    ],
     colors: ["#E94057", "#FF7A59"],
   },
 ];
@@ -66,7 +79,9 @@ export default function IntroScreen() {
   const isLastSlide = activeIndex === slides.length - 1;
 
   const finishIntro = async () => {
-    await container.tokenStorage.setItem(env.introSeenKey, "true").catch(() => undefined);
+    await container.tokenStorage
+      .setItem(env.introSeenKey, "true")
+      .catch(() => undefined);
     router.replace("/auth/login");
   };
 
@@ -93,7 +108,10 @@ export default function IntroScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={() => void finishIntro()}
-          style={({ pressed }) => [styles.skipButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.skipButton,
+            pressed && styles.pressed,
+          ]}
         >
           <Text style={styles.skipText}>Geç</Text>
         </Pressable>
@@ -107,7 +125,9 @@ export default function IntroScreen() {
         style={styles.slides}
         showsHorizontalScrollIndicator={false}
         onMomentumScrollEnd={(event) => {
-          setActiveIndex(Math.round(event.nativeEvent.contentOffset.x / slideWidth));
+          setActiveIndex(
+            Math.round(event.nativeEvent.contentOffset.x / slideWidth),
+          );
         }}
       >
         {slides.map((slide, index) => (
@@ -120,12 +140,18 @@ export default function IntroScreen() {
               </View>
               <View style={styles.floatingCard}>
                 <Ionicons
-                  name={index === 1 ? "radio" : index === 2 ? "lock-closed" : "star"}
+                  name={
+                    index === 1 ? "radio" : index === 2 ? "lock-closed" : "star"
+                  }
                   size={18}
                   color="#FFFFFF"
                 />
                 <Text style={styles.floatingCardText}>
-                  {index === 1 ? "Meydan canlı" : index === 2 ? "Güvenli alan" : "Yeni bağlar"}
+                  {index === 1
+                    ? "Meydan canlı"
+                    : index === 2
+                      ? "Güvenli alan"
+                      : "Yeni bağlar"}
                 </Text>
               </View>
             </LinearGradient>
@@ -143,7 +169,11 @@ export default function IntroScreen() {
                 {slide.highlights.map((highlight) => (
                   <View key={highlight} style={styles.highlight}>
                     <View style={styles.highlightIcon}>
-                      <Ionicons name="checkmark" size={14} color={theme.colors.primary} />
+                      <Ionicons
+                        name="checkmark"
+                        size={14}
+                        color={theme.colors.primary}
+                      />
                     </View>
                     <Text style={styles.highlightText}>{highlight}</Text>
                   </View>
@@ -166,7 +196,10 @@ export default function IntroScreen() {
         <Pressable
           accessibilityRole="button"
           onPress={showNext}
-          style={({ pressed }) => [styles.nextButton, pressed && styles.pressed]}
+          style={({ pressed }) => [
+            styles.nextButton,
+            pressed && styles.pressed,
+          ]}
         >
           <Text style={styles.nextButtonText}>
             {isLastSlide ? "Ehlibyte'e başla" : "Devam et"}

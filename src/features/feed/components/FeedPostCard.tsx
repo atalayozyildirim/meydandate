@@ -18,7 +18,6 @@ import type { User } from "@/domain/entities/User";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
 import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
-import { AdMobBanner } from "@/features/ads";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { formatDateTime } from "@/shared/utils/date";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
@@ -305,21 +304,23 @@ export const FeedPostCard = ({
           </View>
 
           {isSponsored ? (
-            <>
+            <View style={styles.nativeSponsorFooter}>
               <Pressable
                 accessibilityRole="button"
                 onPress={onCtaPress}
                 style={({ pressed }) => [
-                  styles.sponsoredCta,
+                  styles.nativeSponsorCta,
                   pressed && styles.pressed,
                 ]}
               >
                 <ZulfiqarBadgeIcon size={38} />
-                <View style={styles.sponsoredCtaText}>
-                  <Text style={styles.sponsoredCtaTitle}>
-                    Ehlibyte Bot reklamı
+                <View style={styles.nativeSponsorText}>
+                  <Text style={styles.nativeSponsorTitle}>
+                    {sanitizePlainText(post.author.name, 80)}
                   </Text>
-                  <Text style={styles.sponsoredCtaMeta}>{ctaLabel}</Text>
+                  <Text style={styles.nativeSponsorMeta}>
+                    Sponsorlu · {ctaLabel}
+                  </Text>
                 </View>
                 <Ionicons
                   name="chevron-forward"
@@ -327,10 +328,7 @@ export const FeedPostCard = ({
                   color={theme.colors.primary}
                 />
               </Pressable>
-              {post.showAdMob ? (
-                <AdMobBanner style={styles.sponsoredAd} />
-              ) : null}
-            </>
+            </View>
           ) : (
             <View style={styles.actionRow}>
               <Pressable
@@ -547,12 +545,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     actionTextActive: {
       color: theme.colors.primary,
     },
-    sponsoredCta: {
+    nativeSponsorFooter: {
+      paddingTop: theme.spacing.xs,
+    },
+    nativeSponsorCta: {
       minHeight: 54,
       borderRadius: theme.radius.md,
       borderWidth: 1,
       borderColor: theme.isDark
-        ? "rgba(248, 216, 120, 0.30)"
+        ? "rgba(235, 239, 247, 0.12)"
         : "rgba(233, 64, 87, 0.14)",
       flexDirection: "row",
       alignItems: "center",
@@ -560,25 +561,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xs,
       marginTop: theme.spacing.xs,
-      backgroundColor: theme.isDark ? "#1C212D" : "#FFF8E7",
+      backgroundColor: theme.isDark ? "rgba(255,255,255,0.04)" : "#FFF8E7",
     },
-    sponsoredCtaText: {
+    nativeSponsorText: {
       flex: 1,
       gap: 1,
     },
-    sponsoredCtaTitle: {
+    nativeSponsorTitle: {
       ...theme.typography.caption,
       color: theme.colors.text,
       fontSize: 13,
       lineHeight: 17,
     },
-    sponsoredCtaMeta: {
+    nativeSponsorMeta: {
       ...theme.typography.caption,
       color: theme.colors.primary,
-    },
-    sponsoredAd: {
-      marginTop: theme.spacing.xs,
-      backgroundColor: theme.isDark ? "#171923" : "rgba(255, 255, 255, 0.74)",
     },
     pressed: {
       opacity: 0.78,

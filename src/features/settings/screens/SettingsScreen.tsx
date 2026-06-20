@@ -363,7 +363,7 @@ export default function SettingsScreen() {
               ? `${blockedCount} kullanıcı engelli. Engellediklerin Keşfet akışında görünmez.`
               : "Profil güvenlik menüsünden engellediğin kişiler Keşfet akışından çıkarılır.",
           icon: "remove-circle-outline",
-          onPress: () => router.push("/tabs/settings/blocked-users"),
+          onPress: () => router.push("/tabs/profile/blocked-users"),
         })}
         {row({
           title: "Hesabı sil",

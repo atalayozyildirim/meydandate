@@ -34,7 +34,7 @@ export default function ProfileScreen() {
             accessibilityRole="button"
             accessibilityLabel="Ayarları aç"
             hitSlop={8}
-            onPress={() => router.push("/tabs/settings")}
+            onPress={() => router.push("/tabs/profile/settings")}
             style={styles.iconButton}
           >
             <Ionicons

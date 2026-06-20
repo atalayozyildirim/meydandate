@@ -44,6 +44,8 @@ export default function FeedPostDetailScreen() {
   const styles = createStyles(theme);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const [commentText, setCommentText] = useState("");
+  const [quoteText, setQuoteText] = useState("");
+  const [isQuoteComposerVisible, setIsQuoteComposerVisible] = useState(false);
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const {
     post,
@@ -52,6 +54,7 @@ export default function FeedPostDetailScreen() {
     toggleLike,
     addComment,
     addReply,
+    quotePost: createQuotePost,
     reportPost,
     deletePost,
     votePoll,
@@ -173,15 +176,36 @@ export default function FeedPostDetailScreen() {
       ],
     );
   };
+
+  const submitQuote = async () => {
+    const body = quoteText.trim();
+
+    if (!body) return;
+
+    try {
+      await createQuotePost(body);
+      setQuoteText("");
+      setIsQuoteComposerVisible(false);
+      Alert.alert("Alıntı paylaşıldı", "Post akışta alıntı olarak yayınlandı.");
+    } catch (error) {
+      if (isPermanentBanError(error)) {
+        handlePermanentBan(error);
+        return;
+      }
+
+      Alert.alert(
+        "Alıntı gönderilemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
   const quotePost = () => {
     if (!post) {
       return;
     }
 
-    router.push({
-      pathname: "/tabs/feed",
-      params: { quotePostId: post.id },
-    });
+    setIsQuoteComposerVisible((visible) => !visible);
   };
 
   if (isLoading || !currentUser) {
@@ -397,6 +421,74 @@ export default function FeedPostDetailScreen() {
             </View>
           </View>
         </View>
+
+        {isQuoteComposerVisible ? (
+          <View style={styles.quoteComposer}>
+            <View style={styles.quoteComposerHeader}>
+              <Ionicons name="repeat-outline" size={18} color={theme.colors.primary} />
+              <Text style={styles.quoteComposerTitle}>Alıntı ekle</Text>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Alıntı kutusunu kapat"
+                hitSlop={8}
+                onPress={() => {
+                  setQuoteText("");
+                  setIsQuoteComposerVisible(false);
+                }}
+                style={({ pressed }) => [
+                  styles.quoteComposerClose,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons name="close" size={18} color={theme.colors.muted} />
+              </Pressable>
+            </View>
+            <TextInput
+              value={quoteText}
+              onChangeText={setQuoteText}
+              maxLength={1000}
+              placeholder="Bu post hakkında ne düşünüyorsun?"
+              placeholderTextColor={theme.colors.muted}
+              style={styles.quoteInput}
+              multiline
+            />
+            <View style={styles.quotePreview}>
+              <Text numberOfLines={1} style={styles.quotePreviewName}>
+                {sanitizePlainText(post.author.name, 80)}
+              </Text>
+              <Text numberOfLines={2} style={styles.quotePreviewBody}>
+                {sanitizePlainText(post.body, 180)}
+              </Text>
+            </View>
+            <View style={styles.quoteComposerActions}>
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => {
+                  setQuoteText("");
+                  setIsQuoteComposerVisible(false);
+                }}
+                style={({ pressed }) => [
+                  styles.quoteGhostButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.quoteGhostButtonText}>Vazgeç</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                disabled={isMutating || !quoteText.trim()}
+                onPress={() => void submitQuote()}
+                style={({ pressed }) => [
+                  styles.quoteSendButton,
+                  (!quoteText.trim() || isMutating) && styles.sendButtonDisabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.sendButtonText}>Paylaş</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : null}
 
         <View style={styles.composer}>
           <Avatar
@@ -711,6 +803,92 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.background,
+    },
+    quoteComposer: {
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.isDark ? "#11141D" : "#FFFFFF",
+    },
+    quoteComposerHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    quoteComposerTitle: {
+      ...theme.typography.caption,
+      flex: 1,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    quoteComposerClose: {
+      width: 32,
+      height: 32,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+    },
+    quoteInput: {
+      minHeight: 72,
+      maxHeight: 140,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: "rgba(233, 64, 87, 0.16)",
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      ...theme.typography.body,
+      color: theme.colors.text,
+      backgroundColor: theme.colors.background,
+      textAlignVertical: "top",
+    },
+    quotePreview: {
+      gap: 2,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+    },
+    quotePreviewName: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    quotePreviewBody: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      lineHeight: 18,
+    },
+    quoteComposerActions: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    quoteGhostButton: {
+      minHeight: 38,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.colors.elevated,
+    },
+    quoteGhostButtonText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "800",
+    },
+    quoteSendButton: {
+      minHeight: 38,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.lg,
+      backgroundColor: theme.colors.primary,
     },
     commentInput: {
       flex: 1,

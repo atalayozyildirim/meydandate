@@ -2,6 +2,7 @@
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ComponentProps,
@@ -19,7 +20,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
 import Constants from "expo-constants";
 import { requireOptionalNativeModule } from "expo-modules-core";
@@ -46,7 +47,6 @@ import type { User } from "@/domain/entities/User";
 import { SwipeProfileCard } from "@/features/discover/components/SwipeProfileCard";
 import { useDiscoverDeck } from "@/features/discover/hooks/useDiscoverDeck";
 import { useFire } from "@/features/fire/hooks/useFire";
-import { AdMobBanner } from "@/features/ads";
 import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
 import { useAuthStore } from "@/features/auth/stores/authStore";
@@ -137,6 +137,21 @@ interface DiscoverCard {
   user: User;
   compatibility: CulturalCompatibility;
 }
+
+type IoniconName = ComponentProps<typeof Ionicons>["name"];
+type DiscoverMode = "community" | "spotify";
+
+const discoverModes: Array<{
+  value: DiscoverMode;
+  label: string;
+  icon: IoniconName | "spotify";
+}> = [
+  { value: "community", label: "Topluluk", icon: "people-outline" },
+  { value: "spotify", label: "Spotify", icon: "spotify" },
+];
+
+const normalizeMusicSignal = (value?: string | null) =>
+  sanitizePlainText(value ?? "", 120).trim().toLocaleLowerCase("tr-TR");
 
 const getCultureImportanceLabel = (value: User["cultureImportance"]) =>
   cultureImportanceOptions.find((option) => option.value === value)?.label ??
@@ -255,7 +270,6 @@ interface SwipeActionButtonProps {
   style?: StyleProp<ViewStyle>;
 }
 
-type IoniconName = ComponentProps<typeof Ionicons>["name"];
 type ActionGlyphVariant = "pass" | "undo" | "fire" | "super" | "like";
 
 interface ActionGlyphProps {
@@ -597,6 +611,7 @@ export default function DiscoverScreen() {
   const [isMusicPreferenceLoaded, setIsMusicPreferenceLoaded] = useState(false);
   const [isMusicMuted, setIsMusicMuted] = useState(false);
   const [isLoveEffectVisible, setIsLoveEffectVisible] = useState(false);
+  const [discoverMode, setDiscoverMode] = useState<DiscoverMode>("community");
   const failedSwipeIdsRef = useRef<Set<string>>(new Set());
   const hasAutoOpenedLocationSheetRef = useRef(false);
   const soundRef = useRef<DiscoverSound | null>(null);
@@ -634,21 +649,46 @@ export default function DiscoverScreen() {
       : "Konumunu bir kez yenilemen gerekiyor."
     : "Yakındaki profilleri keşfet akışında öne çıkar.";
 
-  const activeCard = deck[0];
-  const nextCard = deck[1];
+  const currentMusicSignal = normalizeMusicSignal(currentUser?.favoriteSong);
+  const visibleDeck = useMemo(() => {
+    if (discoverMode !== "spotify") {
+      return deck;
+    }
+
+    if (!currentMusicSignal) {
+      return [];
+    }
+
+    return deck.filter(
+      (card) => normalizeMusicSignal(card.user.favoriteSong) === currentMusicSignal,
+    );
+  }, [currentMusicSignal, deck, discoverMode]);
+  const activeCard = visibleDeck[0];
+  const nextCard = visibleDeck[1];
+  const activeModeLabel =
+    discoverMode === "spotify"
+      ? currentUser?.favoriteSong
+        ? `Spotify · ${sanitizePlainText(currentUser.favoriteSong, 72)}`
+        : "Spotify · profilinde şarkı sinyali yok"
+      : activeCard?.user.profileKind === "member"
+        ? "Sağa beğen, sola geç, yukarı Super Like"
+        : "Starter öneri · beğenirsen sohbet açılır";
   const isCompactViewport = width < 380 || height < 720;
   const nativeTabAvoidance = Platform.OS === "ios" ? 86 : 72;
+  const actionTabClearance = Platform.OS === "ios" ? 34 : 22;
   const bottomContentPadding = Math.max(
     insets.bottom + nativeTabAvoidance + 22,
     nativeTabAvoidance + 34,
   );
-  const cardHeightOffset = nativeTabAvoidance * (isCompactViewport ? 0.62 : 0.76);
+  const cardHeightOffset =
+    nativeTabAvoidance * (isCompactViewport ? 0.62 : 0.76) +
+    actionTabClearance;
   const cardHeight = Math.min(
     Math.max(
       height * (isCompactViewport ? 0.48 : 0.55) - cardHeightOffset,
-      isCompactViewport ? 320 : 390,
+      isCompactViewport ? 300 : 352,
     ),
-    isCompactViewport ? 420 : 486,
+    isCompactViewport ? 394 : 448,
   );
   const sideActionSize = isCompactViewport ? 52 : 58;
   const miniActionSize = isCompactViewport ? 44 : 50;
@@ -1208,7 +1248,7 @@ export default function DiscoverScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Seni beğenenleri aç"
-            onPress={() => router.push("/tabs/likes")}
+            onPress={() => router.push("/tabs/discover/likes")}
             style={({ pressed }) => [
               styles.iconButton,
               pressed && styles.pressed,
@@ -1248,6 +1288,55 @@ export default function DiscoverScreen() {
             <Ionicons name="refresh" size={18} color={theme.colors.text} />
           </Pressable>
         </View>
+      </View>
+
+      <View
+        accessibilityRole="tablist"
+        style={styles.modeSwitch}
+      >
+        {discoverModes.map((mode) => {
+          const selected = discoverMode === mode.value;
+          const selectedColor =
+            mode.value === "spotify" ? "#1DB954" : theme.colors.primary;
+
+          return (
+            <Pressable
+              key={mode.value}
+              accessibilityRole="tab"
+              accessibilityState={{ selected }}
+              onPress={() => setDiscoverMode(mode.value)}
+              style={({ pressed }) => [
+                styles.modeChip,
+                selected && styles.modeChipActive,
+                selected && { backgroundColor: selectedColor },
+                pressed && styles.pressed,
+              ]}
+            >
+              {mode.value === "spotify" ? (
+                <FontAwesome
+                  name="spotify"
+                  size={15}
+                  color={selected ? "#FFFFFF" : "#1DB954"}
+                />
+              ) : (
+                <Ionicons
+                  name={mode.icon as IoniconName}
+                  size={16}
+                  color={selected ? "#FFFFFF" : theme.colors.muted}
+                />
+              )}
+              <Text
+                numberOfLines={1}
+                style={[
+                  styles.modeChipText,
+                  selected && styles.modeChipTextActive,
+                ]}
+              >
+                {mode.label}
+              </Text>
+            </Pressable>
+          );
+        })}
       </View>
 
       <Pressable
@@ -1353,7 +1442,10 @@ export default function DiscoverScreen() {
                   height={cardHeight}
                   onOpenSafety={() => setActiveSafetyUser(activeCard.user)}
                   onOpenProfile={() =>
-                    router.push(`/tabs/profile/${activeCard.user.id}`)
+                    router.push({
+                      pathname: "/tabs/profile/[userId]",
+                      params: { userId: activeCard.user.id },
+                    })
                   }
                   onOpenCompatibility={() => setCompatibilityCard(activeCard)}
                 />
@@ -1391,12 +1483,10 @@ export default function DiscoverScreen() {
           </View>
           <View style={styles.deckMeta}>
             <Text style={styles.deckMetaText}>
-              {activeCard.user.profileKind === "member"
-                ? "Sağa beğen, sola geç, yukarı Super Like"
-                : "Starter öneri · beğenirsen sohbet açılır"}
+              {activeModeLabel}
             </Text>
             <View style={styles.progressDots}>
-              {deck.slice(0, 4).map((item, index) => (
+              {visibleDeck.slice(0, 4).map((item, index) => (
                 <View
                   key={item.user.id}
                   style={[
@@ -1407,7 +1497,13 @@ export default function DiscoverScreen() {
               ))}
             </View>
           </View>
-          <View style={[styles.actions, isCompactViewport && styles.compactActions]}>
+          <View
+            style={[
+              styles.actions,
+              isCompactViewport && styles.compactActions,
+              { marginBottom: actionTabClearance },
+            ]}
+          >
             <SwipeActionButton
               accessibilityLabel="Bu profili geç"
               accentColor={theme.colors.danger}
@@ -1528,13 +1624,16 @@ export default function DiscoverScreen() {
               }
             />
           </View>
-          <AdMobBanner style={styles.adBanner} />
         </>
       ) : (
         <EmptyState
           title="Şimdilik yeni profil yok"
           description={
-            currentUser?.matchByLocation
+            discoverMode === "spotify"
+              ? currentMusicSignal
+                ? "Aynı şarkı sinyalinde yeni profil yok. Topluluk moduna geçerek genel önerilere bakabilirsin."
+                : "Spotify modu için önce profilindeki favori/anlık şarkı sinyalini doldur."
+              : currentUser?.matchByLocation
               ? "Yakında yeni profil yoksa Ayarlar'dan mesafe aralığını genişletebilirsin."
               : "Yeni profiller geldiğinde Discover akışı otomatik yenilenecek."
           }
@@ -1788,6 +1887,45 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     backButton: {
       flexShrink: 0,
     },
+    modeSwitch: {
+      minHeight: 38,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      padding: 3,
+      borderRadius: theme.radius.pill,
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.08)"
+        : "rgba(17, 24, 39, 0.08)",
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.045)"
+        : "rgba(17, 24, 39, 0.035)",
+    },
+    modeChip: {
+      flex: 1,
+      minHeight: 32,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingHorizontal: theme.spacing.sm,
+    },
+    modeChipActive: {
+      shadowColor: "#000000",
+      shadowOpacity: theme.isDark ? 0.24 : 0.16,
+      shadowRadius: 10,
+      shadowOffset: { width: 0, height: 5 },
+    },
+    modeChipText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "800",
+    },
+    modeChipTextActive: {
+      color: "#FFFFFF",
+    },
     deckArea: {
       width: "100%",
       justifyContent: "center",
@@ -1893,9 +2031,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: 7,
       paddingVertical: 6,
       borderRadius: 28,
-    },
-    adBanner: {
-      marginHorizontal: theme.spacing.sm,
     },
     specialInvitePanel: {
       gap: theme.spacing.md,

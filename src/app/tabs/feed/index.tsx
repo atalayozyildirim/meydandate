@@ -23,7 +23,6 @@ import { Loading } from "@/shared/components/Loading";
 import { FeedPostCard } from "@/features/feed/components/FeedPostCard";
 import { QuotedPostCard } from "@/features/feed/components/QuotedPostCard";
 import { FeedAdminPanel } from "@/features/feed/screens/FeedAdminPanel";
-import { AdMobBanner } from "@/features/ads";
 import { useFeed } from "@/features/feed/hooks/useFeed";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
@@ -262,7 +261,7 @@ export default function FeedScreen() {
       <View style={styles.quickLinks}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push("/tabs/meydan")}
+          onPress={() => router.push("/tabs/feed/meydan")}
           style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}
         >
           <Ionicons
@@ -274,7 +273,7 @@ export default function FeedScreen() {
         </Pressable>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.push("/tabs/muharrem")}
+          onPress={() => router.push("/tabs/feed/muharrem")}
           style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}
         >
           <Ionicons
@@ -563,7 +562,6 @@ export default function FeedScreen() {
           })}
         </ScrollView>
       </View>
-      <AdMobBanner style={styles.feedAdBanner} />
     </View>
   );
 
@@ -917,12 +915,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderBottomWidth: 1,
       borderBottomColor: "rgba(17, 24, 39, 0.08)",
       backgroundColor: theme.colors.surface,
-    },
-    feedAdBanner: {
-      marginHorizontal: theme.spacing.lg,
-      marginTop: theme.spacing.sm,
-      marginBottom: theme.spacing.sm,
-      backgroundColor: theme.isDark ? "#1C212D" : "rgba(255, 255, 255, 0.74)",
     },
     filters: {
       flexDirection: "row",

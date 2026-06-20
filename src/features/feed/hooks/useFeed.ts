@@ -332,6 +332,26 @@ export const useFeedPost = (postId: string) => {
     onSuccess: invalidatePost,
   });
 
+  const quoteMutation = useMutation({
+    mutationFn: async (body: string) => {
+      if (!currentUser) {
+        throw new Error("Alıntılamak için oturum gerekli.");
+      }
+
+      const filteredBody = await moderateFeedText(currentUser.id, body);
+      return container.feedRepository.createPost({
+        authorId: currentUser.id,
+        body: filteredBody,
+        tags:
+          postQuery.data?.tags && postQuery.data.tags.length > 0
+            ? postQuery.data.tags
+            : (["gundem"] as FeedTag[]),
+        quotedPostId: postId,
+      });
+    },
+    onSuccess: invalidatePost,
+  });
+
   const reportMutation = useMutation({
     mutationFn: () => {
       if (!currentUser) {
@@ -383,6 +403,7 @@ export const useFeedPost = (postId: string) => {
     toggleLike: likeMutation.mutateAsync,
     addComment: commentMutation.mutateAsync,
     addReply: replyMutation.mutateAsync,
+    quotePost: quoteMutation.mutateAsync,
     reportPost: reportMutation.mutateAsync,
     deletePost: deleteMutation.mutateAsync,
     votePoll: voteMutation.mutateAsync,
@@ -390,6 +411,7 @@ export const useFeedPost = (postId: string) => {
       likeMutation.isPending ||
       commentMutation.isPending ||
       replyMutation.isPending ||
+      quoteMutation.isPending ||
       reportMutation.isPending ||
       deleteMutation.isPending ||
       voteMutation.isPending,

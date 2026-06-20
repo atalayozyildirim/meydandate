@@ -27,25 +27,25 @@ type NativeTabDefinition = {
 
 const primaryTabs: NativeTabDefinition[] = [
   {
-    name: "feed/index",
+    name: "feed",
     label: "Akış",
     sf: { default: "newspaper", selected: "newspaper.fill" },
     androidIcon: "newspaper-outline",
   },
   {
-    name: "discover/index",
+    name: "discover",
     label: "Keşfet",
     sf: { default: "flame", selected: "flame.fill" },
     androidIcon: "flame-outline",
   },
   {
-    name: "store/index",
+    name: "store",
     label: "Mağaza",
     sf: { default: "cart", selected: "cart.fill" },
     androidIcon: "cart-outline",
   },
   {
-    name: "chat/index",
+    name: "chat",
     label: "Mesaj",
     sf: {
       default: "bubble.left.and.bubble.right",
@@ -54,7 +54,7 @@ const primaryTabs: NativeTabDefinition[] = [
     androidIcon: "chatbubbles-outline",
   },
   {
-    name: "profile/index",
+    name: "profile",
     label: "Profil",
     sf: { default: "person", selected: "person.fill" },
     androidIcon: "person-outline",

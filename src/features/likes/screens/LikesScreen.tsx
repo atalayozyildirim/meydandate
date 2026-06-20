@@ -256,7 +256,12 @@ export default function LikedMeScreen() {
                     label="Profili aç"
                     variant="ghost"
                     style={styles.actionButton}
-                    onPress={() => router.push(`/tabs/profile/${item.user.id}`)}
+                    onPress={() =>
+                      router.push({
+                        pathname: "/tabs/profile/[userId]",
+                        params: { userId: item.user.id },
+                      })
+                    }
                   />
                   <Button
                     label="Beğen"

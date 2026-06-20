@@ -12,7 +12,6 @@ import {
 } from "react-native";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
-import { VideoView, useVideoPlayer } from "expo-video";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
@@ -68,41 +67,40 @@ const DirectVideoStage = ({
   syncedPositionMillis: number;
   style: StyleProp<ViewStyle>;
 }) => {
-  const player = useVideoPlayer({ uri: playbackUrl }, (videoPlayer) => {
-    videoPlayer.loop = false;
-    videoPlayer.muted = false;
-    videoPlayer.volume = 1;
-
-    if (shouldSyncPlayback) {
-      videoPlayer.currentTime = syncedPositionMillis / 1000;
-    }
-
-    if (isLive) {
-      videoPlayer.play();
-    }
-  });
-
-  useEffect(() => {
-    if (shouldSyncPlayback) {
-      player.currentTime = syncedPositionMillis / 1000;
-    }
-
-    if (isLive) {
-      player.play();
-    } else {
-      player.pause();
-    }
-  }, [isLive, player, playbackUrl, shouldSyncPlayback, syncedPositionMillis]);
+  const startAt = shouldSyncPlayback ? Math.max(0, syncedPositionMillis / 1000) : 0;
+  const videoHtml = useMemo(
+    () => `
+      <!doctype html>
+      <html>
+        <head>
+          <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+          <style>
+            html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #05070d; overflow: hidden; }
+            video { width: 100%; height: 100%; object-fit: cover; background: #05070d; }
+          </style>
+        </head>
+        <body>
+          <video id="stage" ${isLive ? "autoplay" : ""} playsinline webkit-playsinline ${isLive ? "" : "muted"} src="${playbackUrl.replaceAll('"', "&quot;")}"></video>
+          <script>
+            const video = document.getElementById('stage');
+            video.currentTime = ${startAt};
+            ${isLive ? "video.play().catch(() => undefined);" : "video.pause();"}
+          </script>
+        </body>
+      </html>
+    `,
+    [isLive, playbackUrl, startAt],
+  );
 
   return (
-    <VideoView
-      player={player}
+    <WebView
+      source={{ html: videoHtml }}
       style={style}
-      contentFit="cover"
-      nativeControls={false}
-      allowsFullscreen={false}
-      fullscreenOptions={{ enable: false }}
-      allowsPictureInPicture={false}
+      allowsInlineMediaPlayback
+      mediaPlaybackRequiresUserAction={false}
+      allowsFullscreenVideo={false}
+      automaticallyAdjustContentInsets={false}
+      scrollEnabled={false}
     />
   );
 };

@@ -185,6 +185,15 @@ export class SupabaseChatRepository implements ChatRepository {
       })
       .catch(() => undefined);
 
+    await supabase.functions
+      .invoke("gemini-bot-reply", {
+        body: {
+          conversationId: payload.conversationId,
+          messageId: data.id,
+        },
+      })
+      .catch(() => undefined);
+
     return data;
   }
 
