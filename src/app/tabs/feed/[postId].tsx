@@ -1,4 +1,4 @@
-// X benzeri post detay ekranı: postu, yorum composer'ını ve yanıt thread'ini gösterir.
+// Post detay ekranı: postu, yorum composer'ını ve yanıt akışını gösterir.
 import { useState } from "react";
 import {
   ActivityIndicator,
@@ -44,8 +44,6 @@ export default function FeedPostDetailScreen() {
   const styles = createStyles(theme);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const [commentText, setCommentText] = useState("");
-  const [quoteText, setQuoteText] = useState("");
-  const [isQuoteComposerVisible, setIsQuoteComposerVisible] = useState(false);
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
   const {
     post,
@@ -54,7 +52,8 @@ export default function FeedPostDetailScreen() {
     toggleLike,
     addComment,
     addReply,
-    quotePost: createQuotePost,
+    toggleCommentLike,
+    reportComment,
     reportPost,
     deletePost,
     votePoll,
@@ -177,27 +176,26 @@ export default function FeedPostDetailScreen() {
     );
   };
 
-  const submitQuote = async () => {
-    const body = quoteText.trim();
-
-    if (!body) return;
-
-    try {
-      await createQuotePost(body);
-      setQuoteText("");
-      setIsQuoteComposerVisible(false);
-      Alert.alert("Alıntı paylaşıldı", "Post akışta alıntı olarak yayınlandı.");
-    } catch (error) {
-      if (isPermanentBanError(error)) {
-        handlePermanentBan(error);
-        return;
-      }
-
-      Alert.alert(
-        "Alıntı gönderilemedi",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
+  const confirmReportComment = (commentId: string) => {
+    Alert.alert(
+      "Yorum bildirilsin mi?",
+      "Bu yorum moderasyon kuyruğuna alınacak.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Bildir",
+          style: "destructive",
+          onPress: () => {
+            void reportComment(commentId).catch((error) => {
+              Alert.alert(
+                "Yorum bildirilemedi",
+                error instanceof Error ? error.message : "Tekrar deneyin.",
+              );
+            });
+          },
+        },
+      ],
+    );
   };
 
   const quotePost = () => {
@@ -205,7 +203,10 @@ export default function FeedPostDetailScreen() {
       return;
     }
 
-    setIsQuoteComposerVisible((visible) => !visible);
+    router.push({
+      pathname: "/tabs/feed",
+      params: { quotePostId: post.id },
+    });
   };
 
   if (isLoading || !currentUser) {
@@ -386,7 +387,7 @@ export default function FeedPostDetailScreen() {
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
                   size={21}
-                  color={liked ? theme.colors.primary : theme.colors.muted}
+                  color={liked ? theme.colors.text : theme.colors.muted}
                 />
                 <Text
                   style={[styles.postActionText, liked && styles.postActionActive]}
@@ -421,74 +422,6 @@ export default function FeedPostDetailScreen() {
             </View>
           </View>
         </View>
-
-        {isQuoteComposerVisible ? (
-          <View style={styles.quoteComposer}>
-            <View style={styles.quoteComposerHeader}>
-              <Ionicons name="repeat-outline" size={18} color={theme.colors.primary} />
-              <Text style={styles.quoteComposerTitle}>Alıntı ekle</Text>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Alıntı kutusunu kapat"
-                hitSlop={8}
-                onPress={() => {
-                  setQuoteText("");
-                  setIsQuoteComposerVisible(false);
-                }}
-                style={({ pressed }) => [
-                  styles.quoteComposerClose,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons name="close" size={18} color={theme.colors.muted} />
-              </Pressable>
-            </View>
-            <TextInput
-              value={quoteText}
-              onChangeText={setQuoteText}
-              maxLength={1000}
-              placeholder="Bu post hakkında ne düşünüyorsun?"
-              placeholderTextColor={theme.colors.muted}
-              style={styles.quoteInput}
-              multiline
-            />
-            <View style={styles.quotePreview}>
-              <Text numberOfLines={1} style={styles.quotePreviewName}>
-                {sanitizePlainText(post.author.name, 80)}
-              </Text>
-              <Text numberOfLines={2} style={styles.quotePreviewBody}>
-                {sanitizePlainText(post.body, 180)}
-              </Text>
-            </View>
-            <View style={styles.quoteComposerActions}>
-              <Pressable
-                accessibilityRole="button"
-                onPress={() => {
-                  setQuoteText("");
-                  setIsQuoteComposerVisible(false);
-                }}
-                style={({ pressed }) => [
-                  styles.quoteGhostButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.quoteGhostButtonText}>Vazgeç</Text>
-              </Pressable>
-              <Pressable
-                accessibilityRole="button"
-                disabled={isMutating || !quoteText.trim()}
-                onPress={() => void submitQuote()}
-                style={({ pressed }) => [
-                  styles.quoteSendButton,
-                  (!quoteText.trim() || isMutating) && styles.sendButtonDisabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text style={styles.sendButtonText}>Paylaş</Text>
-              </Pressable>
-            </View>
-          </View>
-        ) : null}
 
         <View style={styles.composer}>
           <Avatar
@@ -539,94 +472,151 @@ export default function FeedPostDetailScreen() {
             </View>
           ) : null}
 
-          {comments.map((comment) => (
-            <View key={comment.id} style={styles.commentRow}>
-              <View style={styles.threadRail} />
-              <Pressable
-                accessibilityRole="button"
-                onPress={() =>
-                  router.push({
-                    pathname: "/tabs/profile/[userId]",
-                    params: { userId: comment.authorId },
-                  })
-                }
-                style={({ pressed }) => [
-                  styles.commentAvatar,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Avatar
-                  name={comment.author.name}
-                  uri={comment.author.photos[0]?.uri}
-                  size={38}
-                />
-              </Pressable>
-              <View style={styles.commentBody}>
-                <View style={styles.commentHeader}>
-                  <Text style={styles.commentName} numberOfLines={1}>
-                    {sanitizePlainText(comment.author.name, 80)}
-                  </Text>
-                  <Text style={styles.commentDate}>
-                    {formatDateTime(comment.createdAt)}
-                  </Text>
-                </View>
-                <Text style={styles.commentText}>
-                  {sanitizePlainText(comment.body, 1000)}
-                </Text>
+          {comments.map((comment) => {
+            const commentLiked = comment.likedByUserIds.includes(currentUser.id);
+            const canReportComment = comment.authorId !== currentUser.id;
 
-                {comment.replies.map((reply) => (
-                  <View key={reply.id} style={styles.replyRow}>
-                    <Avatar
-                      name={reply.author.name}
-                      uri={reply.author.photos[0]?.uri}
-                      size={28}
-                    />
-                    <View style={styles.replyBody}>
-                      <View style={styles.commentHeader}>
-                        <Text style={styles.replyName} numberOfLines={1}>
-                          {sanitizePlainText(reply.author.name, 80)}
-                        </Text>
-                        <Text style={styles.commentDate}>
-                          {formatDateTime(reply.createdAt)}
+            return (
+              <View key={comment.id} style={styles.commentRow}>
+                <View style={styles.threadRail} />
+                <Pressable
+                  accessibilityRole="button"
+                  onPress={() =>
+                    router.push({
+                      pathname: "/tabs/profile/[userId]",
+                      params: { userId: comment.authorId },
+                    })
+                  }
+                  style={({ pressed }) => [
+                    styles.commentAvatar,
+                    pressed && styles.pressed,
+                  ]}
+                >
+                  <Avatar
+                    name={comment.author.name}
+                    uri={comment.author.photos[0]?.uri}
+                    size={38}
+                  />
+                </Pressable>
+                <View style={styles.commentBody}>
+                  <View style={styles.commentHeader}>
+                    <Text style={styles.commentName} numberOfLines={1}>
+                      {sanitizePlainText(comment.author.name, 80)}
+                    </Text>
+                    <Text style={styles.commentDate}>
+                      {formatDateTime(comment.createdAt)}
+                    </Text>
+                  </View>
+                  <Text style={styles.commentText}>
+                    {sanitizePlainText(comment.body, 1000)}
+                  </Text>
+
+                  <View style={styles.commentActions}>
+                    <Pressable
+                      accessibilityRole="button"
+                      disabled={isMutating}
+                      onPress={() => void toggleCommentLike(comment.id)}
+                      style={({ pressed }) => [
+                        styles.commentAction,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name={commentLiked ? "heart" : "heart-outline"}
+                        size={16}
+                        color={
+                          commentLiked ? theme.colors.text : theme.colors.muted
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.commentActionText,
+                          commentLiked && styles.commentActionActive,
+                        ]}
+                      >
+                        {comment.likedByUserIds.length > 0
+                          ? comment.likedByUserIds.length
+                          : "Beğen"}
+                      </Text>
+                    </Pressable>
+                    {canReportComment ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        disabled={isMutating}
+                        onPress={() => confirmReportComment(comment.id)}
+                        style={({ pressed }) => [
+                          styles.commentAction,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name="flag-outline"
+                          size={15}
+                          color={theme.colors.muted}
+                        />
+                        <Text style={styles.commentActionText}>Bildir</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
+
+                  {comment.replies.map((reply) => (
+                    <View key={reply.id} style={styles.replyRow}>
+                      <Avatar
+                        name={reply.author.name}
+                        uri={reply.author.photos[0]?.uri}
+                        size={28}
+                      />
+                      <View style={styles.replyBody}>
+                        <View style={styles.commentHeader}>
+                          <Text style={styles.replyName} numberOfLines={1}>
+                            {sanitizePlainText(reply.author.name, 80)}
+                          </Text>
+                          <Text style={styles.commentDate}>
+                            {formatDateTime(reply.createdAt)}
+                          </Text>
+                        </View>
+                        <Text style={styles.replyText}>
+                          {sanitizePlainText(reply.body, 1000)}
                         </Text>
                       </View>
-                      <Text style={styles.replyText}>
-                        {sanitizePlainText(reply.body, 1000)}
-                      </Text>
                     </View>
-                  </View>
-                ))}
+                  ))}
 
-                <View style={styles.replyComposer}>
-                  <TextInput
-                    value={replyInputs[comment.id] ?? ""}
-                    onChangeText={(value) =>
-                      setReplyInputs((current) => ({
-                        ...current,
-                        [comment.id]: value,
-                      }))
-                    }
-                    maxLength={1000}
-                    placeholder="Yanıt yaz..."
-                    placeholderTextColor={theme.colors.muted}
-                    style={styles.replyInput}
-                  />
-                  <Pressable
-                    disabled={isMutating || !replyInputs[comment.id]?.trim()}
-                    onPress={() => void submitReply(comment.id)}
-                    style={({ pressed }) => [
-                      styles.replyButton,
-                      (!replyInputs[comment.id]?.trim() || isMutating) &&
-                        styles.replyButtonDisabled,
-                      pressed && styles.pressed,
-                    ]}
-                  >
-                    <Ionicons name="send" size={16} color="#FFFFFF" />
-                  </Pressable>
+                  <View style={styles.replyComposer}>
+                    <TextInput
+                      value={replyInputs[comment.id] ?? ""}
+                      onChangeText={(value) =>
+                        setReplyInputs((current) => ({
+                          ...current,
+                          [comment.id]: value,
+                        }))
+                      }
+                      maxLength={1000}
+                      placeholder="Yanıt yaz..."
+                      placeholderTextColor={theme.colors.muted}
+                      style={styles.replyInput}
+                    />
+                    <Pressable
+                      disabled={isMutating || !replyInputs[comment.id]?.trim()}
+                      onPress={() => void submitReply(comment.id)}
+                      style={({ pressed }) => [
+                        styles.replyButton,
+                        (!replyInputs[comment.id]?.trim() || isMutating) &&
+                          styles.replyButtonDisabled,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="send"
+                        size={16}
+                        color={theme.colors.onPrimary}
+                      />
+                    </Pressable>
+                  </View>
                 </View>
               </View>
-            </View>
-          ))}
+            );
+          })}
 
           {hasMoreComments ? (
             <Pressable
@@ -763,13 +753,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: 5,
-      backgroundColor: "rgba(233, 64, 87, 0.08)",
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: theme.colors.border,
     },
     tagText: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
+      color: theme.colors.muted,
       fontWeight: "800",
     },
     postActions: {
@@ -792,7 +782,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "700",
     },
     postActionActive: {
-      color: theme.colors.primary,
+      color: theme.colors.text,
     },
     composer: {
       flexDirection: "row",
@@ -803,92 +793,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderBottomWidth: 1,
       borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.background,
-    },
-    quoteComposer: {
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.md,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-      backgroundColor: theme.isDark ? "#11141D" : "#FFFFFF",
-    },
-    quoteComposerHeader: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    quoteComposerTitle: {
-      ...theme.typography.caption,
-      flex: 1,
-      color: theme.colors.text,
-      fontWeight: "900",
-    },
-    quoteComposerClose: {
-      width: 32,
-      height: 32,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
-    },
-    quoteInput: {
-      minHeight: 72,
-      maxHeight: 140,
-      borderRadius: 18,
-      borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.16)",
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      ...theme.typography.body,
-      color: theme.colors.text,
-      backgroundColor: theme.colors.background,
-      textAlignVertical: "top",
-    },
-    quotePreview: {
-      gap: 2,
-      borderRadius: 16,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.sm,
-      backgroundColor: theme.colors.elevated,
-    },
-    quotePreviewName: {
-      ...theme.typography.caption,
-      color: theme.colors.text,
-      fontWeight: "900",
-    },
-    quotePreviewBody: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      lineHeight: 18,
-    },
-    quoteComposerActions: {
-      flexDirection: "row",
-      justifyContent: "flex-end",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    quoteGhostButton: {
-      minHeight: 38,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.md,
-      backgroundColor: theme.colors.elevated,
-    },
-    quoteGhostButtonText: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      fontWeight: "800",
-    },
-    quoteSendButton: {
-      minHeight: 38,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: theme.spacing.lg,
-      backgroundColor: theme.colors.primary,
     },
     commentInput: {
       flex: 1,
@@ -910,11 +814,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.primary,
     },
     sendButtonDisabled: {
-      backgroundColor: "#303747",
+      opacity: 0.38,
     },
     sendButtonText: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
       fontWeight: "800",
     },
     thread: {
@@ -939,9 +843,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(255, 91, 112, 0.12)",
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
-      borderColor: "rgba(255, 91, 112, 0.22)",
+      borderColor: theme.colors.border,
     },
     emptyThreadTitle: {
       ...theme.typography.subheading,
@@ -998,6 +902,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.body,
       color: theme.colors.text,
       lineHeight: 22,
+    },
+    commentActions: {
+      minHeight: 26,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+      marginTop: 2,
+    },
+    commentAction: {
+      minHeight: 26,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+    },
+    commentActionText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "700",
+    },
+    commentActionActive: {
+      color: theme.colors.text,
     },
     replyRow: {
       flexDirection: "row",
@@ -1056,7 +981,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     loadMoreText: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
+      color: theme.colors.text,
       fontWeight: "800",
     },
     pressed: {

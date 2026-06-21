@@ -844,7 +844,7 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
                 <Ionicons
                   name={tool.icon}
                   size={18}
-                  color={selected ? "#FFFFFF" : theme.colors.muted}
+                  color={selected ? theme.colors.onPrimary : theme.colors.muted}
                 />
                 <Text
                   style={[
@@ -917,10 +917,10 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
             ]}
           >
             {isSendingEventPush ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color={theme.colors.onPrimary} size="small" />
             ) : (
               <>
-                <Ionicons name="send" size={15} color="#FFFFFF" />
+                <Ionicons name="send" size={15} color={theme.colors.onPrimary} />
                 <Text style={styles.primaryButtonText}>Push gönder</Text>
               </>
             )}
@@ -1163,10 +1163,14 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
             ]}
           >
             {isCreatingBot ? (
-              <ActivityIndicator color="#FFFFFF" size="small" />
+              <ActivityIndicator color={theme.colors.onPrimary} size="small" />
             ) : (
               <>
-                <Ionicons name="person-add" size={15} color="#FFFFFF" />
+                <Ionicons
+                  name="person-add"
+                  size={15}
+                  color={theme.colors.onPrimary}
+                />
                 <Text style={styles.primaryButtonText}>Bot ekle</Text>
               </>
             )}
@@ -1266,7 +1270,7 @@ export const FeedAdminPanel = ({ onClose }: FeedAdminPanelProps) => {
               ]}
             >
               {isSavingBotPost ? (
-                <ActivityIndicator color="#FFFFFF" size="small" />
+                <ActivityIndicator color={theme.colors.onPrimary} size="small" />
               ) : (
                 <Text style={styles.primaryButtonText}>
                   {editingBotPostId ? "Güncelle" : "Rehber paylaş"}
@@ -1902,7 +1906,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.16)",
+      borderColor: "rgba(128, 128, 128, 0.16)",
     },
     adminBadgeText: {
       ...theme.typography.caption,
@@ -1936,7 +1940,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "800",
     },
     toolTabTextActive: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     toolTabCount: {
       minWidth: 20,
@@ -1951,8 +1955,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "900",
     },
     toolTabCountActive: {
-      backgroundColor: "rgba(255,255,255,0.20)",
-      color: "#FFFFFF",
+      backgroundColor: theme.isDark
+        ? "rgba(0,0,0,0.16)"
+        : "rgba(255,255,255,0.20)",
+      color: theme.colors.onPrimary,
     },
     section: {
       gap: theme.spacing.sm,
@@ -2024,7 +2030,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "800",
     },
     filterChipTextActive: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     splitRow: {
       flexDirection: "row",
@@ -2073,7 +2079,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     choiceChipActive: {
       borderColor: theme.colors.primary,
-      backgroundColor: "rgba(233, 64, 87, 0.10)",
+      backgroundColor: "rgba(128, 128, 128, 0.10)",
     },
     choiceChipText: {
       ...theme.typography.caption,
@@ -2097,11 +2103,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flex: 1,
     },
     disabledButton: {
-      backgroundColor: "rgba(233, 64, 87, 0.36)",
+      backgroundColor: "rgba(128, 128, 128, 0.36)",
     },
     primaryButtonText: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
       fontWeight: "800",
     },
     ghostButton: {
@@ -2135,7 +2141,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     toggleChipActive: {
       borderColor: theme.colors.primary,
-      backgroundColor: "rgba(233, 64, 87, 0.10)",
+      backgroundColor: "rgba(128, 128, 128, 0.10)",
     },
     toggleChipText: {
       ...theme.typography.caption,
@@ -2198,9 +2204,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.xxs,
       borderRadius: theme.radius.md,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.18)",
+      borderColor: "rgba(128, 128, 128, 0.18)",
       padding: theme.spacing.sm,
-      backgroundColor: "rgba(233, 64, 87, 0.06)",
+      backgroundColor: "rgba(128, 128, 128, 0.06)",
     },
     messageEvidenceHeader: {
       flexDirection: "row",

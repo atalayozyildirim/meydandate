@@ -1,25 +1,27 @@
 // Uygulamanin aydinlik ve karanlik mod renk paletlerini tanimlar.
 export const palette = {
-  primary: "#E94057",
-  secondary: "#8A2387",
-  background: "#FFF7F8",
-  text: "#111827",
+  primary: "#0A0A0A",
+  secondary: "#525252",
+  background: "#FFFFFF",
+  text: "#0A0A0A",
   muted: "#6B7280",
   surface: "#FFFFFF",
-  border: "#F1DCE3",
+  border: "#E5E5E5",
   success: "#16A34A",
   warning: "#F59E0B",
   danger: "#DC2626",
-  darkBackground: "#0F1117",
-  darkSurface: "#171923",
-  darkText: "#F9FAFB",
-  darkMuted: "#9CA3AF",
-  darkBorder: "#2D3340"
+  darkBackground: "#000000",
+  darkSurface: "#000000",
+  darkText: "#FFFFFF",
+  darkMuted: "#A3A3A3",
+  darkBorder: "#262626"
 } as const;
 
 export interface ThemeColors {
   primary: string;
+  onPrimary: string;
   secondary: string;
+  onSecondary: string;
   background: string;
   surface: string;
   elevated: string;
@@ -35,10 +37,12 @@ export interface ThemeColors {
 
 export const lightColors: ThemeColors = {
   primary: palette.primary,
+  onPrimary: "#FFFFFF",
   secondary: palette.secondary,
+  onSecondary: "#FFFFFF",
   background: palette.background,
   surface: palette.surface,
-  elevated: "#FFF0F3",
+  elevated: "#F5F5F5",
   text: palette.text,
   muted: palette.muted,
   border: palette.border,
@@ -46,15 +50,17 @@ export const lightColors: ThemeColors = {
   warning: palette.warning,
   danger: palette.danger,
   overlay: "rgba(17, 24, 39, 0.46)",
-  shadow: "rgba(137, 35, 68, 0.14)"
+  shadow: "rgba(0, 0, 0, 0.10)"
 };
 
 export const darkColors: ThemeColors = {
-  primary: "#FF5B70",
-  secondary: "#C084FC",
+  primary: "#FFFFFF",
+  onPrimary: "#000000",
+  secondary: "#A3A3A3",
+  onSecondary: "#000000",
   background: palette.darkBackground,
   surface: palette.darkSurface,
-  elevated: "#202431",
+  elevated: "#111111",
   text: palette.darkText,
   muted: palette.darkMuted,
   border: palette.darkBorder,

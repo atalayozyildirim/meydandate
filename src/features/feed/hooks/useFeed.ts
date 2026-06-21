@@ -332,6 +332,36 @@ export const useFeedPost = (postId: string) => {
     onSuccess: invalidatePost,
   });
 
+  const commentLikeMutation = useMutation({
+    mutationFn: (commentId: string) => {
+      if (!currentUser) {
+        throw new Error("Yorumu beğenmek için oturum gerekli.");
+      }
+
+      return container.feedRepository.toggleCommentLike(
+        postId,
+        commentId,
+        currentUser.id,
+      );
+    },
+    onSuccess: invalidatePost,
+  });
+
+  const commentReportMutation = useMutation({
+    mutationFn: (commentId: string) => {
+      if (!currentUser) {
+        throw new Error("Yorumu bildirmek için oturum gerekli.");
+      }
+
+      return container.feedRepository.reportComment(
+        postId,
+        commentId,
+        currentUser.id,
+      );
+    },
+    onSuccess: invalidatePost,
+  });
+
   const quoteMutation = useMutation({
     mutationFn: async (body: string) => {
       if (!currentUser) {
@@ -403,6 +433,8 @@ export const useFeedPost = (postId: string) => {
     toggleLike: likeMutation.mutateAsync,
     addComment: commentMutation.mutateAsync,
     addReply: replyMutation.mutateAsync,
+    toggleCommentLike: commentLikeMutation.mutateAsync,
+    reportComment: commentReportMutation.mutateAsync,
     quotePost: quoteMutation.mutateAsync,
     reportPost: reportMutation.mutateAsync,
     deletePost: deleteMutation.mutateAsync,
@@ -411,6 +443,8 @@ export const useFeedPost = (postId: string) => {
       likeMutation.isPending ||
       commentMutation.isPending ||
       replyMutation.isPending ||
+      commentLikeMutation.isPending ||
+      commentReportMutation.isPending ||
       quoteMutation.isPending ||
       reportMutation.isPending ||
       deleteMutation.isPending ||

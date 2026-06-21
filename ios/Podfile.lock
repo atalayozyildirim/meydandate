@@ -45,7 +45,7 @@ PODS:
     - ExpoModulesCore
   - ExpoAsset (12.0.13):
     - ExpoModulesCore
-  - ExpoAudio (1.0.16):
+  - ExpoAudio (1.1.1):
     - ExpoModulesCore
   - ExpoBlur (15.0.8):
     - ExpoModulesCore
@@ -100,8 +100,6 @@ PODS:
   - ExpoSecureStore (15.0.8):
     - ExpoModulesCore
   - ExpoSplashScreen (31.0.13):
-    - ExpoModulesCore
-  - ExpoVideo (3.0.16):
     - ExpoModulesCore
   - ExpoWebBrowser (15.0.11):
     - ExpoModulesCore
@@ -2873,7 +2871,6 @@ DEPENDENCIES:
   - ExpoModulesCore (from `../node_modules/expo-modules-core`)
   - ExpoSecureStore (from `../node_modules/expo-secure-store/ios`)
   - ExpoSplashScreen (from `../node_modules/expo-splash-screen/ios`)
-  - ExpoVideo (from `../node_modules/expo-video/ios`)
   - ExpoWebBrowser (from `../node_modules/expo-web-browser/ios`)
   - fast_float (from `../node_modules/react-native/third-party-podspecs/fast_float.podspec`)
   - FBLazyVector (from `../node_modules/react-native/Libraries/FBLazyVector`)
@@ -3016,8 +3013,6 @@ EXTERNAL SOURCES:
     :path: "../node_modules/expo-secure-store/ios"
   ExpoSplashScreen:
     :path: "../node_modules/expo-splash-screen/ios"
-  ExpoVideo:
-    :path: "../node_modules/expo-video/ios"
   ExpoWebBrowser:
     :path: "../node_modules/expo-web-browser/ios"
   fast_float:
@@ -3194,7 +3189,7 @@ SPEC CHECKSUMS:
   Expo: 4479cae646b5d3ce16f45ce0e920fadbc0e7396e
   ExpoAppleAuthentication: 9413ae9a5e631a424cc04c1b13b0694dbab7d594
   ExpoAsset: 9e5a7c9c0a9fb83ad5b2bb365141f2bd7f289b66
-  ExpoAudio: a05a68b4a0bed05b3f255fd60ff4405b4e7e009a
+  ExpoAudio: e4cfe3a2f3317b8487460685385a9867a07fb4fb
   ExpoBlur: b90747a3f22a8b6ceffd9cb0dc41a4184efdc656
   ExpoCrypto: e2a2c4c748aac8485e5675f027b7901f511d43ff
   ExpoFileSystem: a8e7fb1e958471764fb48d281cf9fa81a9e4d77c
@@ -3208,7 +3203,6 @@ SPEC CHECKSUMS:
   ExpoModulesCore: 20899b4dd703e10a543ff4c50ee1543e47d90082
   ExpoSecureStore: d32f751874a2ceb5aaeebeb3578e165c1ba2b24a
   ExpoSplashScreen: bc3cffefca2716e5f22350ca109badd7e50ec14d
-  ExpoVideo: 8d9e8a1acd0c4c210e538b4355e34ae8ff5e04f7
   ExpoWebBrowser: 970dd4c64c29c955c3af664c8058ba768a4c9187
   fast_float: b32c788ed9c6a8c584d114d0047beda9664e7cc6
   FBLazyVector: 5beb8028d5a2e75dd9634917f23e23d3a061d2aa

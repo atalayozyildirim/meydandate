@@ -49,6 +49,12 @@ type LikedMeRow = Partial<User> & {
   likedAt?: string;
 };
 
+type PrivateProfileReadinessRow = {
+  id?: string;
+  isActive?: boolean | null;
+  hasCompletedOnboarding?: boolean | null;
+};
+
 const minimalPublicUserColumns = [
   "id",
   "name",
@@ -89,6 +95,30 @@ const createMissingMatchUser = (id: string, createdAt: string): User => ({
 });
 
 export class SupabaseMatchRepository implements MatchRepository {
+  private async repairRequesterDiscoverReadiness(userId: string): Promise<boolean> {
+    const { data: profile, error: profileError } = await supabase
+      .rpc("get_my_profile")
+      .maybeSingle();
+    const readiness = profile as PrivateProfileReadinessRow | null;
+
+    if (
+      profileError ||
+      !readiness ||
+      readiness.id !== userId ||
+      readiness.isActive === false ||
+      readiness.hasCompletedOnboarding === true
+    ) {
+      return false;
+    }
+
+    const { error: updateError } = await supabase
+      .from("users")
+      .update({ hasCompletedOnboarding: true })
+      .eq("id", userId);
+
+    return !updateError;
+  }
+
   private async notifyMatchEvent(
     targetUserId: string,
     action: LikeAction,
@@ -262,27 +292,57 @@ export class SupabaseMatchRepository implements MatchRepository {
     targetUserId: string,
     action: LikeAction,
   ): Promise<SwipeResult> {
+    const recordSwipe = () =>
+      supabase
+        .rpc("record_swipe", {
+          target_user_id: targetUserId,
+          next_action: action,
+        })
+        .maybeSingle();
     const { data, error } = await supabase
       .rpc("record_swipe", {
         target_user_id: targetUserId,
         next_action: action,
       })
       .maybeSingle();
-    const result = data as RecordSwipeRow | null;
+    let result = data as RecordSwipeRow | null;
+    let swipeError = error;
 
-    if (error || !result) {
-      if (error && __DEV__) {
-        console.info("record_swipe hatası", error.message);
+    if (
+      swipeError &&
+      /Requester profile is not eligible/i.test(swipeError.message) &&
+      (await this.repairRequesterDiscoverReadiness(userId))
+    ) {
+      const retry = await recordSwipe();
+      result = retry.data as RecordSwipeRow | null;
+      swipeError = retry.error;
+    }
+
+    if (swipeError || !result) {
+      if (
+        swipeError &&
+        __DEV__ &&
+        !/Requester profile is not eligible/i.test(swipeError.message)
+      ) {
+        console.info("record_swipe hatası", swipeError.message);
       }
 
-      const message = error?.message ?? "";
+      const message = swipeError?.message ?? "";
 
       if (/Swipe target unavailable|Swipe target not found/i.test(message)) {
         throw new Error("Bu profil artık görüntülenemiyor.");
       }
 
       if (/Requester profile is not eligible/i.test(message)) {
-        throw new Error("Profilin keşfet işlemleri için hazır değil.");
+        throw new Error("Profilini tamamlayıp Keşfet'e tekrar gir.");
+      }
+
+      if (/Requester profile is inactive/i.test(message)) {
+        throw new Error("Hesabın Keşfet işlemleri için aktif değil.");
+      }
+
+      if (/Requester profile not found/i.test(message)) {
+        throw new Error("Oturum profilin yenilenemedi. Çıkış yapıp tekrar gir.");
       }
 
       throw new Error("Swipe kaydedilemedi. Lütfen tekrar dene.");

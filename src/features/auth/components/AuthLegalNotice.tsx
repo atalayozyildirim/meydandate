@@ -36,7 +36,13 @@ export const AuthLegalNotice = ({
           style={styles.acceptanceRow}
         >
           <View style={styles.checkbox}>
-            {accepted ? <Ionicons name="checkmark" size={15} color="#FFFFFF" /> : null}
+            {accepted ? (
+              <Ionicons
+                name="checkmark"
+                size={15}
+                color={theme.colors.onPrimary}
+              />
+            ) : null}
           </View>
           <Text style={styles.copy}>{copy}</Text>
         </Pressable>

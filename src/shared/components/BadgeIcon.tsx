@@ -141,7 +141,7 @@ const imageBadgeConfig: Partial<
     imageScale: 1.48,
   },
   zulfiqar_sword: {
-    bgColor: "rgba(233,64,87,0.26)",
+    bgColor: "rgba(128, 128, 128,0.26)",
     borderColor: "rgba(251,113,133,0.72)",
     imageScale: 1.26,
   },

@@ -992,11 +992,29 @@ export default function DiscoverScreen() {
     } catch (error) {
       failedSwipeIdsRef.current.add(targetUserId);
       restoreCandidate(targetUserId);
-      Alert.alert(
-        "Swipe hatası",
+      const message =
         error instanceof Error
           ? error.message
-          : "İşlem tamamlanamadı, lütfen tekrar dene.",
+          : "İşlem tamamlanamadı, lütfen tekrar dene.";
+
+      if (/Profilini tamamlayıp/i.test(message)) {
+        Alert.alert(
+          "Profilini tamamla",
+          "Keşfet işlemleri için profilini tamamlaman gerekiyor.",
+          [
+            { text: "Sonra", style: "cancel" },
+            {
+              text: "Tamamla",
+              onPress: () => router.push("/onboarding"),
+            },
+          ],
+        );
+        return;
+      }
+
+      Alert.alert(
+        "İşlem tamamlanamadı",
+        message,
       );
     }
   };
@@ -1407,7 +1425,13 @@ export default function DiscoverScreen() {
               label="Kabul et"
               loading={isHandlingSpecialInvite}
               style={styles.specialInviteButton}
-              icon={<Ionicons name="heart" size={18} color="#FFFFFF" />}
+              icon={
+                <Ionicons
+                  name="heart"
+                  size={18}
+                  color={theme.colors.onPrimary}
+                />
+              }
               onPress={() => void handleAcceptSpecialInvite()}
             />
           </View>
@@ -1867,7 +1891,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
     },
     headerActions: {
       flexDirection: "row",
@@ -1882,7 +1906,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
     },
     backButton: {
       flexShrink: 0,
@@ -2018,7 +2042,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingVertical: 8,
       borderRadius: 34,
       borderWidth: 1,
-      borderColor: theme.isDark ? "rgba(255, 91, 112, 0.22)" : "rgba(233, 64, 87, 0.16)",
+      borderColor: theme.isDark ? "rgba(128, 128, 128, 0.22)" : "rgba(128, 128, 128, 0.16)",
       backgroundColor: theme.isDark ? "rgba(19, 22, 32, 0.96)" : "rgba(255, 255, 255, 0.96)",
       zIndex: 4,
       shadowColor: "#000000",
@@ -2036,7 +2060,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.md,
       borderRadius: 22,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.16)",
+      borderColor: "rgba(128, 128, 128, 0.16)",
       padding: theme.spacing.md,
       backgroundColor: theme.colors.surface,
     },
@@ -2088,12 +2112,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingVertical: theme.spacing.sm,
       borderRadius: theme.radius.lg,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
       backgroundColor: theme.colors.surface,
     },
     locationShortcutActive: {
-      borderColor: "rgba(233, 64, 87, 0.26)",
-      backgroundColor: theme.isDark ? "#181822" : "#FFF7F8",
+      borderColor: "rgba(128, 128, 128, 0.26)",
+      backgroundColor: theme.isDark ? "#111111" : "#F5F5F5",
     },
     locationShortcutMeta: {
       flex: 1,
@@ -2107,12 +2131,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 17,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.isDark ? "#141721" : "#F5F7FA",
+      backgroundColor: theme.isDark ? "#111111" : "#F5F7FA",
       borderWidth: 1,
       borderColor: "rgba(156, 163, 175, 0.16)",
     },
     locationIconWrapActive: {
-      borderColor: "rgba(233, 64, 87, 0.22)",
+      borderColor: "rgba(128, 128, 128, 0.22)",
       backgroundColor: theme.isDark ? "#231821" : "#FFF1F4",
     },
     locationTextWrap: {
@@ -2154,7 +2178,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.sm,
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
       backgroundColor: theme.isDark ? "#161925" : "#FCFCFE",
     },
     locationSheetInfoText: {
@@ -2171,7 +2195,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingVertical: theme.spacing.xs,
       borderRadius: 18,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
       backgroundColor: theme.isDark ? "#161925" : "#FCFCFE",
     },
     musicSettingTextWrap: {
@@ -2208,7 +2232,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       backgroundColor: theme.isDark ? "#231821" : "#FFF1F4",
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.16)",
+      borderColor: "rgba(128, 128, 128, 0.16)",
     },
     compatibilityTitleWrap: {
       flex: 1,
@@ -2234,8 +2258,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       gap: 2,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
-      backgroundColor: theme.isDark ? "#141721" : "#FFF7F8",
+      borderColor: "rgba(128, 128, 128, 0.14)",
+      backgroundColor: theme.isDark ? "#111111" : "#F5F5F5",
     },
     compatibilityScore: {
       fontSize: 24,
@@ -2279,9 +2303,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     fireAction: {
       width: 62,
       height: 62,
-      borderColor: "rgba(255, 91, 112, 0.88)",
+      borderColor: "rgba(128, 128, 128, 0.88)",
       borderWidth: 2,
-      backgroundColor: theme.isDark ? "#281721" : "#FFF0F3",
+      backgroundColor: theme.isDark ? "#111111" : "#F5F5F5",
       shadowColor: theme.colors.primary,
       shadowOpacity: theme.isDark ? 0.28 : 0.18,
       shadowRadius: 14,
@@ -2296,7 +2320,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       width: "100%",
       height: "100%",
       borderRadius: 999,
-      backgroundColor: "rgba(233, 64, 87, 0.28)",
+      backgroundColor: "rgba(128, 128, 128, 0.28)",
     },
     fireBadge: {
       position: "absolute",
@@ -2308,7 +2332,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
-      borderColor: theme.isDark ? "#261821" : "#FFF0F3",
+      borderColor: theme.isDark ? "#111111" : "#F5F5F5",
       backgroundColor: theme.colors.primary,
     },
     fireBadgeText: {
@@ -2319,7 +2343,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "900",
     },
     likeAction: {
-      borderColor: "rgba(255, 91, 112, 0.76)",
+      borderColor: "rgba(128, 128, 128, 0.76)",
       backgroundColor: theme.isDark ? "#241721" : "#FFF4F6",
     },
     loveEffect: {

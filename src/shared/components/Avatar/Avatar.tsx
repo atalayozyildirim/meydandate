@@ -47,6 +47,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>, size: number) =>
     },
     initials: {
       ...theme.typography.subheading,
-      color: "#FFFFFF"
+      color: theme.colors.onPrimary
     }
   });

@@ -245,7 +245,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: "rgba(245, 158, 11, 0.88)"
     },
     firePill: {
-      backgroundColor: "rgba(233, 64, 87, 0.90)"
+      backgroundColor: "rgba(128, 128, 128, 0.90)"
     },
     premiumPill: {
       backgroundColor: "rgba(138, 35, 135, 0.88)"

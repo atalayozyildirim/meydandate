@@ -105,7 +105,7 @@ export default function LikedMeScreen() {
 
         <Card style={styles.upsellCard}>
           <View style={styles.upsellIcon}>
-            <Ionicons name="heart" size={24} color="#FFFFFF" />
+            <Ionicons name="heart" size={24} color={theme.colors.onPrimary} />
           </View>
           <Text style={styles.upsellTitle}>Kim seni beğendi?</Text>
           <Text style={styles.upsellText}>
@@ -114,7 +114,13 @@ export default function LikedMeScreen() {
           </Text>
           <Button
             label="Premium'u aç"
-            icon={<Ionicons name="heart-outline" size={24} color="#FFFFFF" />}
+            icon={
+              <Ionicons
+                name="heart-outline"
+                size={24}
+                color={theme.colors.onPrimary}
+              />
+            }
             onPress={() => router.push("/tabs/store")}
           />
         </Card>
@@ -205,7 +211,7 @@ export default function LikedMeScreen() {
                             item.action === "super_like" ? "flash" : "heart"
                           }
                           size={13}
-                          color="#FFFFFF"
+                          color={theme.colors.onPrimary}
                         />
                         <Text style={styles.likePillText}>
                           {item.action === "super_like" ? "Super" : "Beğeni"}
@@ -267,7 +273,13 @@ export default function LikedMeScreen() {
                     label="Beğen"
                     loading={isResponding}
                     style={styles.actionButton}
-                    icon={<Ionicons name="heart" size={18} color="#FFFFFF" />}
+                    icon={
+                      <Ionicons
+                        name="heart"
+                        size={18}
+                        color={theme.colors.onPrimary}
+                      />
+                    }
                     onPress={() => respondMutation.mutate(item.user.id)}
                   />
                 </View>
@@ -381,7 +393,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     likePillText: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
       fontWeight: "900",
     },
     promptBox: {
@@ -409,9 +421,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.lg,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.isDark ? "#141721" : "#FFF7F8",
+      backgroundColor: theme.isDark ? "#111111" : "#F5F5F5",
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.12)",
+      borderColor: "rgba(128, 128, 128, 0.12)",
     },
     scoreValue: {
       fontSize: 19,

@@ -156,7 +156,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontSize: 38,
       lineHeight: 42,
       fontWeight: "900",
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     kicker: {
       ...theme.typography.caption,
@@ -186,8 +186,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "flex-start",
     },
     itemSelected: {
-      borderColor: "rgba(233, 64, 87, 0.42)",
-      backgroundColor: "#FFF0F3",
+      borderColor: "rgba(128, 128, 128, 0.42)",
+      backgroundColor: theme.colors.elevated,
     },
     pressed: {
       opacity: 0.84,

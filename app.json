@@ -12,7 +12,7 @@
     "splash": {
       "image": "./assets/splash-icon.png",
       "resizeMode": "contain",
-      "backgroundColor": "#FFF5F7"
+      "backgroundColor": "#FFFFFF"
     },
     "plugins": [
       "expo-router",
@@ -25,7 +25,7 @@
           "image": "./assets/splash-icon.png",
           "imageWidth": 180,
           "resizeMode": "contain",
-          "backgroundColor": "#FFF5F7"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       [

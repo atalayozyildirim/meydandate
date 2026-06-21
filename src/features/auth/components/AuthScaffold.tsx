@@ -73,7 +73,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontSize: 26,
       lineHeight: 30,
       fontWeight: "900",
-      color: "#FFFFFF"
+      color: theme.colors.onPrimary
     },
     appName: {
       ...theme.typography.heading,

@@ -66,7 +66,7 @@ export const useImagePicker = () => {
         allowsEditing: options.allowsEditing ?? true,
         aspect: options.aspect ?? [1, 1],
         base64: options.base64 ?? false,
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: ["images"],
         quality: options.quality ?? 0.82,
       });
 

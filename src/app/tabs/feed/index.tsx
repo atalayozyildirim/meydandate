@@ -32,7 +32,7 @@ import { container } from "@/infrastructure/config/Container";
 import { useTheme } from "@/shared/theme";
 
 const feedTagLabels: Record<FeedTag | "all", string> = {
-  all: "Tümü",
+  all: "Sana özel",
   muharrem: "Muharrem",
   deyis: "Deyiş",
   soru: "Soru",
@@ -47,6 +47,7 @@ export default function FeedScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const listRef = useRef<FlatList<FeedPost>>(null);
+  const ignoredQuotePostIdRef = useRef<string | null>(null);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const imagePicker = useImagePicker();
   const [selectedTag, setSelectedTag] = useState<FeedTag | "all">("all");
@@ -89,6 +90,11 @@ export default function FeedScreen() {
 
   useEffect(() => {
     if (!quotedPostIdParam || !currentUser) {
+      ignoredQuotePostIdRef.current = null;
+      return;
+    }
+
+    if (ignoredQuotePostIdRef.current === quotedPostIdParam) {
       return;
     }
 
@@ -132,8 +138,18 @@ export default function FeedScreen() {
   };
 
   const quotePost = (post: FeedPost) => {
+    ignoredQuotePostIdRef.current = null;
     setSelectedQuote(post);
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
+
+  const clearSelectedQuote = () => {
+    ignoredQuotePostIdRef.current = selectedQuote?.id ?? quotedPostIdParam;
+    setSelectedQuote(null);
+
+    if (quotedPostIdParam) {
+      router.setParams({ quotePostId: "" });
+    }
   };
 
   const submitPost = async () => {
@@ -243,6 +259,7 @@ export default function FeedScreen() {
       pollOptions.filter((option) => option.trim()).length >= 2,
   );
   const canShare = composerHasBody || composerHasPoll;
+  const remainingCharacters = 2000 - body.length;
 
   const feedHeader = (
     <View style={styles.feedHeader}>
@@ -250,12 +267,45 @@ export default function FeedScreen() {
         <Text style={styles.title}>Akış</Text>
         <View style={styles.liveBadge}>
           <Ionicons
-            name="shield-checkmark-outline"
+            name="chatbubbles-outline"
             size={15}
-            color={theme.colors.primary}
+            color={theme.colors.text}
           />
-          <Text style={styles.liveBadgeText}>Güvenli</Text>
+          <Text style={styles.liveBadgeText}>Sohbet akışı</Text>
         </View>
+      </View>
+
+      <View style={styles.filtersFrame}>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filters}
+        >
+          {(["all", ...feedTagValues] as Array<FeedTag | "all">).map((tag) => {
+            const selected = selectedTag === tag;
+
+            return (
+              <Pressable
+                key={tag}
+                onPress={() => setSelectedTag(tag)}
+                style={({ pressed }) => [
+                  styles.filterChip,
+                  selected && styles.filterChipSelected,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.filterText,
+                    selected && styles.filterTextSelected,
+                  ]}
+                >
+                  {feedTagLabels[tag]}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <View style={styles.quickLinks}>
@@ -265,9 +315,9 @@ export default function FeedScreen() {
           style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}
         >
           <Ionicons
-            name="radio-outline"
+            name="radio"
             size={17}
-            color={theme.colors.primary}
+            color={theme.colors.text}
           />
           <Text style={styles.quickLinkText}>Meydan</Text>
         </Pressable>
@@ -277,9 +327,9 @@ export default function FeedScreen() {
           style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}
         >
           <Ionicons
-            name="calendar-outline"
+            name="calendar-clear-outline"
             size={17}
-            color={theme.colors.primary}
+            color={theme.colors.text}
           />
           <Text style={styles.quickLinkText}>Muharrem</Text>
         </Pressable>
@@ -295,7 +345,7 @@ export default function FeedScreen() {
             <Ionicons
               name="shield-checkmark-outline"
               size={17}
-              color={theme.colors.primary}
+              color={theme.colors.text}
             />
             <Text style={styles.quickLinkText}>Admin</Text>
           </Pressable>
@@ -315,7 +365,7 @@ export default function FeedScreen() {
               onChangeText={setBody}
               maxLength={2000}
               placeholder={
-                selectedQuote ? "Alıntına yorum ekle" : "Neler oluyor?"
+                selectedQuote ? "Alıntına düşünceni ekle" : "Yeni sohbet başlat..."
               }
               placeholderTextColor={theme.colors.muted}
               style={styles.input}
@@ -357,7 +407,7 @@ export default function FeedScreen() {
                 <Pressable
                   accessibilityRole="button"
                   accessibilityLabel="Alıntıyı kaldır"
-                  onPress={() => setSelectedQuote(null)}
+                  onPress={clearSelectedQuote}
                   style={({ pressed }) => [
                     styles.removeQuoteButton,
                     pressed && styles.pressed,
@@ -381,7 +431,7 @@ export default function FeedScreen() {
                 <Ionicons
                   name="image-outline"
                   size={19}
-                  color={theme.colors.primary}
+                  color={theme.colors.text}
                 />
               </Pressable>
 
@@ -399,7 +449,7 @@ export default function FeedScreen() {
                 <Ionicons
                   name="bar-chart-outline"
                   size={19}
-                  color={showPollComposer ? "#FFFFFF" : theme.colors.primary}
+                  color={showPollComposer ? theme.colors.onPrimary : theme.colors.text}
                 />
               </Pressable>
               <ScrollView
@@ -444,14 +494,25 @@ export default function FeedScreen() {
                 ]}
               >
                 {isCreatingPost ? (
-                  <ActivityIndicator color="#FFFFFF" size="small" />
+                  <ActivityIndicator color={theme.colors.onPrimary} size="small" />
                 ) : (
                   <>
-                    <Ionicons name="send" size={14} color="#FFFFFF" />
+                    <Ionicons name="send" size={14} color={theme.colors.onPrimary} />
                     <Text style={styles.shareButtonText}>Paylaş</Text>
                   </>
                 )}
               </Pressable>
+            </View>
+            <View style={styles.composerMetaRow}>
+              <Text style={styles.replyScopeText}>Herkes yanıtlayabilir</Text>
+              <Text
+                style={[
+                  styles.characterCounter,
+                  remainingCharacters < 120 && styles.characterCounterLow,
+                ]}
+              >
+                {remainingCharacters}
+              </Text>
             </View>
           </View>
         </View>
@@ -462,7 +523,7 @@ export default function FeedScreen() {
             <Ionicons
               name="bar-chart-outline"
               size={16}
-              color={theme.colors.primary}
+              color={theme.colors.text}
             />
             <Text style={styles.pollComposerTitle}>Anket Oluştur</Text>
             <Pressable
@@ -523,45 +584,13 @@ export default function FeedScreen() {
               <Ionicons
                 name="add-circle-outline"
                 size={16}
-                color={theme.colors.primary}
+                color={theme.colors.text}
               />
               <Text style={styles.pollAddOptionText}>Seçenek Ekle</Text>
             </Pressable>
           ) : null}
         </View>
       ) : null}
-      <View style={styles.filtersFrame}>
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.filters}
-        >
-          {(["all", ...feedTagValues] as Array<FeedTag | "all">).map((tag) => {
-            const selected = selectedTag === tag;
-
-            return (
-              <Pressable
-                key={tag}
-                onPress={() => setSelectedTag(tag)}
-                style={({ pressed }) => [
-                  styles.filterChip,
-                  selected && styles.filterChipSelected,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.filterText,
-                    selected && styles.filterTextSelected,
-                  ]}
-                >
-                  {feedTagLabels[tag]}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
-      </View>
     </View>
   );
 
@@ -649,7 +678,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       minHeight: 58,
       paddingHorizontal: theme.spacing.lg,
       borderBottomWidth: 1,
-      borderBottomColor: "rgba(17, 24, 39, 0.08)",
+      borderBottomColor: theme.colors.border,
     },
     title: {
       ...theme.typography.heading,
@@ -664,13 +693,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       gap: theme.spacing.xxs,
       paddingHorizontal: theme.spacing.sm,
-      backgroundColor: "rgba(233, 64, 87, 0.08)",
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.10)",
+      borderColor: theme.colors.border,
     },
     liveBadgeText: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
+      color: theme.colors.text,
     },
     quickLinks: {
       flexDirection: "row",
@@ -688,7 +717,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.md,
       backgroundColor: theme.colors.elevated,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.12)",
+      borderColor: theme.colors.border,
     },
     quickLinkText: {
       ...theme.typography.caption,
@@ -698,7 +727,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: "rgba(17, 24, 39, 0.08)",
+      borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
     },
     composerTop: {
@@ -725,6 +754,26 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
+    },
+    composerMetaRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
+    },
+    replyScopeText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "700",
+    },
+    characterCounter: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontVariant: ["tabular-nums"],
+    },
+    characterCounterLow: {
+      color: theme.colors.warning,
+      fontWeight: "800",
     },
     imagePreviewFrame: {
       width: "100%",
@@ -784,8 +833,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
       borderBottomWidth: 1,
-      borderBottomColor: "rgba(17, 24, 39, 0.08)",
-      backgroundColor: theme.isDark ? "#161B26" : "#FFF8FB",
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
     },
     pollComposerHeader: {
       flexDirection: "row",
@@ -827,12 +876,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(233, 64, 87, 0.10)",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     pollOptionNumberText: {
       fontSize: 12,
       fontWeight: "700",
-      color: theme.colors.primary,
+      color: theme.colors.text,
     },
     pollOptionInput: {
       flex: 1,
@@ -862,7 +913,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     pollAddOptionText: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
+      color: theme.colors.text,
     },
 
     tagWrap: {
@@ -874,7 +925,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       minHeight: 30,
       borderRadius: theme.radius.pill,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: theme.colors.border,
       alignItems: "center",
       justifyContent: "center",
       paddingHorizontal: theme.spacing.sm,
@@ -889,7 +940,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
     },
     postTagTextSelected: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     shareButton: {
       minWidth: 86,
@@ -903,17 +954,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.primary,
     },
     shareButtonDisabled: {
-      backgroundColor: "rgba(233, 64, 87, 0.36)",
+      opacity: 0.38,
     },
     shareButtonText: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
       fontSize: 13,
       lineHeight: 18,
     },
     filtersFrame: {
       borderBottomWidth: 1,
-      borderBottomColor: "rgba(17, 24, 39, 0.08)",
+      borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.surface,
     },
     filters: {
@@ -926,7 +977,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       minHeight: 34,
       borderRadius: theme.radius.pill,
       borderWidth: 1,
-      borderColor: "rgba(17, 24, 39, 0.10)",
+      borderColor: theme.colors.border,
       paddingHorizontal: theme.spacing.md,
       alignItems: "center",
       justifyContent: "center",
@@ -941,7 +992,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.text,
     },
     filterTextSelected: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     pressed: {
       opacity: 0.82,

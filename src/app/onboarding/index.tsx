@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -373,7 +374,7 @@ export default function OnboardingScreen() {
   return (
     <Screen>
       <LinearGradient
-        colors={["#FF4458", "#FD267A", "#8A2387"]}
+        colors={["#0A0A0A", "#525252", "#525252"]}
         style={styles.hero}
       >
         <View style={styles.heroMark}>
@@ -381,7 +382,7 @@ export default function OnboardingScreen() {
         </View>
         <Text style={styles.heroKicker}>Ehlibyte'e hoş geldin</Text>
         <Text style={styles.heroTitle}>
-          Profilini kur, kartlarda görün, eşleşmeye başla.
+          Profilini kur, müzik ve uyum sinyallerinle görün.
         </Text>
         <View style={styles.heroSteps}>
           <View style={styles.heroStep}>
@@ -389,12 +390,16 @@ export default function OnboardingScreen() {
             <Text style={styles.heroStepText}>Profil</Text>
           </View>
           <View style={styles.heroStep}>
-            <Ionicons name="albums" size={18} color="#FFFFFF" />
-            <Text style={styles.heroStepText}>Swipe</Text>
+            <FontAwesome name="spotify" size={16} color="#FFFFFF" />
+            <Text style={styles.heroStepText}>Spotify</Text>
           </View>
           <View style={styles.heroStep}>
-            <Ionicons name="heart" size={18} color="#FFFFFF" />
-            <Text style={styles.heroStepText}>Match</Text>
+            <Ionicons name="radio" size={18} color="#FFFFFF" />
+            <Text style={styles.heroStepText}>Meydan</Text>
+          </View>
+          <View style={styles.heroStep}>
+            <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+            <Text style={styles.heroStepText}>Uyum</Text>
           </View>
         </View>
       </LinearGradient>
@@ -403,7 +408,7 @@ export default function OnboardingScreen() {
         <Text style={styles.kicker}>Onboarding</Text>
         <Text style={styles.title}>Kartını hazırla</Text>
         <Text style={styles.description}>
-          Bu bilgiler profil kartında ve eşleşme önerilerinde kullanılır.
+          Bu bilgiler profil kartında, Spotify modunda ve uyum detaylarında kullanılır.
         </Text>
       </View>
 
@@ -780,7 +785,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       marginBottom: theme.spacing.lg,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.12)",
+      borderColor: "rgba(128, 128, 128, 0.12)",
     },
     quizHeader: {
       flexDirection: "row",
@@ -839,8 +844,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     quizOptionSelected: {
       borderColor: theme.colors.primary,
       backgroundColor: theme.isDark
-        ? "rgba(233, 64, 87, 0.22)"
-        : "#FFF0F3",
+        ? "rgba(128, 128, 128, 0.22)"
+        : "#F5F5F5",
     },
     quizOptionDisabled: {
       opacity: 0.5,

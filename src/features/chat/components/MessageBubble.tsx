@@ -144,11 +144,15 @@ const createStyles = (
     },
     body: {
       ...theme.typography.body,
-      color: isOwn ? "#FFFFFF" : theme.colors.text
+      color: isOwn ? theme.colors.onPrimary : theme.colors.text
     },
     meta: {
       ...theme.typography.caption,
-      color: isOwn ? "rgba(255,255,255,0.74)" : theme.colors.muted
+      color: isOwn
+        ? theme.isDark
+          ? "rgba(0,0,0,0.58)"
+          : "rgba(255,255,255,0.72)"
+        : theme.colors.muted
     },
     heartBubble: {
       alignItems: isOwn ? "flex-end" : "flex-start",

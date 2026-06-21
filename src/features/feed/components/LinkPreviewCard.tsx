@@ -37,7 +37,7 @@ export const LinkPreviewCard = ({ preview }: LinkPreviewCardProps) => {
         />
       ) : (
         <View style={styles.fallbackImage}>
-          <Ionicons name="link-outline" size={22} color={theme.colors.primary} />
+          <Ionicons name="link-outline" size={22} color={theme.colors.text} />
         </View>
       )}
       <View style={styles.copy}>
@@ -64,7 +64,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 18,
       borderWidth: 1,
       borderColor: theme.colors.border,
-      backgroundColor: theme.isDark ? "#151824" : "#FFFFFF",
+      backgroundColor: theme.colors.surface,
     },
     image: {
       width: "100%",
@@ -75,7 +75,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       minHeight: 72,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(233, 64, 87, 0.08)",
+      backgroundColor: theme.colors.elevated,
     },
     copy: {
       gap: 3,

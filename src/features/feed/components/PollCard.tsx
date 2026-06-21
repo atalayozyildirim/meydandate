@@ -1,4 +1,4 @@
-// Twitter/X tarzı anket kartı: oy öncesi seçenek butonları, oy sonrası bar grafik görünümü.
+// Akış anket kartı: oy öncesi seçenek butonları, oy sonrası bar grafik görünümü.
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { FeedPoll } from "@/domain/entities/Feed";
@@ -39,7 +39,7 @@ export const PollCard = ({ poll, onVote, disabled }: PollCardProps) => {
                     <Ionicons
                       name="checkmark-circle"
                       size={14}
-                      color={theme.colors.primary}
+                      color={theme.colors.text}
                     />
                   ) : null}
                   <Text style={styles.resultPct}>{pct}%</Text>
@@ -91,7 +91,7 @@ const createStyles = (theme: AppTheme) =>
     option: {
       borderRadius: theme.radius.md,
       borderWidth: 1.5,
-      borderColor: theme.colors.primary,
+      borderColor: theme.colors.text,
       paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.sm + 2,
     },
@@ -102,7 +102,7 @@ const createStyles = (theme: AppTheme) =>
     optionText: {
       fontSize: 14,
       lineHeight: 20,
-      color: theme.colors.primary,
+      color: theme.colors.text,
       fontWeight: "600",
     },
     resultRow: {
@@ -118,8 +118,8 @@ const createStyles = (theme: AppTheme) =>
       top: 0,
       bottom: 0,
       backgroundColor: theme.isDark
-        ? "rgba(233,64,87,0.28)"
-        : "rgba(233,64,87,0.14)",
+        ? "rgba(255,255,255,0.18)"
+        : "rgba(0,0,0,0.10)",
       borderRadius: theme.radius.md,
     },
     resultContent: {

@@ -1,6 +1,8 @@
 // Uygulamayi ilk kez acan kullanicilara temel deneyimi tanitir.
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -9,6 +11,7 @@ import {
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -33,25 +36,25 @@ const slides: Array<{
       "Ehlibyte; ortak kültür, ilgi alanları ve niyetler etrafında güvenli tanışmalar için tasarlandı.",
     icon: "heart",
     highlights: [
-      "Gerçek profiller",
-      "Anlamlı eşleşmeler",
-      "Aynı müzik zevkiniz olan insanlarla eşleş",
-      "Ortak ilgi alanları",
+      "Kim beni beğendi",
+      "Geri al ve Super Like",
+      "Uyum detayı",
+      "Profil soruları",
     ],
-    colors: ["#FF4458", "#8A2387"],
+    colors: ["#0A0A0A", "#525252"],
   },
   {
     eyebrow: "Meydan ve akış",
     title: "Sohbetin tam ortasında ol.",
     description:
-      "Topluluk paylaşımlarını takip et, Spotify'da aynı müziği dinlediğin insanlarla eşleş ve canlı Meydan odalarına katıl.",
+      "Topluluk paylaşımlarını takip et, Spotify sinyaliyle aynı şarkı moduna geç ve canlı Meydan odalarına katıl.",
     icon: "people",
     highlights: [
       "Fotoğraflı postlar",
-      "Canlı oda sohbeti",
-      "Spotfiy eşleştirmeleri",
+      "Canlı Meydan odaları",
+      "Spotify eşleşmeleri",
     ],
-    colors: ["#8A2387", "#4F46E5"],
+    colors: ["#525252", "#737373"],
   },
   {
     eyebrow: "Önce güvenlik",
@@ -64,7 +67,7 @@ const slides: Array<{
       "Engelle ve bildir",
       "Gizlilik kontrolleri",
     ],
-    colors: ["#E94057", "#FF7A59"],
+    colors: ["#0A0A0A", "#A3A3A3"],
   },
 ];
 
@@ -75,8 +78,32 @@ export default function IntroScreen() {
   const { width } = useWindowDimensions();
   const scrollRef = useRef<ScrollView>(null);
   const [activeIndex, setActiveIndex] = useState(0);
+  const pulse = useRef(new Animated.Value(0)).current;
   const slideWidth = Math.max(width, 1);
   const isLastSlide = activeIndex === slides.length - 1;
+
+  useEffect(() => {
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, {
+          toValue: 1,
+          duration: 1200,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulse, {
+          toValue: 0,
+          duration: 1200,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [pulse]);
 
   const finishIntro = async () => {
     await container.tokenStorage
@@ -135,20 +162,36 @@ export default function IntroScreen() {
             <LinearGradient colors={slide.colors} style={styles.hero}>
               <View style={styles.orbitLarge} />
               <View style={styles.orbitSmall} />
-              <View style={styles.heroIcon}>
+              <Animated.View
+                style={[
+                  styles.heroIcon,
+                  {
+                    transform: [
+                      {
+                        scale: pulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [1, 1.05],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
                 <Ionicons name={slide.icon} size={46} color="#FFFFFF" />
-              </View>
+              </Animated.View>
               <View style={styles.floatingCard}>
-                <Ionicons
-                  name={
-                    index === 1 ? "radio" : index === 2 ? "lock-closed" : "star"
-                  }
-                  size={18}
-                  color="#FFFFFF"
-                />
+                {index === 1 ? (
+                  <FontAwesome name="spotify" size={17} color="#FFFFFF" />
+                ) : (
+                  <Ionicons
+                    name={index === 2 ? "lock-closed" : "star"}
+                    size={18}
+                    color="#FFFFFF"
+                  />
+                )}
                 <Text style={styles.floatingCardText}>
                   {index === 1
-                    ? "Meydan canlı"
+                    ? "Spotify + Meydan"
                     : index === 2
                       ? "Güvenli alan"
                       : "Yeni bağlar"}

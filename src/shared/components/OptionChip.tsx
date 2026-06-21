@@ -47,6 +47,6 @@ const createStyles = (
     },
     label: {
       ...theme.typography.caption,
-      color: selected ? "#FFFFFF" : theme.colors.text
+      color: selected ? theme.colors.onPrimary : theme.colors.text
     }
   });

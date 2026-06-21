@@ -355,6 +355,25 @@ export class MockFeedRepository implements FeedRepository {
     return post;
   }
 
+  async toggleCommentLike(
+    postId: string,
+    commentId: string,
+    userId: string,
+  ): Promise<FeedPost> {
+    const post = findPost(postId);
+    const comment = post.comments.find(
+      (candidate) => candidate.id === commentId,
+    );
+
+    if (!comment) {
+      throw new Error("Yorum bulunamadı.");
+    }
+
+    comment.likedByUserIds = toggleUserId(comment.likedByUserIds, userId);
+    post.updatedAt = new Date().toISOString();
+    return post;
+  }
+
   async addComment(payload: CreateFeedCommentPayload): Promise<FeedPost> {
     const post = findPost(payload.postId);
     const timestamp = new Date().toISOString();
@@ -403,6 +422,25 @@ export class MockFeedRepository implements FeedRepository {
 
   async reportPost(postId: string, _reporterId: string): Promise<FeedPost> {
     const post = findPost(postId);
+    post.reportCount += 1;
+    post.updatedAt = new Date().toISOString();
+    return post;
+  }
+
+  async reportComment(
+    postId: string,
+    commentId: string,
+    _reporterId: string,
+  ): Promise<FeedPost> {
+    const post = findPost(postId);
+    const comment = post.comments.find(
+      (candidate) => candidate.id === commentId,
+    );
+
+    if (!comment) {
+      throw new Error("Yorum bulunamadı.");
+    }
+
     post.reportCount += 1;
     post.updatedAt = new Date().toISOString();
     return post;

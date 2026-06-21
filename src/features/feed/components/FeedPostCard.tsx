@@ -4,6 +4,7 @@ import {
   Alert,
   Image,
   Pressable,
+  Share,
   StyleSheet,
   Text,
   View,
@@ -52,6 +53,12 @@ const feedTagDisplayLabels: Record<FeedTag, string> = {
   deyis: "Deyiş",
   soru: "Soru",
   gundem: "Gündem",
+};
+
+const compactCount = (value: number) => {
+  if (value >= 1000000) return `${(value / 1000000).toFixed(1)}M`;
+  if (value >= 1000) return `${(value / 1000).toFixed(1)}B`;
+  return String(value);
 };
 
 export const FeedPostCard = ({
@@ -106,6 +113,11 @@ export const FeedPostCard = ({
     });
   };
 
+  const sharePost = () => {
+    const message = `${sanitizePlainText(post.author.name, 80)}: ${sanitizePlainText(post.body, 260)}`;
+    void Share.share({ message }).catch(() => undefined);
+  };
+
   const reportPost = () => {
     Alert.alert(
       "Post bildirilsin mi?",
@@ -158,27 +170,30 @@ export const FeedPostCard = ({
     >
       <Card style={styles.card}>
       <View style={styles.postRow}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={
-            isSponsored
-              ? `${sanitizePlainText(post.author.name, 80)} paylaşımını aç`
-              : `${sanitizePlainText(post.author.name, 80)} profilini aç`
-          }
-          onPress={() =>
-            isSponsored ? onCtaPress?.() : openProfile(post.authorId)
-          }
-          style={({ pressed }) => [
-            styles.avatarButton,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Avatar
-            name={post.author.name}
-            uri={post.author.photos[0]?.uri}
-            size={44}
-          />
-        </Pressable>
+        <View style={styles.avatarColumn}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              isSponsored
+                ? `${sanitizePlainText(post.author.name, 80)} paylaşımını aç`
+                : `${sanitizePlainText(post.author.name, 80)} profilini aç`
+            }
+            onPress={() =>
+              isSponsored ? onCtaPress?.() : openProfile(post.authorId)
+            }
+            style={({ pressed }) => [
+              styles.avatarButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Avatar
+              name={post.author.name}
+              uri={post.author.photos[0]?.uri}
+              size={44}
+            />
+          </Pressable>
+          <View style={styles.avatarRail} />
+        </View>
 
         <View style={styles.postContent}>
           <View style={styles.header}>
@@ -207,7 +222,7 @@ export const FeedPostCard = ({
                       <Ionicons
                         name="megaphone-outline"
                         size={11}
-                        color={theme.colors.primary}
+                        color={theme.colors.muted}
                       />
                       <Text style={styles.sponsoredText}>{sponsorLabel}</Text>
                     </View>
@@ -216,14 +231,16 @@ export const FeedPostCard = ({
                       <Ionicons
                         name="pin"
                         size={11}
-                        color={theme.colors.primary}
+                        color={theme.colors.muted}
                       />
                       <Text style={styles.pinnedText}>Sabit</Text>
                     </View>
                   ) : null}
                 </View>
                 <Text style={styles.meta}>
-                  {formatDateTime(post.createdAt)}
+                  @{sanitizePlainText(post.author.name, 32)
+                    .replace(/\s+/g, "")
+                    .toLocaleLowerCase("tr-TR")} · {formatDateTime(post.createdAt)}
                 </Text>
               </View>
             </Pressable>
@@ -325,7 +342,7 @@ export const FeedPostCard = ({
                 <Ionicons
                   name="chevron-forward"
                   size={18}
-                  color={theme.colors.primary}
+                  color={theme.colors.text}
                 />
               </Pressable>
             </View>
@@ -342,13 +359,13 @@ export const FeedPostCard = ({
               >
                 <Ionicons
                   name={liked ? "heart" : "heart-outline"}
-                  size={19}
-                  color={liked ? theme.colors.primary : theme.colors.muted}
+                  size={20}
+                  color={liked ? theme.colors.text : theme.colors.muted}
                 />
                 <Text
                   style={[styles.actionText, liked && styles.actionTextActive]}
                 >
-                  {post.likedByUserIds.length}
+                  {compactCount(post.likedByUserIds.length)}
                 </Text>
               </Pressable>
               <Pressable
@@ -361,10 +378,12 @@ export const FeedPostCard = ({
               >
                 <Ionicons
                   name="chatbubble-outline"
-                  size={18}
+                  size={19}
                   color={theme.colors.muted}
                 />
-                <Text style={styles.actionText}>Yorum</Text>
+                <Text style={styles.actionText}>
+                  {post.comments.length > 0 ? compactCount(post.comments.length) : ""}
+                </Text>
               </Pressable>
               <Pressable
                 accessibilityRole="button"
@@ -377,10 +396,24 @@ export const FeedPostCard = ({
               >
                 <Ionicons
                   name="repeat-outline"
-                  size={18}
+                  size={20}
                   color={theme.colors.muted}
                 />
-                <Text style={styles.actionText}>Alıntıla</Text>
+                <Text style={styles.actionText}>Alıntı</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                onPress={sharePost}
+                style={({ pressed }) => [
+                  styles.action,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="paper-plane-outline"
+                  size={19}
+                  color={theme.colors.muted}
+                />
               </Pressable>
             </View>
           )}
@@ -397,7 +430,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 0,
       borderWidth: 0,
       borderBottomWidth: 1,
-      borderBottomColor: "rgba(17, 24, 39, 0.08)",
+      borderBottomColor: theme.colors.border,
       padding: 0,
       backgroundColor: theme.colors.surface,
       shadowOpacity: 0,
@@ -411,8 +444,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
     },
+    avatarColumn: {
+      width: 44,
+      alignItems: "center",
+      alignSelf: "stretch",
+    },
     avatarButton: {
       paddingTop: 2,
+    },
+    avatarRail: {
+      flex: 1,
+      width: 2,
+      minHeight: 22,
+      marginTop: theme.spacing.xs,
+      borderRadius: 1,
+      backgroundColor: theme.colors.border,
     },
     postContent: {
       flex: 1,
@@ -463,13 +509,15 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       gap: 3,
       paddingHorizontal: 7,
-      backgroundColor: "rgba(233, 64, 87, 0.08)",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     pinnedText: {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "700",
-      color: theme.colors.primary,
+      color: theme.colors.muted,
     },
     sponsoredBadge: {
       minHeight: 20,
@@ -479,18 +527,18 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: 3,
       paddingHorizontal: 7,
       backgroundColor: theme.isDark
-        ? "rgba(248, 216, 120, 0.12)"
-        : "rgba(233, 64, 87, 0.08)",
+        ? "rgba(255, 255, 255, 0.08)"
+        : "rgba(0, 0, 0, 0.04)",
       borderWidth: 1,
       borderColor: theme.isDark
-        ? "rgba(248, 216, 120, 0.24)"
-        : "rgba(233, 64, 87, 0.10)",
+        ? "rgba(255, 255, 255, 0.12)"
+        : "rgba(0, 0, 0, 0.08)",
     },
     sponsoredText: {
       fontSize: 11,
       lineHeight: 14,
       fontWeight: "700",
-      color: theme.colors.primary,
+      color: theme.colors.muted,
     },
     body: {
       ...theme.typography.body,
@@ -514,24 +562,24 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing.xs,
       paddingVertical: 4,
-      backgroundColor: "rgba(233, 64, 87, 0.08)",
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.10)",
+      borderColor: theme.colors.border,
     },
     tagText: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
+      color: theme.colors.muted,
     },
     actionRow: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       paddingTop: theme.spacing.xs,
-      paddingRight: theme.spacing.lg,
+      paddingRight: theme.spacing.sm,
     },
     action: {
       minHeight: 32,
-      minWidth: 62,
+      minWidth: 44,
       borderRadius: theme.radius.pill,
       flexDirection: "row",
       alignItems: "center",
@@ -543,7 +591,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
     },
     actionTextActive: {
-      color: theme.colors.primary,
+      color: theme.colors.text,
     },
     nativeSponsorFooter: {
       paddingTop: theme.spacing.xs,
@@ -554,14 +602,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderWidth: 1,
       borderColor: theme.isDark
         ? "rgba(235, 239, 247, 0.12)"
-        : "rgba(233, 64, 87, 0.14)",
+        : "rgba(0, 0, 0, 0.10)",
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xs,
       marginTop: theme.spacing.xs,
-      backgroundColor: theme.isDark ? "rgba(255,255,255,0.04)" : "#FFF8E7",
+      backgroundColor: theme.colors.elevated,
     },
     nativeSponsorText: {
       flex: 1,
@@ -575,7 +623,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     nativeSponsorMeta: {
       ...theme.typography.caption,
-      color: theme.colors.primary,
+      color: theme.colors.muted,
     },
     pressed: {
       opacity: 0.78,
@@ -583,7 +631,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     comments: {
       gap: theme.spacing.sm,
       borderTopWidth: 1,
-      borderTopColor: "rgba(17, 24, 39, 0.08)",
+      borderTopColor: theme.colors.border,
       paddingTop: theme.spacing.sm,
       marginTop: 2,
     },
@@ -624,7 +672,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.sm,
       paddingLeft: theme.spacing.sm,
       borderLeftWidth: 2,
-      borderLeftColor: "rgba(233, 64, 87, 0.18)",
+      borderLeftColor: theme.colors.border,
     },
     commentHeader: {
       flexDirection: "row",

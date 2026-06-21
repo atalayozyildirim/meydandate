@@ -16,6 +16,7 @@ import {
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import LottieView from "lottie-react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 import type { Message } from "@/domain/entities/Message";
 import { Avatar } from "@/shared/components/Avatar";
 import { Loading } from "@/shared/components/Loading";
@@ -45,7 +46,8 @@ export default function ConversationScreen() {
   const conversationId = params.conversationId;
   const router = useRouter();
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const insets = useSafeAreaInsets();
+  const styles = createStyles(theme, insets.bottom);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const safetyActions = useSafetyActions();
   const [message, setMessage] = useState("");
@@ -336,7 +338,7 @@ export default function ConversationScreen() {
             onPress={() => void submitMessage(message)}
             style={styles.sendButton}
           >
-            <Ionicons name="send" size={20} color="#FFFFFF" />
+            <Ionicons name="send" size={20} color={theme.colors.onPrimary} />
           </Pressable>
         </View>
         <View pointerEvents="none" style={styles.heartLayer}>
@@ -388,7 +390,7 @@ export default function ConversationScreen() {
   );
 }
 
-const createStyles = (theme: ReturnType<typeof useTheme>) =>
+const createStyles = (theme: ReturnType<typeof useTheme>, bottomInset: number) =>
   StyleSheet.create({
     screen: {
       paddingBottom: 0,
@@ -450,7 +452,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexGrow: 1,
       gap: theme.spacing.sm,
       paddingVertical: theme.spacing.md,
-      paddingBottom: theme.spacing.lg,
+      paddingBottom: theme.spacing.xl,
     },
     messageList: {
       flex: 1,
@@ -480,6 +482,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.sm,
       paddingTop: theme.spacing.sm,
       paddingBottom: theme.spacing.sm,
+      marginBottom:
+        Platform.OS === "ios"
+          ? Math.max(bottomInset, 12) + 16
+          : Math.max(bottomInset, theme.spacing.sm),
       backgroundColor: theme.colors.background,
     },
     input: {
@@ -500,7 +506,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },

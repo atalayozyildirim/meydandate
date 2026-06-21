@@ -66,8 +66,8 @@ const createStyles = (
     danger: theme.colors.danger,
   };
   const textByVariant = {
-    primary: "#FFFFFF",
-    secondary: "#FFFFFF",
+    primary: theme.colors.onPrimary,
+    secondary: theme.colors.onSecondary,
     ghost: theme.colors.primary,
     danger: "#FFFFFF",
   };

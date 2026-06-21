@@ -289,7 +289,7 @@ export default function StoreScreen() {
               <Ionicons
                 name={category.icon}
                 size={16}
-                color={selected ? "#FFFFFF" : theme.colors.muted}
+                color={selected ? theme.colors.onPrimary : theme.colors.muted}
               />
               <Text
                 style={[
@@ -324,7 +324,7 @@ export default function StoreScreen() {
             <Ionicons
               name={isPremiumActive ? "checkmark-circle" : "flame-outline"}
               size={15}
-              color={isPremiumActive ? "#FFFFFF" : theme.colors.primary}
+              color={isPremiumActive ? theme.colors.onPrimary : theme.colors.primary}
             />
             <Text
               style={[
@@ -340,7 +340,7 @@ export default function StoreScreen() {
         <Card style={styles.featureCard}>
           <View style={styles.featureCardTop}>
             <View style={styles.featureIcon}>
-              <Ionicons name="heart" size={22} color="#FFFFFF" />
+              <Ionicons name="heart" size={22} color={theme.colors.onPrimary} />
             </View>
             <View style={styles.featureCopy}>
               <Text style={styles.featureTitle}>
@@ -456,7 +456,7 @@ export default function StoreScreen() {
               ]}
             >
               <View style={styles.fireProductIcon}>
-                <Ionicons name="flame" size={22} color="#FFFFFF" />
+                <Ionicons name="flame" size={22} color={theme.colors.onPrimary} />
               </View>
               <View style={styles.productCopy}>
                 <View style={styles.productTitleRow}>
@@ -474,7 +474,17 @@ export default function StoreScreen() {
                 variant={amount === 500 ? "secondary" : "primary"}
                 loading={isPurchasingFirePackage}
                 style={styles.actionButton}
-                icon={<Ionicons name="flame" size={16} color="#FFFFFF" />}
+                icon={
+                  <Ionicons
+                    name="flame"
+                    size={16}
+                    color={
+                      amount === 500
+                        ? theme.colors.onSecondary
+                        : theme.colors.onPrimary
+                    }
+                  />
+                }
                 onPress={() => void buyFirePackage(amount)}
               />
             </Card>
@@ -650,9 +660,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       gap: 4,
       padding: 4,
-      backgroundColor: theme.isDark
-        ? "rgba(255, 255, 255, 0.04)"
-        : "rgba(255, 255, 255, 0.72)",
+      backgroundColor: theme.colors.surface,
     },
     categoryChip: {
       flex: 1,
@@ -681,7 +689,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
     },
     categoryChipTextActive: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     hiddenSection: {
       display: "none",
@@ -726,7 +734,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       minHeight: 34,
       borderRadius: theme.radius.pill,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.22)",
+      borderColor: "rgba(128, 128, 128, 0.22)",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -744,14 +752,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "900",
     },
     statusPillTextActive: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     balancePill: {
       minHeight: 38,
       minWidth: 82,
       borderRadius: theme.radius.pill,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.18)",
+      borderColor: "rgba(128, 128, 128, 0.18)",
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
@@ -765,8 +773,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     featureCard: {
       gap: theme.spacing.md,
-      borderColor: "rgba(233, 64, 87, 0.18)",
-      backgroundColor: theme.isDark ? "#171A24" : "#FFFFFF",
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
     },
     featureCardTop: {
       flexDirection: "row",
@@ -819,8 +827,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.colors.border,
     },
     featuredCard: {
-      borderColor: "rgba(138, 35, 135, 0.38)",
-      backgroundColor: theme.isDark ? "rgba(192, 132, 252, 0.08)" : "#FFF7F8",
+      borderColor: theme.colors.border,
+      backgroundColor: theme.colors.elevated,
     },
     productCopy: {
       flex: 1,
@@ -857,13 +865,11 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     popularPill: {
       ...theme.typography.caption,
-      color: theme.isDark ? "#FCE7F3" : theme.colors.secondary,
+      color: theme.colors.text,
       borderRadius: theme.radius.pill,
       paddingHorizontal: theme.spacing.xs,
       paddingVertical: 2,
-      backgroundColor: theme.isDark
-        ? "rgba(192, 132, 252, 0.16)"
-        : "rgba(138, 35, 135, 0.10)",
+      backgroundColor: theme.colors.elevated,
       overflow: "hidden",
     },
     actionButton: {

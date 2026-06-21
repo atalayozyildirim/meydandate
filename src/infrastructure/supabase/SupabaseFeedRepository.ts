@@ -451,21 +451,25 @@ export class SupabaseFeedRepository implements FeedRepository {
       .from("feed_posts")
       .select(postSelect)
       .eq("id", postId)
-      .single();
+      .maybeSingle();
 
     if (error && isMissingFeedEnrichmentColumnError(error)) {
       const legacyResult = await supabase
         .from("feed_posts")
         .select(legacyPostSelect)
         .eq("id", postId)
-        .single();
+        .maybeSingle();
 
       data = legacyResult.data;
       error = legacyResult.error;
     }
 
-    if (error || !data) {
+    if (error) {
       throw createSupabaseRepositoryError("Post yüklenemedi.", error);
+    }
+
+    if (!data) {
+      throw new Error("Post bulunamadı veya artık görüntülenemiyor.");
     }
 
     return mapPost(data as unknown as PostRow, currentUserId);
@@ -871,6 +875,45 @@ export class SupabaseFeedRepository implements FeedRepository {
     return this.getPost(postId);
   }
 
+  async toggleCommentLike(
+    postId: string,
+    commentId: string,
+    userId: string,
+  ): Promise<FeedPost> {
+    const { data: existingLike, error: likeError } = await supabase
+      .from("feed_comment_likes")
+      .select("comment_id")
+      .eq("comment_id", commentId)
+      .eq("user_id", userId)
+      .maybeSingle();
+
+    if (likeError) {
+      throw createSupabaseRepositoryError(
+        "Yorum beğenisi alınamadı.",
+        likeError,
+      );
+    }
+
+    const { error } = existingLike
+      ? await supabase
+          .from("feed_comment_likes")
+          .delete()
+          .eq("comment_id", commentId)
+          .eq("user_id", userId)
+      : await supabase
+          .from("feed_comment_likes")
+          .insert({ comment_id: commentId, user_id: userId });
+
+    if (error) {
+      throw createSupabaseRepositoryError(
+        "Yorum beğenisi güncellenemedi.",
+        error,
+      );
+    }
+
+    return this.getPost(postId, userId);
+  }
+
   async addComment(payload: CreateFeedCommentPayload): Promise<FeedPost> {
     const { error } = await supabase.from("feed_comments").insert({
       post_id: payload.postId,
@@ -913,6 +956,26 @@ export class SupabaseFeedRepository implements FeedRepository {
     }
 
     return this.getPost(postId);
+  }
+
+  async reportComment(
+    postId: string,
+    commentId: string,
+    reporterId: string,
+  ): Promise<FeedPost> {
+    const { error } = await supabase
+      .from("feed_comment_reports")
+      .insert({ comment_id: commentId, reporter_id: reporterId });
+
+    if (error?.code === "23505") {
+      throw new Error("Bu yorumu daha önce bildirdiniz.");
+    }
+
+    if (error) {
+      throw createSupabaseRepositoryError("Yorum bildirilemedi.", error);
+    }
+
+    return this.getPost(postId, reporterId);
   }
 
   async deletePost(postId: string, _requesterId: string): Promise<void> {

@@ -18,6 +18,10 @@ const supabasePublishableKey =
 
 const tenorApiKey = readEnv(process.env.EXPO_PUBLIC_TENOR_API_KEY);
 const giphyApiKey = readEnv(process.env.EXPO_PUBLIC_GIPHY_API_KEY);
+const spotifyClientId = readEnv(process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID);
+const spotifyRedirectUri =
+  readEnv(process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI) ||
+  "ehlibyte://spotify/callback";
 
 const isPlaceholder = (value: string, fragments: string[]) =>
   !value || fragments.some((fragment) => value.includes(fragment));
@@ -62,6 +66,8 @@ export const env = {
   adMobInterstitialUnitId:
     readEnv(process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID),
   adMobRewardedUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID),
+  spotifyClientId,
+  spotifyRedirectUri,
 } as const;
 
 export const getRuntimeConfigIssues = () => {
@@ -115,6 +121,10 @@ export const getRuntimeConfigIssues = () => {
 
     if (!env.adMobIosAppId || !env.adMobAndroidAppId) {
       warnings.push("Production reklam yayını için AdMob iOS/Android app ID değerlerini EAS env'e ekleyin. Eksikse build test AdMob kimlikleriyle devam eder.");
+    }
+
+    if (!env.spotifyClientId) {
+      warnings.push("Spotify anlık şarkı eşleşmesi için EXPO_PUBLIC_SPOTIFY_CLIENT_ID eklenmeli. Client secret sadece backend tarafında SPOTIFY_CLIENT_SECRET olarak tutulmalı.");
     }
   }
 

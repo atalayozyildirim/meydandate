@@ -205,10 +205,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.sm,
       borderRadius: theme.radius.pill,
       borderWidth: 1,
-      borderColor: "rgba(255, 91, 112, 0.28)",
+      borderColor: "rgba(128, 128, 128, 0.28)",
       paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xs,
-      backgroundColor: "rgba(255, 91, 112, 0.10)",
+      backgroundColor: "rgba(128, 128, 128, 0.10)",
     },
     badgeLabel: {
       ...theme.typography.body,

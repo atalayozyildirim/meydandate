@@ -109,7 +109,7 @@ export default function PremiumScreen() {
       <Card style={styles.boostCard}>
         <View style={styles.boostHeader}>
           <View style={styles.boostIcon}>
-            <Ionicons name="rocket" size={20} color="#FFFFFF" />
+            <Ionicons name="rocket" size={20} color={theme.colors.onPrimary} />
           </View>
           <View style={styles.boostCopy}>
             <Text style={styles.sectionTitle}>Profil boost</Text>
@@ -135,7 +135,13 @@ export default function PremiumScreen() {
           variant="secondary"
           disabled={!isPremiumActive || isBoostActive}
           loading={isActivatingBoost}
-          icon={<Ionicons name="flash" size={18} color="#FFFFFF" />}
+          icon={
+            <Ionicons
+              name="flash"
+              size={18}
+              color={theme.colors.onSecondary}
+            />
+          }
           onPress={() => void startBoost()}
         />
       </Card>

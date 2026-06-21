@@ -1,6 +1,8 @@
 // Sanal Cem odası için backend destekli live katılım ekranını sunar.
 import {
   Alert,
+  Animated,
+  Easing,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -399,6 +401,7 @@ export default function MeydanRoomScreen() {
   const [isAdminSettingsOpen, setIsAdminSettingsOpen] = useState(false);
   const [liveKitInfo, setLiveKitInfo] = useState<LiveKitJoinInfo | null>(null);
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
+  const livePulse = useRef(new Animated.Value(0)).current;
   const participants = room?.participants ?? [];
   const speakers = participants.filter(
     (participant) => participant.stageStatus === "speaker",
@@ -427,7 +430,7 @@ export default function MeydanRoomScreen() {
       : "Planlandı";
   const stageTitle = isLive
     ? isLiveKitRoom
-      ? "Meydan Space açık"
+      ? "Meydan odası açık"
       : "Yayın bağlantısı hazırlanıyor"
     : room?.status === "offline"
       ? "Yayın sona erdi"
@@ -471,6 +474,34 @@ export default function MeydanRoomScreen() {
   const shouldSyncDirectPlayback =
     streamSource?.kind === "direct" &&
     !isRealtimeDirectStream(streamSource.playbackUrl);
+
+  useEffect(() => {
+    if (!isLive) {
+      livePulse.setValue(0);
+      return;
+    }
+
+    const animation = Animated.loop(
+      Animated.sequence([
+        Animated.timing(livePulse, {
+          toValue: 1,
+          duration: 900,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(livePulse, {
+          toValue: 0,
+          duration: 900,
+          easing: Easing.in(Easing.cubic),
+          useNativeDriver: true,
+        }),
+      ]),
+    );
+
+    animation.start();
+
+    return () => animation.stop();
+  }, [isLive, livePulse]);
 
   useEffect(() => {
     if (!room) {
@@ -723,15 +754,61 @@ export default function MeydanRoomScreen() {
               />
             ) : null}
             <View style={styles.spaceHeader}>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.spacePulseRing,
+                  {
+                    opacity: livePulse.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0.16, 0.46],
+                    }),
+                    transform: [
+                      {
+                        scale: livePulse.interpolate({
+                          inputRange: [0, 1],
+                          outputRange: [0.86, 1.18],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              />
               <View style={styles.spaceIcon}>
                 <Ionicons name="mic" size={22} color="#FFFFFF" />
               </View>
               <View style={styles.spaceHeaderText}>
-                <Text style={styles.stageTitle}>{stageTitle}</Text>
-                <Text style={styles.stageDescription}>
+                <View style={styles.spaceTitleRow}>
+                  <Text numberOfLines={1} style={styles.stageTitle}>
+                    {stageTitle}
+                  </Text>
+                  <View style={styles.waveBars}>
+                    <View style={[styles.waveBar, styles.waveBarSmall]} />
+                    <View style={styles.waveBar} />
+                    <View style={[styles.waveBar, styles.waveBarTall]} />
+                  </View>
+                </View>
+                <Text numberOfLines={2} style={styles.stageDescription}>
                   {stageDescription}
                 </Text>
               </View>
+            </View>
+
+            <View style={styles.spaceStatsRow}>
+              <View style={styles.spaceStatPill}>
+                <Ionicons name="mic-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.spaceStatText}>{speakers.length} sahnede</Text>
+              </View>
+              <View style={styles.spaceStatPill}>
+                <Ionicons name="ear-outline" size={14} color="#FFFFFF" />
+                <Text style={styles.spaceStatText}>{listeners.length} dinliyor</Text>
+              </View>
+              {hasStream ? (
+                <View style={styles.spaceStatPill}>
+                  <Ionicons name="desktop-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.spaceStatText}>Paylaşım</Text>
+                </View>
+              ) : null}
             </View>
 
             {hasStream && streamSource ? (
@@ -845,7 +922,10 @@ export default function MeydanRoomScreen() {
 
             {canManageRoom && listeners.length > 0 ? (
               <View style={styles.stageControlPanel}>
-                <Text style={styles.stageControlTitle}>Sahneye al</Text>
+                <View style={styles.stageControlHeader}>
+                  <Text style={styles.stageControlTitle}>Sahneye al</Text>
+                  <Text style={styles.stageControlHint}>Admin/mod hızlı kontrol</Text>
+                </View>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -1075,7 +1155,7 @@ export default function MeydanRoomScreen() {
             autoCapitalize="none"
             autoCorrect={false}
             keyboardType="url"
-            placeholder="Boş bırak: sadece Space"
+            placeholder="Boş bırak: sadece ses"
           />
           <TextInput
             value={adminDescription}
@@ -1095,10 +1175,10 @@ export default function MeydanRoomScreen() {
               onPress={() => void handleStopRoom()}
             />
             <Button
-              label={isLive ? "Odayı güncelle" : "Space başlat"}
+              label={isLive ? "Odayı güncelle" : "Odayı başlat"}
               loading={isManagingRoom}
               style={styles.adminActionButton}
-              icon={<Ionicons name="radio" size={18} color="#FFFFFF" />}
+              icon={<Ionicons name="radio" size={18} color={theme.colors.onPrimary} />}
               onPress={() => void handleStartRoom()}
             />
           </View>
@@ -1338,7 +1418,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
     },
     pressed: {
       opacity: 0.78,
@@ -1351,7 +1431,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
+      backgroundColor: theme.isDark ? theme.colors.elevated : "#F5F5F5",
     },
     liveDot: {
       width: 9,
@@ -1383,18 +1463,18 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingHorizontal: theme.spacing.sm,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.14)",
+      borderColor: "rgba(128, 128, 128, 0.14)",
     },
     countText: {
       ...theme.typography.caption,
       color: theme.colors.primary,
     },
     stage: {
-      minHeight: 198,
-      borderRadius: 24,
+      minHeight: 188,
+      borderRadius: 28,
       overflow: "hidden",
       justifyContent: "space-between",
-      backgroundColor: "#171923",
+      backgroundColor: theme.isDark ? "#10131B" : "#171923",
       shadowColor: theme.colors.shadow,
       shadowOpacity: 1,
       shadowRadius: 20,
@@ -1427,26 +1507,88 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       padding: theme.spacing.md,
     },
     spaceStage: {
-      gap: theme.spacing.md,
+      gap: theme.spacing.sm,
       padding: theme.spacing.md,
-      backgroundColor: "#11131B",
+      backgroundColor: theme.isDark ? "#10131B" : "#11131B",
     },
     spaceHeader: {
+      position: "relative",
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
     },
+    spacePulseRing: {
+      position: "absolute",
+      left: -5,
+      width: 56,
+      height: 56,
+      borderRadius: 28,
+      backgroundColor: theme.colors.primary,
+    },
     spaceIcon: {
-      width: 46,
-      height: 46,
+      width: 48,
+      height: 48,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: theme.colors.primary,
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.18)",
     },
     spaceHeaderText: {
       flex: 1,
       gap: 2,
+    },
+    spaceTitleRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    waveBars: {
+      width: 34,
+      height: 18,
+      borderRadius: 9,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 3,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+    },
+    waveBar: {
+      width: 3,
+      height: 10,
+      borderRadius: 2,
+      backgroundColor: theme.colors.primary,
+    },
+    waveBarSmall: {
+      height: 6,
+      opacity: 0.72,
+    },
+    waveBarTall: {
+      height: 14,
+      opacity: 0.86,
+    },
+    spaceStatsRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
+    },
+    spaceStatPill: {
+      minHeight: 30,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: "rgba(255, 255, 255, 0.08)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.09)",
+    },
+    spaceStatText: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "800",
+      color: "rgba(255, 255, 255, 0.82)",
     },
     spaceShareFrame: {
       overflow: "hidden",
@@ -1493,12 +1635,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     speakerStrip: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: theme.spacing.sm,
+      gap: theme.spacing.xs,
     },
     speakerCard: {
-      width: "30.8%",
-      minHeight: 114,
-      borderRadius: 18,
+      width: "31.6%",
+      minHeight: 104,
+      borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
       gap: theme.spacing.xxs,
@@ -1519,7 +1661,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(233, 64, 87, 0.96)",
+      backgroundColor: "rgba(128, 128, 128, 0.96)",
       borderWidth: 2,
       borderColor: "#11131B",
     },
@@ -1537,6 +1679,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     stageControlPanel: {
       gap: theme.spacing.xs,
+      paddingTop: 2,
+    },
+    stageControlHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
     },
     stageControlTitle: {
       fontSize: 12,
@@ -1544,6 +1693,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "800",
       color: "rgba(255, 255, 255, 0.66)",
       textTransform: "uppercase",
+    },
+    stageControlHint: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "700",
+      color: "rgba(255, 255, 255, 0.44)",
     },
     stageControlList: {
       gap: theme.spacing.xs,
@@ -1612,13 +1767,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: "rgba(255, 255, 255, 0.12)",
     },
     stageTitle: {
-      fontSize: 23,
-      lineHeight: 28,
+      flex: 1,
+      fontSize: 20,
+      lineHeight: 25,
       fontWeight: "900",
       color: "#FFFFFF",
     },
     stageDescription: {
-      ...theme.typography.body,
+      ...theme.typography.caption,
       color: "rgba(255, 255, 255, 0.76)",
     },
     stageMeta: {
@@ -1656,7 +1812,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       padding: theme.spacing.md,
       backgroundColor: theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.16)",
+      borderColor: "rgba(128, 128, 128, 0.16)",
     },
     adminPanelHeader: {
       flexDirection: "row",
@@ -1750,7 +1906,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       gap: theme.spacing.xxs,
       paddingHorizontal: theme.spacing.sm,
-      backgroundColor: theme.isDark ? theme.colors.elevated : "#FFF0F3",
+      backgroundColor: theme.isDark ? theme.colors.elevated : "#F5F5F5",
     },
     chatCountText: {
       ...theme.typography.caption,
@@ -1828,10 +1984,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     messageBubbleOwn: {
       borderBottomRightRadius: 4,
-      borderColor: "rgba(233, 64, 87, 0.35)",
+      borderColor: "rgba(128, 128, 128, 0.35)",
       backgroundColor: theme.isDark
-        ? "rgba(233, 64, 87, 0.22)"
-        : "rgba(233, 64, 87, 0.12)",
+        ? "rgba(128, 128, 128, 0.22)"
+        : "rgba(128, 128, 128, 0.12)",
     },
     messageBubbleOther: {
       borderBottomLeftRadius: 4,

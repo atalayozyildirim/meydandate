@@ -78,9 +78,19 @@ export interface FeedRepository {
   updateBotPost(postId: string, payload: BotFeedPostPayload): Promise<FeedPost>;
   deleteBotPost(postId: string): Promise<void>;
   togglePostLike(postId: string, userId: string): Promise<FeedPost>;
+  toggleCommentLike(
+    postId: string,
+    commentId: string,
+    userId: string,
+  ): Promise<FeedPost>;
   addComment(payload: CreateFeedCommentPayload): Promise<FeedPost>;
   addReply(payload: CreateFeedReplyPayload): Promise<FeedPost>;
   reportPost(postId: string, reporterId: string): Promise<FeedPost>;
+  reportComment(
+    postId: string,
+    commentId: string,
+    reporterId: string,
+  ): Promise<FeedPost>;
   deletePost(postId: string, requesterId: string): Promise<void>;
   votePoll(pollId: string, optionId: string, userId: string): Promise<void>;
 }

@@ -20,7 +20,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.surface,
       borderRadius: theme.radius.md,
       borderWidth: 1,
-      borderColor: "rgba(233, 64, 87, 0.10)",
+      borderColor: theme.colors.border,
       padding: theme.spacing.md,
     }
   });
