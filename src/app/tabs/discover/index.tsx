@@ -797,12 +797,16 @@ export default function DiscoverScreen() {
         return;
       }
 
-      await Audio.setAudioModeAsync({
-        playsInSilentMode: true,
-        shouldPlayInBackground: false,
-        interruptionModeAndroid: "duckOthers",
-        interruptionMode: "mixWithOthers",
-      }).catch(() => undefined);
+      try {
+        await Audio.setAudioModeAsync({
+          playsInSilentMode: true,
+          shouldPlayInBackground: false,
+          interruptionModeAndroid: "duckOthers",
+          interruptionMode: "mixWithOthers",
+        });
+      } catch (error) {
+        console.error("Audio mode setup failed:", error);
+      }
 
       const sound = Audio.createAudioPlayer(
         discoverMusicTracks[trackIndex],
@@ -833,7 +837,13 @@ export default function DiscoverScreen() {
           (musicTrackIndexRef.current + 1) % discoverMusicTracks.length;
         void playTrack(musicTrackIndexRef.current).catch(() => undefined);
       });
-      sound.play();
+      
+      try {
+        await sound.play();
+      } catch (error) {
+        console.error("Audio playback failed:", error);
+        sound.remove();
+      }
     };
 
     if (!shouldPlayMusicRef.current) {

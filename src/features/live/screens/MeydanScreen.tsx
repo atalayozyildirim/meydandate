@@ -12,10 +12,10 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentType } from "react";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import { WebView } from "react-native-webview";
 import type {
   LiveChatMessage,
@@ -424,6 +424,7 @@ export default function MeydanRoomScreen() {
   const [isAdminSettingsOpen, setIsAdminSettingsOpen] = useState(false);
   const [liveKitInfo, setLiveKitInfo] = useState<LiveKitJoinInfo | null>(null);
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
+  const [isSpeaking, setIsSpeaking] = useState(false);
   const livePulse = useRef(new Animated.Value(0)).current;
   const participants = room?.participants ?? [];
   const speakers = participants.filter(
@@ -602,6 +603,31 @@ export default function MeydanRoomScreen() {
     streamSource?.kind === "youtube" ? streamSource.videoId : undefined,
     streamSource?.kind === "kick" ? streamSource.channel : undefined,
   ]);
+
+  useEffect(() => {
+    const shouldShowSpeaking = isCurrentSpeaker && !currentParticipant?.isMuted && isLiveKitRoom;
+    setIsSpeaking(shouldShowSpeaking);
+  }, [isCurrentSpeaker, currentParticipant?.isMuted, isLiveKitRoom]);
+
+  // Yeni mesaj geldiğinde otomatik scroll yap
+  useEffect(() => {
+    if (messages.length > 0 && chatScrollViewRef.current) {
+      // Bir sonraki frame'de scroll yap, içerik render olduktan sonra
+      setTimeout(() => {
+        chatScrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+  }, [messages.length]);
+
+  useFocusEffect(
+    useCallback(() => {
+      return () => {
+        if (isJoined) {
+          void leaveRoom();
+        }
+      };
+    }, [isJoined, leaveRoom]),
+  );
 
   const toggleEmbedSound = () => {
     const nextMuted = !isEmbedMuted;
@@ -1320,7 +1346,119 @@ export default function MeydanRoomScreen() {
         </View>
       </View>
 
+      <View style={styles.participantsSection}>
+        <View style={styles.participantsHeader}>
+          <Text style={styles.participantsTitle}>Katılanlar</Text>
+          <Text style={styles.participantsCount}>{participantCount} kişi</Text>
+        </View>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.participantsHorizontalList}
+        >
+          {participants.map((participant) => (
+            <Pressable
+              key={participant.id}
+              style={({ pressed }) => [
+                styles.participantCard,
+                pressed && styles.participantCardPressed,
+                participant.stageStatus === "speaker" && styles.participantCardSpeaker,
+              ]}
+              onPress={() => {
+                router.push({
+                  pathname: "/tabs/profile/[userId]",
+                  params: { userId: participant.id },
+                });
+              }}
+            >
+              <View style={styles.participantCardAvatarWrap}>
+                <Avatar
+                  name={participant.name}
+                  uri={participant.photoUri}
+                  size={48}
+                />
+                {participant.stageStatus === "speaker" && (
+                  <View style={styles.speakerBadge}>
+                    <Ionicons name="mic" size={12} color="#FFFFFF" />
+                  </View>
+                )}
+                {participant.isPremium ? (
+                  <View style={styles.premiumBadge}>
+                    <Ionicons
+                      name="checkmark-circle"
+                      size={14}
+                      color="#FFFFFF"
+                    />
+                  </View>
+                ) : null}
+              </View>
+              <Text numberOfLines={1} style={styles.participantCardName}>
+                {participant.isCurrentUser ? "Sen" : participant.name}
+              </Text>
+              {participant.handRaisedAt ? (
+                <View style={styles.handRaisedBadge}>
+                  <Ionicons name="hand-left" size={10} color="#FFFFFF" />
+                </View>
+              ) : null}
+              {canManageRoom && !participant.isCurrentUser ? (
+                <View style={styles.participantCardAdminActions}>
+                  {participant.stageStatus === "speaker" ? (
+                    <Pressable
+                      disabled={isManagingStage}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void handleSetMuted(participant, !participant.isMuted)
+                      }}
+                      style={styles.participantCardAdminButton}
+                    >
+                      <Ionicons
+                        name={participant.isMuted ? "mic-off" : "mic"}
+                        size={11}
+                        color={theme.colors.text}
+                      />
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      disabled={isManagingStage}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void handleSetParticipantStage(participant.id, "speaker")
+                      }}
+                      style={styles.participantCardAdminButton}
+                    >
+                      <Ionicons
+                        name="arrow-up-circle-outline"
+                        size={11}
+                        color={theme.colors.text}
+                      />
+                    </Pressable>
+                  )}
+                  <Pressable
+                    disabled={isManagingStage}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      handleRemoveParticipant(participant);
+                    }}
+                    style={[
+                      styles.participantCardAdminButton,
+                      styles.participantCardAdminDanger,
+                    ]}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={11}
+                      color={theme.colors.danger}
+                    />
+                  </Pressable>
+                </View>
+              ) : null}
+            </Pressable>
+          ))}
+        </ScrollView>
+      </View>
+
       <View style={styles.roomActionDock}>
+        {/* Ana Katıl/Ayrıl Butonu */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
@@ -1335,7 +1473,7 @@ export default function MeydanRoomScreen() {
         >
           <Ionicons
             name={isJoined ? "exit-outline" : "enter-outline"}
-            size={20}
+            size={22}
             color="#FFFFFF"
           />
           <Text style={styles.roomActionLabel}>
@@ -1343,6 +1481,7 @@ export default function MeydanRoomScreen() {
           </Text>
         </Pressable>
 
+        {/* Mikrofon Kontrolü - Sadece sahnedeyken */}
         {isJoined && isCurrentSpeaker ? (
           <Pressable
             accessibilityRole="button"
@@ -1361,17 +1500,29 @@ export default function MeydanRoomScreen() {
               pressed && styles.pressed,
             ]}
           >
-            <Ionicons
-              name={currentParticipant?.isMuted ? "mic-off" : "mic"}
-              size={20}
-              color={theme.colors.text}
-            />
-            <Text style={styles.roomActionLabelSecondary}>
-              {currentParticipant?.isMuted ? "Sessiz" : "Mikrofon"}
+            <View style={styles.micButtonContainer}>
+              <Ionicons
+                name={currentParticipant?.isMuted ? "mic-off" : "mic"}
+                size={22}
+                color={currentParticipant?.isMuted ? "#FF3B30" : "#34C759"}
+              />
+              {!currentParticipant?.isMuted && (
+                <View style={[
+                  styles.speakingIndicator,
+                  isSpeaking && styles.speakingIndicatorActive
+                ]} />
+              )}
+            </View>
+            <Text style={[
+              styles.roomActionLabelSecondary,
+              currentParticipant?.isMuted && styles.roomActionLabelMuted
+            ]}>
+              {currentParticipant?.isMuted ? "Kapalı" : "Açık"}
             </Text>
           </Pressable>
         ) : null}
 
+        {/* El Kaldır - Sadece dinleyiciyken */}
         {isJoined && !isCurrentSpeaker ? (
           <Pressable
             accessibilityRole="button"
@@ -1386,8 +1537,8 @@ export default function MeydanRoomScreen() {
           >
             <Ionicons
               name={hasRaisedHand ? "hand-left" : "hand-left-outline"}
-              size={20}
-              color={hasRaisedHand ? theme.colors.onPrimary : theme.colors.text}
+              size={22}
+              color={hasRaisedHand ? "#FF9500" : theme.colors.text}
             />
             <Text
               style={[
@@ -1395,11 +1546,12 @@ export default function MeydanRoomScreen() {
                 hasRaisedHand && styles.roomActionLabelActive,
               ]}
             >
-              {hasRaisedHand ? "El kalktı" : "El kaldır"}
+              {hasRaisedHand ? "Sahne isteği" : "Sahne iste"}
             </Text>
           </Pressable>
         ) : null}
 
+        {/* Yönetim - Sadece admin için */}
         {canManageRoom ? (
           <Pressable
             accessibilityRole="button"
@@ -1410,8 +1562,8 @@ export default function MeydanRoomScreen() {
               pressed && styles.pressed,
             ]}
           >
-            <Ionicons name="options-outline" size={20} color={theme.colors.text} />
-            <Text style={styles.roomActionLabelSecondary}>Yönet</Text>
+            <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
+            <Text style={styles.roomActionLabelSecondary}>Ayarlar</Text>
           </Pressable>
         ) : null}
       </View>
@@ -1607,6 +1759,7 @@ export default function MeydanRoomScreen() {
           </View>
         </View>
         <ScrollView
+          ref={chatScrollViewRef}
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.chatList}
@@ -1767,108 +1920,6 @@ export default function MeydanRoomScreen() {
           >
             <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
           </Pressable>
-        </View>
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Katılanlar</Text>
-        <View style={styles.participantGrid}>
-          {participants.map((participant) => (
-            <Pressable
-              key={participant.id}
-              style={({ pressed }) => [
-                styles.participant,
-                pressed && styles.participantPressed,
-              ]}
-              onPress={() => {
-                router.push({
-                  pathname: "/tabs/profile/[userId]",
-                  params: { userId: participant.id },
-                });
-              }}
-            >
-              <View style={styles.participantAvatarWrap}>
-                <Avatar
-                  name={participant.name}
-                  uri={participant.photoUri}
-                  size={42}
-                />
-                {participant.isPremium ? (
-                  <View style={styles.premiumDot}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={16}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                ) : null}
-              </View>
-              <Text numberOfLines={1} style={styles.participantName}>
-                {participant.isCurrentUser ? "Sen" : participant.name}
-              </Text>
-              <Text numberOfLines={1} style={styles.participantRole}>
-                {participant.role}
-              </Text>
-              {participant.handRaisedAt ? (
-                <View style={styles.handRaisedPill}>
-                  <Ionicons name="hand-left" size={11} color="#FFFFFF" />
-                  <Text style={styles.handRaisedText}>El kaldırdı</Text>
-                </View>
-              ) : null}
-              {canManageRoom && !participant.isCurrentUser ? (
-                <View style={styles.participantAdminActions}>
-                  {participant.stageStatus === "speaker" ? (
-                    <Pressable
-                      disabled={isManagingStage}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        void handleSetMuted(participant, !participant.isMuted)
-                      }}
-                      style={styles.participantAdminButton}
-                    >
-                      <Ionicons
-                        name={participant.isMuted ? "mic-off" : "mic"}
-                        size={13}
-                        color={theme.colors.text}
-                      />
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      disabled={isManagingStage}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        void handleSetParticipantStage(participant.id, "speaker")
-                      }}
-                      style={styles.participantAdminButton}
-                    >
-                      <Ionicons
-                        name="arrow-up-circle-outline"
-                        size={13}
-                        color={theme.colors.text}
-                      />
-                    </Pressable>
-                  )}
-                  <Pressable
-                    disabled={isManagingStage}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      handleRemoveParticipant(participant);
-                    }}
-                    style={[
-                      styles.participantAdminButton,
-                      styles.participantAdminDanger,
-                    ]}
-                  >
-                    <Ionicons
-                      name="close"
-                      size={13}
-                      color={theme.colors.danger}
-                    />
-                  </Pressable>
-                </View>
-              ) : null}
-            </Pressable>
-          ))}
         </View>
       </View>
 
@@ -2348,6 +2399,27 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.primary,
       borderColor: theme.colors.primary,
     },
+    micButtonContainer: {
+      position: "relative",
+      width: 24,
+      height: 24,
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    speakingIndicator: {
+      position: "absolute",
+      top: -2,
+      right: -2,
+      width: 10,
+      height: 10,
+      borderRadius: 5,
+      backgroundColor: "rgba(128, 128, 128, 0.8)",
+      borderWidth: 2,
+      borderColor: theme.colors.elevated,
+    },
+    speakingIndicatorActive: {
+      backgroundColor: "#4CAF50",
+    },
     roomActionLabel: {
       ...theme.typography.caption,
       color: theme.colors.background,
@@ -2360,6 +2432,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     roomActionLabelActive: {
       color: theme.colors.onPrimary,
+    },
+    roomActionLabelMuted: {
+      color: "#FF3B30",
     },
     errorBox: {
       borderRadius: 18,
@@ -2498,6 +2573,107 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     sectionTitle: {
       ...theme.typography.subheading,
       color: theme.colors.text,
+    },
+    participantsSection: {
+      gap: theme.spacing.sm,
+    },
+    participantsHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+    },
+    participantsTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+    },
+    participantsCount: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "600",
+    },
+    participantsHorizontalList: {
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
+    },
+    participantCard: {
+      width: 80,
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      padding: theme.spacing.sm,
+      borderRadius: 16,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    participantCardPressed: {
+      opacity: 0.8,
+      transform: [{ scale: 0.97 }],
+    },
+    participantCardSpeaker: {
+      backgroundColor: "rgba(76, 175, 80, 0.1)",
+      borderColor: "rgba(76, 175, 80, 0.3)",
+    },
+    participantCardAvatarWrap: {
+      position: "relative",
+    },
+    speakerBadge: {
+      position: "absolute",
+      bottom: -2,
+      right: -2,
+      width: 20,
+      height: 20,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#4CAF50",
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
+    },
+    premiumBadge: {
+      position: "absolute",
+      top: -2,
+      right: -2,
+      width: 18,
+      height: 18,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
+    },
+    participantCardName: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      textAlign: "center",
+      fontWeight: "600",
+    },
+    handRaisedBadge: {
+      minHeight: 18,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: 6,
+      backgroundColor: theme.colors.primary,
+    },
+    participantCardAdminActions: {
+      flexDirection: "row",
+      gap: 4,
+      marginTop: 4,
+    },
+    participantCardAdminButton: {
+      width: 22,
+      height: 22,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    participantCardAdminDanger: {
+      borderColor: "rgba(239, 68, 68, 0.30)",
     },
     participantGrid: {
       flexDirection: "row",
