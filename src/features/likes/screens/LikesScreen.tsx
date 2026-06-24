@@ -10,6 +10,7 @@ import { Button } from "@/shared/components/Button";
 import { Card } from "@/shared/components/Card";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { Screen } from "@/shared/components/Screen";
 import { queryKeys } from "@/shared/constants/queryKeys";
 import { container } from "@/infrastructure/config/Container";
@@ -200,6 +201,9 @@ export default function LikedMeScreen() {
                       <Text numberOfLines={1} style={styles.likeName}>
                         {sanitizePlainText(item.user.name, 80)}, {item.user.age}
                       </Text>
+                      {item.user.isPremium ? (
+                        <PremiumVerifiedBadge size={17} />
+                      ) : null}
                       <View
                         style={[
                           styles.likePill,
@@ -372,7 +376,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     likeName: {
       ...theme.typography.subheading,
-      flex: 1,
+      flexShrink: 1,
       color: theme.colors.text,
     },
     likeSubtext: {

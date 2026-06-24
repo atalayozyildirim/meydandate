@@ -36,6 +36,11 @@ const assertDeviceIsAllowed = async () => {
   const ban = await container.tokenStorage.getItem(env.permanentBanKey);
 
   if (ban) {
+    if (__DEV__) {
+      await container.tokenStorage.deleteItem(env.permanentBanKey);
+      return;
+    }
+
     throw new Error(
       "Bu cihaz kalıcı ban aldı. Yeni kayıt veya giriş yapılamaz.",
     );
@@ -91,10 +96,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const localBan = await container.tokenStorage.getItem(env.permanentBanKey);
 
     if (localBan) {
-      await container.tokenStorage.deleteItem(env.secureTokenKey);
-      await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
-      set({ accessToken: null, currentUser: null, isHydrated: true });
-      return;
+      if (__DEV__) {
+        await container.tokenStorage.deleteItem(env.permanentBanKey);
+      } else {
+        await container.tokenStorage.deleteItem(env.secureTokenKey);
+        await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
+        set({ accessToken: null, currentUser: null, isHydrated: true });
+        return;
+      }
     }
 
     const token = await container.tokenStorage.getItem(env.secureTokenKey);

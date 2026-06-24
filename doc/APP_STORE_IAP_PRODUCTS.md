@@ -27,7 +27,7 @@ RevenueCat tarafinda bu urunleri `premium` entitlement'ina bagla.
 | App Store Product ID        | Tur                         | RevenueCat Package | Gorunen Ad                 | Onerilen Fiyat  | Aciklama                                                       |
 | --------------------------- | --------------------------- | ------------------ | -------------------------- | --------------- | -------------------------------------------------------------- |
 | `ehlibyte.premium.monthly`  | Auto-Renewable Subscription | Monthly            | Ehlibyte Premium Aylik     | `₺79,99 / ay`   | Esnek baslangic, dusuk bariyer.                                |
-| `ehlibyte.premium.yearly`   | Auto-Renewable Subscription | Annual             | Ehlibyte Premium Yillik    | `₺599,99 / yil` | En avantajli paket; aylik yaklasik `₺49,99`.                   |
+| `ehlibyte.premium.year`     | Auto-Renewable Subscription | Annual             | Ehlibyte Premium Yillik    | `₺599,99 / yil` | En avantajli paket; aylik yaklasik `₺49,99`.                   |
 | `ehlibyte.premium.lifetime` | Non-Consumable              | Lifetime           | Ehlibyte Premium Omur Boyu | `₺899,99`       | Tek seferlik destek. Istersen ilk surumde kapali tutabilirsin. |
 
 App Store Connect abonelik grubu adi:
@@ -75,19 +75,19 @@ olmali. Kullanicinin tekrar satin almasina gerek yoktur.
 | App Store Product ID                | Tur            | Gorunen Ad              | Onerilen Fiyat | Not                                  |
 | ----------------------------------- | -------------- | ----------------------- | -------------- | ------------------------------------ |
 | `ehlibyte.badge.muharrem_follower`  | Non-Consumable | Muharrem Takipcisi      | `₺29,99`       | Dusuk fiyatli destek rozeti.         |
-| `ehlibyte.badge.cem_room_supporter` | Non-Consumable | Cem Odasi Destekcisi    | `₺39,99`       | Meydan/Cem odasi destegi.            |
+| `ehlibyte.badge.meydan`             | Non-Consumable | Cem Odasi Destekcisi    | `₺39,99`       | Meydan/Cem odasi destegi.            |
 | `ehlibyte.badge.culture_guardian`   | Non-Consumable | Yol Erkani Destekcisi   | `₺49,99`       | Topluluk guvenligi ve saygi vurgusu. |
 | `ehlibyte.badge.la_fetta_illa`      | Non-Consumable | La Fetta Illa Rozeti    | `₺99,99`       | Ozel destek rozeti.                  |
-| `ehlibyte.badge.night_badge`        | Non-Consumable | Night Rozeti            | `₺119,99`      | Gece temali ozel destek rozeti.      |
-| `ehlibyte.badge.haci_bektas_veli`   | Non-Consumable | Haci Bektas Veli Rozeti | `₺129,99`      | Ozel destek rozeti.                  |
-| `ehlibyte.badge.zulfiqar_sword`     | Non-Consumable | Zulfikar Kilici Rozeti  | `₺149,99`      | En prestijli ozel rozet.             |
+| `ehlibyte.badge.nightlove`          | Non-Consumable | Night Rozeti            | `₺119,99`      | Gece temali ozel destek rozeti.      |
+| `ehlibyte.badge.hacibektas`         | Non-Consumable | Haci Bektas Veli Rozeti | `₺129,99`      | Ozel destek rozeti.                  |
+| `ehlibyte.badges.zulfikar`          | Non-Consumable | Zulfikar Kilici Rozeti  | `₺149,99`      | En prestijli ozel rozet.             |
 
 Uygulamada kesin para ile satilacak rozetler:
 
-- `ehlibyte.badge.zulfikar_sword`
-- `ehlibyte.badge.haci_bektas_veli`
+- `ehlibyte.badges.zulfikar`
+- `ehlibyte.badge.hacibektas`
 - `ehlibyte.badge.la_fetta_illa`
-- `ehlibyte.badge.night_badge`
+- `ehlibyte.badge.nightlove`
 
 App Store aciklama metni:
 
@@ -132,26 +132,26 @@ Custom/extra products:
 - `ehlibyte.fire.500`
 - `ehlibyte.fire.1500`
 - `ehlibyte.badge.muharrem_follower`
-- `ehlibyte.badge.cem_room_supporter`
+- `ehlibyte.badge.meydan`
 - `ehlibyte.badge.culture_guardian`
 - `ehlibyte.badge.la_fetta_illa`
-- `ehlibyte.badge.night_badge`
-- `ehlibyte.badge.haci_bektas_veli`
-- `ehlibyte.badge.zulfiqar_sword`
+- `ehlibyte.badge.nightlove`
+- `ehlibyte.badge.hacibektas`
+- `ehlibyte.badges.zulfikar`
 
 ## 7. Ilk Surum Icin Onerilen Minimal Liste
 
 App Review ve kurulum hizli olsun istiyorsan ilk surumde sunlari acman yeterli:
 
 1. `ehlibyte.premium.monthly`
-2. `ehlibyte.premium.yearly`
+2. `ehlibyte.premium.year`
 3. `ehlibyte.fire.100`
 4. `ehlibyte.fire.500`
 5. `ehlibyte.fire.1500`
-6. `ehlibyte.badge.zulfiqar_sword`
-7. `ehlibyte.badge.haci_bektas_veli`
+6. `ehlibyte.badges.zulfikar`
+7. `ehlibyte.badge.hacibektas`
 8. `ehlibyte.badge.la_fetta_illa`
-9. `ehlibyte.badge.night_badge`
+9. `ehlibyte.badge.nightlove`
 
 Daha sonra dusuk fiyatli destek rozetlerini ekleyebilirsin.
 

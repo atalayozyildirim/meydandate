@@ -18,6 +18,7 @@ import { QuotedPostCard } from "./QuotedPostCard";
 import type { User } from "@/domain/entities/User";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { formatDateTime } from "@/shared/utils/date";
@@ -217,6 +218,9 @@ export const FeedPostCard = ({
                   <Text style={styles.name} numberOfLines={1}>
                     {sanitizePlainText(post.author.name, 80)}
                   </Text>
+                  {post.author.isPremium ? (
+                    <PremiumVerifiedBadge size={16} />
+                  ) : null}
                   {isSponsored ? (
                     <View style={styles.sponsoredBadge}>
                       <Ionicons
@@ -332,9 +336,14 @@ export const FeedPostCard = ({
               >
                 <ZulfiqarBadgeIcon size={38} />
                 <View style={styles.nativeSponsorText}>
-                  <Text style={styles.nativeSponsorTitle}>
-                    {sanitizePlainText(post.author.name, 80)}
-                  </Text>
+                  <View style={styles.nativeSponsorTitleRow}>
+                    <Text style={styles.nativeSponsorTitle} numberOfLines={1}>
+                      {sanitizePlainText(post.author.name, 80)}
+                    </Text>
+                    {post.author.isPremium ? (
+                      <PremiumVerifiedBadge size={16} />
+                    ) : null}
+                  </View>
                   <Text style={styles.nativeSponsorMeta}>
                     Sponsorlu · {ctaLabel}
                   </Text>
@@ -471,11 +480,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     headerBody: {
       flex: 1,
+      minWidth: 0,
     },
     authorButton: {
       flex: 1,
+      minWidth: 0,
     },
     nameRow: {
+      minWidth: 0,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
@@ -613,13 +625,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     nativeSponsorText: {
       flex: 1,
+      minWidth: 0,
       gap: 1,
+    },
+    nativeSponsorTitleRow: {
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     nativeSponsorTitle: {
       ...theme.typography.caption,
       color: theme.colors.text,
       fontSize: 13,
       lineHeight: 17,
+      flexShrink: 1,
     },
     nativeSponsorMeta: {
       ...theme.typography.caption,

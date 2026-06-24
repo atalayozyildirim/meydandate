@@ -406,6 +406,29 @@ export class SupabaseUserRepository implements UserRepository {
         .filter((candidateUserId): candidateUserId is string => typeof candidateUserId === "string"),
     );
 
+    const mappedCurrentUser = mapSupabaseUser(currentProfile);
+    const nowMs = Date.now();
+
+    // Function to rank candidates
+    const rankCandidates = (candidates: User[]): User[] => {
+      return candidates.sort((first, second) => {
+        return (
+          getDiscoveryRank(
+            mappedCurrentUser,
+            second,
+            nowMs,
+            likedYouUserIds.has(second.id),
+          ) -
+          getDiscoveryRank(
+            mappedCurrentUser,
+            first,
+            nowMs,
+            likedYouUserIds.has(first.id),
+          )
+        );
+      });
+    };
+
     if (currentProfile.matchByLocation && hasStoredLocation(currentProfile)) {
       const { data, error } = await supabase.rpc(
         "list_location_discover_candidates",
@@ -425,23 +448,7 @@ export class SupabaseUserRepository implements UserRepository {
       const locationCandidates = (data || []).map((row) =>
         mapSupabaseUser(row as Partial<User>),
       );
-      const mappedCurrentUser = mapSupabaseUser(currentProfile);
-      const nowMs = Date.now();
-      const sortedLocationCandidates = locationCandidates.sort(
-        (first, second) =>
-          getDiscoveryRank(
-            mappedCurrentUser,
-            second,
-            nowMs,
-            likedYouUserIds.has(second.id),
-          ) -
-          getDiscoveryRank(
-            mappedCurrentUser,
-            first,
-            nowMs,
-            likedYouUserIds.has(first.id),
-          ),
-      );
+      const sortedLocationCandidates = rankCandidates(locationCandidates);
       const memberCandidates = sortedLocationCandidates.filter(
         (candidate) => (candidate.profileKind ?? "member") === "member",
       );
@@ -454,8 +461,8 @@ export class SupabaseUserRepository implements UserRepository {
       return this.listStarterMatchProfiles(userId, excludedUserIds);
     }
 
-    // Get all users except current user and blocked/muted users
-    let query = supabase
+    // Get all real users (member profileKind) except current user and blocked/muted users
+    let memberQuery = supabase
       .from("users")
       .select(publicUserColumns)
       .neq("id", userId)
@@ -466,48 +473,51 @@ export class SupabaseUserRepository implements UserRepository {
       .eq("profileKind", "member");
 
     if (excludedUserIds.length > 0) {
-      query = query.not(
+      memberQuery = memberQuery.not(
         "id",
         "in",
         `(${excludedUserIds.map((id) => `"${id}"`).join(",")})`,
       );
     }
 
-    const { data, error } = await query
+    const { data: memberData, error: memberError } = await memberQuery
       .order("fireScore", { ascending: false })
       .order("boostedUntil", { ascending: false, nullsFirst: false })
       .order("createdAt", { ascending: false });
 
-    if (error) {
-      throw createSupabaseRepositoryError("Adaylar yüklenemedi", error);
+    if (memberError) {
+      throw createSupabaseRepositoryError("Gerçek üyeler yüklenemedi", memberError);
     }
 
-    const nowMs = Date.now();
+    const memberCandidates = rankCandidates(
+      (memberData || []).map((row) => mapSupabaseUser(row as unknown as Partial<User>))
+    );
 
-    const mappedCurrentUser = mapSupabaseUser(currentProfile);
-    const candidates = (data || [])
-      .map((row) => mapSupabaseUser(row as unknown as Partial<User>))
-      .sort((first, second) => {
-        return (
-          getDiscoveryRank(
-            mappedCurrentUser,
-            second,
-            nowMs,
-            likedYouUserIds.has(second.id),
-          ) -
-          getDiscoveryRank(
-            mappedCurrentUser,
-            first,
-            nowMs,
-            likedYouUserIds.has(first.id),
-          )
-        );
+    // If we have enough real members, return them
+    if (memberCandidates.length >= 3) {
+      return memberCandidates;
+    }
+
+    // If we have some real members but not enough, add bot profiles
+    if (memberCandidates.length > 0) {
+      await this.ensureAiStarterProfiles(userId);
+      const botCandidates = await this.listStarterMatchProfiles(userId, excludedUserIds);
+      // Interleave bots with real members to show real users more prominently
+      const combinedCandidates = [...memberCandidates];
+      const shuffledBots = botCandidates.sort(() => Math.random() - 0.5);
+      // Add bots after every 2 real members
+      shuffledBots.forEach((bot, index) => {
+        const insertPosition = (index + 1) * 2;
+        if (insertPosition < combinedCandidates.length) {
+          combinedCandidates.splice(insertPosition, 0, bot);
+        } else {
+          combinedCandidates.push(bot);
+        }
       });
-
-    if (candidates.length > 0) {
-      return candidates;
+      return combinedCandidates;
     }
 
+    // No real members, show bot profiles
     await this.ensureAiStarterProfiles(userId);
     return this.listStarterMatchProfiles(userId, excludedUserIds);
   }

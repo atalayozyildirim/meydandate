@@ -20,6 +20,10 @@ for (const envFile of [".env", ".env.local"]) {
   }
 }
 
+if (!process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID && process.env.SPOTIFY_CLIENT_ID) {
+  process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID = process.env.SPOTIFY_CLIENT_ID;
+}
+
 const readEnv = (name) => process.env[name]?.trim() ?? "";
 const isProduction =
   readEnv("EXPO_PUBLIC_APP_ENV") === "production" ||

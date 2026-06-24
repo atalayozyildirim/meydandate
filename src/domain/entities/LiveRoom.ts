@@ -2,6 +2,7 @@
 export type LiveRoomStatus = "offline" | "scheduled" | "live";
 export type LiveRoomProvider = "livekit" | "stream";
 export type LiveParticipantStageStatus = "listener" | "invited" | "speaker";
+export type LiveVideoPlaybackStatus = "idle" | "playing" | "paused";
 
 export interface LiveParticipant {
   id: string;
@@ -9,6 +10,7 @@ export interface LiveParticipant {
   role: string;
   stageStatus?: LiveParticipantStageStatus;
   isMuted?: boolean;
+  handRaisedAt?: string | null;
   photoUri?: string;
   isPremium?: boolean;
   isCurrentUser?: boolean;
@@ -26,6 +28,13 @@ export interface LiveChatMessage {
   isCurrentUser?: boolean;
 }
 
+export interface LiveVideoSyncState {
+  status: LiveVideoPlaybackStatus;
+  positionMillis: number;
+  updatedAt?: string | null;
+  controlledBy?: string | null;
+}
+
 export interface LiveRoom {
   id: string;
   title: string;
@@ -34,6 +43,7 @@ export interface LiveRoom {
   voiceProvider?: LiveRoomProvider;
   livekitRoomName?: string;
   streamUrl?: string;
+  videoSync?: LiveVideoSyncState;
   participantCount: number;
   speakerCount?: number;
   participants: LiveParticipant[];

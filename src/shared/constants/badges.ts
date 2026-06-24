@@ -7,6 +7,7 @@ export interface PaidBadgeProduct {
   description: string;
   priceLabel: string;
   revenueCatProductId: string;
+  revenueCatProductAliases?: string[];
 }
 
 export interface EarnedBadgeProduct {
@@ -29,7 +30,8 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     title: "Cem Odasi Destekcisi",
     description: "Sanal Cem odasina destek rozeti ekle.",
     priceLabel: "₺39,99",
-    revenueCatProductId: "ehlibyte.badge.cem_room_supporter",
+    revenueCatProductId: "ehlibyte.badge.meydan",
+    revenueCatProductAliases: ["ehlibyte.badge.cem_room_supporter"],
   },
   {
     badge: "culture_guardian",
@@ -43,14 +45,16 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     title: "Zülfikar Kılıcı",
     description: "Hz. Ali'nin çift uçlu kılıcından ilham alan özel destek rozeti.",
     priceLabel: "₺149,99",
-    revenueCatProductId: "ehlibyte.badge.zulfiqar_sword",
+    revenueCatProductId: "ehlibyte.badges.zulfikar",
+    revenueCatProductAliases: ["ehlibyte.badge.zulfiqar_sword"],
   },
   {
     badge: "haci_bektas_veli",
     title: "Hacı Bektaş Veli",
     description: "Hünkâr Hacı Bektaş Veli hatırasını profilinde taşı.",
     priceLabel: "₺129,99",
-    revenueCatProductId: "ehlibyte.badge.haci_bektas_veli",
+    revenueCatProductId: "ehlibyte.badge.hacibektas",
+    revenueCatProductAliases: ["ehlibyte.badge.haci_bektas_veli"],
   },
   {
     badge: "la_fetta_illa",
@@ -64,7 +68,8 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     title: "Night",
     description: "Gece temasını ve özel ilgiyi profilinde taşı.",
     priceLabel: "₺119,99",
-    revenueCatProductId: "ehlibyte.badge.night_badge",
+    revenueCatProductId: "ehlibyte.badge.nightlove",
+    revenueCatProductAliases: ["ehlibyte.badge.night_badge"],
   },
 ];
 

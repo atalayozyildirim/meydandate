@@ -108,7 +108,18 @@ export class SupabaseAuthRepository implements AuthRepository {
       return [];
     }
 
-    return [{ id: "oauth-avatar", uri: avatarUrl, isPrimary: true }];
+    // Optimize Google profile image URL for higher resolution
+    let optimizedUrl = avatarUrl;
+    if (avatarUrl.includes("googleusercontent.com") || avatarUrl.includes("google.com")) {
+      // Remove existing size parameters and add high resolution
+      const url = new URL(avatarUrl);
+      url.searchParams.delete('sz');
+      url.searchParams.delete('s');
+      url.searchParams.set('sz', '500'); // Request 500px image
+      optimizedUrl = url.toString();
+    }
+
+    return [{ id: "oauth-avatar", uri: optimizedUrl, isPrimary: true }];
   }
 
   private async ensureSocialProfile(user: SupabaseAuthUser, fallbackName?: string) {

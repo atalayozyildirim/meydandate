@@ -17,6 +17,11 @@ import type { ComponentType } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { WebView } from "react-native-webview";
+import type {
+  LiveChatMessage,
+  LiveParticipant,
+  LiveVideoPlaybackStatus,
+} from "@/domain/entities/LiveRoom";
 import type { LiveKitJoinInfo } from "@/domain/repositories/LiveRoomRepository";
 import { Avatar } from "@/shared/components/Avatar";
 import { Button } from "@/shared/components/Button";
@@ -164,9 +169,13 @@ const buildEmbedDocument = (iframeUrl: string) => `<!doctype html>
   </body>
 </html>`;
 
-const buildYoutubeEmbedHtml = (videoId: string, startSeconds = 0) => {
+const buildYoutubeEmbedHtml = (
+  videoId: string,
+  startSeconds = 0,
+  shouldPlay = true,
+) => {
   const embedParams = new URLSearchParams({
-    autoplay: "1",
+    autoplay: shouldPlay ? "1" : "0",
     controls: "0",
     disablekb: "1",
     enablejsapi: "1",
@@ -228,23 +237,27 @@ const buildYoutubeEmbedHtml = (videoId: string, startSeconds = 0) => {
         );
       }
 
-      function startMuted() {
+      function syncPlayback() {
         sendCommand("mute");
         if (!didSeekToSharedPosition && startSeconds > 0) {
           sendCommand("seekTo", [startSeconds, true]);
           didSeekToSharedPosition = true;
         }
-        sendCommand("playVideo");
+        sendCommand("${shouldPlay ? "playVideo" : "pauseVideo"}");
       }
 
       window.addEventListener("load", () => {
-        setTimeout(startMuted, 350);
-        setTimeout(startMuted, 1200);
-        setInterval(() => sendCommand("playVideo"), 5000);
+        setTimeout(syncPlayback, 350);
+        setTimeout(syncPlayback, 1200);
+        ${
+          shouldPlay
+            ? 'setInterval(() => sendCommand("playVideo"), 5000);'
+            : ""
+        }
       });
 
       document.addEventListener("visibilitychange", () => {
-        if (!document.hidden) startMuted();
+        if (!document.hidden) syncPlayback();
       });
     </script>
   </body>
@@ -330,6 +343,7 @@ const resolveStreamSource = (
   streamUrl?: string | null,
   syncedPositionMillis = 0,
   isEmbedMuted = true,
+  shouldPlay = true,
 ): StreamSource | null => {
   if (!streamUrl?.trim()) {
     return null;
@@ -345,6 +359,7 @@ const resolveStreamSource = (
       embedHtml: buildYoutubeEmbedHtml(
         youtubeVideoId,
         syncedPositionMillis / 1000,
+        shouldPlay,
       ),
     };
   }
@@ -374,6 +389,8 @@ export default function MeydanRoomScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const embedWebViewRef = useRef<WebView>(null);
+  const chatScrollViewRef = useRef<ScrollView>(null);
+  const currentUser = useAuthStore((state) => state.currentUser);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const {
     room,
@@ -383,12 +400,18 @@ export default function MeydanRoomScreen() {
     joinRoom,
     leaveRoom,
     sendMessage,
+    reportMessage,
     startRoom,
     stopRoom,
+    controlVideo,
     getLiveKitToken,
     setParticipantStage,
+    setParticipantMuted,
+    setHandRaised,
+    removeParticipant,
     isJoining,
     isSendingMessage,
+    isReportingMessage,
     isManagingRoom,
     isConnectingLiveKit,
     isManagingStage,
@@ -409,6 +432,9 @@ export default function MeydanRoomScreen() {
   const listeners = participants.filter(
     (participant) => participant.stageStatus !== "speaker",
   );
+  const raisedListeners = listeners.filter((participant) =>
+    Boolean(participant.handRaisedAt),
+  );
   const currentParticipant = participants.find(
     (participant) => participant.isCurrentUser,
   );
@@ -417,6 +443,10 @@ export default function MeydanRoomScreen() {
   const isLive = room?.status === "live";
   const hasStream = Boolean(room?.streamUrl);
   const isLiveKitRoom = room?.voiceProvider !== "stream" || hasStream;
+  const videoSync = room?.videoSync;
+  const isVideoPlaying = videoSync?.status === "playing";
+  const hasRaisedHand = Boolean(currentParticipant?.handRaisedAt);
+  const isCurrentSpeaker = currentParticipant?.stageStatus === "speaker";
   const canManageRoom = Boolean(room?.canManage);
   const canPublishToLiveKit = Boolean(
     liveKitInfo?.canPublish ||
@@ -443,12 +473,17 @@ export default function MeydanRoomScreen() {
       ? "Bir sonraki buluşma duyurulduğunda bu oda yeniden açılır."
       : "Yayın saati geldiğinde görüntü otomatik olarak burada başlar.";
   const syncedPositionMillis = useMemo(() => {
-    if (!room?.startedAt) {
-      return 0;
+    const basePosition = Math.max(0, videoSync?.positionMillis ?? 0);
+
+    if (!videoSync?.updatedAt || videoSync.status !== "playing") {
+      return basePosition;
     }
 
-    return Math.max(0, Date.now() - new Date(room.startedAt).getTime());
-  }, [room?.startedAt]);
+    return Math.max(
+      0,
+      basePosition + Date.now() - new Date(videoSync.updatedAt).getTime(),
+    );
+  }, [videoSync?.positionMillis, videoSync?.status, videoSync?.updatedAt]);
   const currentStreamProvider = useMemo(() => {
     const currentStreamUrl = room?.streamUrl;
 
@@ -468,8 +503,14 @@ export default function MeydanRoomScreen() {
   }, [room?.streamUrl]);
   const kickMuted = currentStreamProvider === "kick" ? isEmbedMuted : true;
   const streamSource = useMemo(
-    () => resolveStreamSource(room?.streamUrl, syncedPositionMillis, kickMuted),
-    [kickMuted, room?.streamUrl, syncedPositionMillis],
+    () =>
+      resolveStreamSource(
+        room?.streamUrl,
+        syncedPositionMillis,
+        kickMuted,
+        isVideoPlaying,
+      ),
+    [isVideoPlaying, kickMuted, room?.streamUrl, syncedPositionMillis],
   );
   const shouldSyncDirectPlayback =
     streamSource?.kind === "direct" &&
@@ -640,6 +681,94 @@ export default function MeydanRoomScreen() {
     }
   };
 
+  const handleSetMuted = async (participant: LiveParticipant, isMuted: boolean) => {
+    try {
+      await setParticipantMuted({ targetUserId: participant.id, isMuted });
+    } catch (error) {
+      Alert.alert(
+        "Mikrofon güncellenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const handleToggleHandRaised = async () => {
+    if (!isJoined) {
+      Alert.alert("Odaya katıl", "El kaldırmak için önce odaya katıl.");
+      return;
+    }
+
+    try {
+      await setHandRaised(!hasRaisedHand);
+    } catch (error) {
+      Alert.alert(
+        "El kaldırma güncellenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
+  const handleRemoveParticipant = (participant: LiveParticipant) => {
+    Alert.alert(
+      "Odadan çıkarılsın mı?",
+      `${participant.name} bu canlı odadan çıkarılacak.`,
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Çıkar",
+          style: "destructive",
+          onPress: () => {
+            void removeParticipant(participant.id).catch((error) => {
+              Alert.alert(
+                "Katılımcı çıkarılamadı",
+                error instanceof Error ? error.message : "Tekrar deneyin.",
+              );
+            });
+          },
+        },
+      ],
+    );
+  };
+
+  const handleControlVideo = async (
+    status: LiveVideoPlaybackStatus,
+    positionMillis = syncedPositionMillis,
+  ) => {
+    const nextStreamUrl = streamUrl.trim() || room?.streamUrl?.trim() || "";
+
+    if (status !== "idle" && !nextStreamUrl) {
+      Alert.alert(
+        "Video linki gerekli",
+        "Ortak izleme başlatmak için önce video veya canlı yayın linki gir.",
+      );
+      return;
+    }
+
+    if (nextStreamUrl && !resolveStreamSource(nextStreamUrl, 0, true, status === "playing")) {
+      Alert.alert(
+        "Yayın linki desteklenmiyor",
+        "YouTube video/canlı linki, Kick kanal linki veya direkt MP4/HLS URL gir.",
+      );
+      return;
+    }
+
+    try {
+      await controlVideo({
+        positionMillis: status === "idle" ? 0 : Math.max(0, positionMillis),
+        status,
+        streamUrl: status === "idle" ? undefined : nextStreamUrl,
+      });
+      if (status === "idle") {
+        setStreamUrl("");
+      }
+    } catch (error) {
+      Alert.alert(
+        "Video kontrolü güncellenemedi",
+        error instanceof Error ? error.message : "Tekrar deneyin.",
+      );
+    }
+  };
+
   const handleStopRoom = async () => {
     try {
       await stopRoom();
@@ -690,6 +819,36 @@ export default function MeydanRoomScreen() {
         error instanceof Error ? error.message : "Tekrar deneyin.",
       );
     }
+  };
+
+  const confirmReportMessage = (message: LiveChatMessage) => {
+    if (message.isCurrentUser) {
+      return;
+    }
+
+    Alert.alert(
+      "Mesaj bildirilsin mi?",
+      "Bu oda mesajı moderasyon kuyruğuna gönderilecek.",
+      [
+        { text: "Vazgeç", style: "cancel" },
+        {
+          text: "Bildir",
+          style: "destructive",
+          onPress: () => {
+            void reportMessage(message.id)
+              .then(() => {
+                Alert.alert("Bildirildi", "Mesaj moderasyon ekibine gönderildi.");
+              })
+              .catch((error) => {
+                Alert.alert(
+                  "Bildirim gönderilemedi",
+                  error instanceof Error ? error.message : "Tekrar deneyin.",
+                );
+              });
+          },
+        },
+      ],
+    );
   };
 
   if (isLoading) {
@@ -747,7 +906,7 @@ export default function MeydanRoomScreen() {
                 serverUrl={liveKitInfo.serverUrl}
                 token={liveKitInfo.token}
                 connect
-                audio={canPublishToLiveKit}
+                audio={canPublishToLiveKit && !currentParticipant?.isMuted}
                 video={false}
                 onError={(error) => setLiveKitError(error.message)}
                 onConnected={() => setLiveKitError(null)}
@@ -803,6 +962,14 @@ export default function MeydanRoomScreen() {
                 <Ionicons name="ear-outline" size={14} color="#FFFFFF" />
                 <Text style={styles.spaceStatText}>{listeners.length} dinliyor</Text>
               </View>
+              {raisedListeners.length > 0 ? (
+                <View style={styles.spaceStatPill}>
+                  <Ionicons name="hand-left-outline" size={14} color="#FFFFFF" />
+                  <Text style={styles.spaceStatText}>
+                    {raisedListeners.length} el
+                  </Text>
+                </View>
+              ) : null}
               {hasStream ? (
                 <View style={styles.spaceStatPill}>
                   <Ionicons name="desktop-outline" size={14} color="#FFFFFF" />
@@ -820,8 +987,18 @@ export default function MeydanRoomScreen() {
                       size={15}
                       color="rgba(255, 255, 255, 0.78)"
                     />
-                    <Text style={styles.spaceShareTitle}>Ekran paylaşımı</Text>
+                  <Text style={styles.spaceShareTitle}>Ekran paylaşımı</Text>
+                  <View style={styles.videoSyncPill}>
+                    <Ionicons
+                      name={isVideoPlaying ? "play" : "pause"}
+                      size={10}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.videoSyncText}>
+                      {isVideoPlaying ? "Ortak izleme" : "Duraklatıldı"}
+                    </Text>
                   </View>
+                </View>
                   {streamSource.kind === "youtube" ||
                   streamSource.kind === "kick" ? (
                     <Pressable
@@ -872,7 +1049,7 @@ export default function MeydanRoomScreen() {
                     key={`space-share-${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.playbackUrl}`}
                     playbackUrl={streamSource.playbackUrl}
                     style={styles.spaceShareVideo}
-                    isLive={isLive}
+                    isLive={isLive && isVideoPlaying}
                     shouldSyncPlayback={shouldSyncDirectPlayback}
                     syncedPositionMillis={syncedPositionMillis}
                   />
@@ -923,15 +1100,23 @@ export default function MeydanRoomScreen() {
             {canManageRoom && listeners.length > 0 ? (
               <View style={styles.stageControlPanel}>
                 <View style={styles.stageControlHeader}>
-                  <Text style={styles.stageControlTitle}>Sahneye al</Text>
-                  <Text style={styles.stageControlHint}>Admin/mod hızlı kontrol</Text>
+                  <Text style={styles.stageControlTitle}>
+                    {raisedListeners.length > 0 ? "El kaldıranlar" : "Sahneye al"}
+                  </Text>
+                  <Text style={styles.stageControlHint}>
+                    {raisedListeners.length > 0
+                      ? `${raisedListeners.length} kişi bekliyor`
+                      : "Admin/mod hızlı kontrol"}
+                  </Text>
                 </View>
                 <ScrollView
                   horizontal
                   showsHorizontalScrollIndicator={false}
                   contentContainerStyle={styles.stageControlList}
                 >
-                  {listeners.slice(0, 12).map((participant) => (
+                  {(raisedListeners.length > 0 ? raisedListeners : listeners)
+                    .slice(0, 12)
+                    .map((participant) => (
                     <Pressable
                       key={participant.id}
                       disabled={isManagingStage}
@@ -964,23 +1149,51 @@ export default function MeydanRoomScreen() {
                 <Text style={styles.stageControlTitle}>Sahnede</Text>
                 <View style={styles.liveSpeakerActions}>
                   {speakers.map((participant) => (
-                    <Pressable
+                    <View
                       key={participant.id}
-                      disabled={isManagingStage || participant.isCurrentUser}
                       style={styles.liveSpeakerAction}
-                      onPress={() =>
-                        void handleSetParticipantStage(participant.id, "listener")
-                      }
                     >
                       <Text numberOfLines={1} style={styles.liveSpeakerActionText}>
                         {participant.isCurrentUser ? "Sen" : participant.name}
                       </Text>
-                      <Ionicons
-                        name="arrow-down-circle-outline"
-                        size={17}
-                        color="rgba(255, 255, 255, 0.78)"
-                      />
-                    </Pressable>
+                      <Pressable
+                        disabled={isManagingStage || participant.isCurrentUser}
+                        onPress={() =>
+                          void handleSetMuted(participant, !participant.isMuted)
+                        }
+                        style={styles.liveSpeakerMiniButton}
+                      >
+                        <Ionicons
+                          name={participant.isMuted ? "mic-off" : "mic"}
+                          size={15}
+                          color="#FFFFFF"
+                        />
+                      </Pressable>
+                      <Pressable
+                        disabled={isManagingStage || participant.isCurrentUser}
+                        onPress={() =>
+                          void handleSetParticipantStage(participant.id, "listener")
+                        }
+                        style={styles.liveSpeakerMiniButton}
+                      >
+                        <Ionicons
+                          name="arrow-down-circle-outline"
+                          size={15}
+                          color="#FFFFFF"
+                        />
+                      </Pressable>
+                      <Pressable
+                        disabled={isManagingStage || participant.isCurrentUser}
+                        onPress={() => handleRemoveParticipant(participant)}
+                        style={[styles.liveSpeakerMiniButton, styles.liveSpeakerKickButton]}
+                      >
+                        <Ionicons
+                          name="close"
+                          size={15}
+                          color="#FFFFFF"
+                        />
+                      </Pressable>
+                    </View>
                   ))}
                 </View>
               </View>
@@ -1064,7 +1277,7 @@ export default function MeydanRoomScreen() {
                 key={`${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.playbackUrl}`}
                 playbackUrl={streamSource.playbackUrl}
                 style={styles.video}
-                isLive={isLive}
+                isLive={isLive && isVideoPlaying}
                 shouldSyncPlayback={shouldSyncDirectPlayback}
                 syncedPositionMillis={syncedPositionMillis}
               />
@@ -1107,12 +1320,101 @@ export default function MeydanRoomScreen() {
         </View>
       </View>
 
-      <Button
-        label={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
-        variant={isJoined ? "ghost" : "primary"}
-        loading={isJoining}
-        onPress={() => void toggleRoom()}
-      />
+      <View style={styles.roomActionDock}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
+          disabled={isJoining}
+          onPress={() => void toggleRoom()}
+          style={({ pressed }) => [
+            styles.roomActionButton,
+            styles.roomActionButtonPrimary,
+            isJoined && styles.roomActionButtonDanger,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Ionicons
+            name={isJoined ? "exit-outline" : "enter-outline"}
+            size={20}
+            color="#FFFFFF"
+          />
+          <Text style={styles.roomActionLabel}>
+            {isJoined ? "Ayrıl" : "Katıl"}
+          </Text>
+        </Pressable>
+
+        {isJoined && isCurrentSpeaker ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              currentParticipant?.isMuted ? "Mikrofonu aç" : "Mikrofonu kapat"
+            }
+            disabled={isManagingStage}
+            onPress={() =>
+              currentParticipant
+                ? void handleSetMuted(currentParticipant, !currentParticipant.isMuted)
+                : undefined
+            }
+            style={({ pressed }) => [
+              styles.roomActionButton,
+              currentParticipant?.isMuted && styles.roomActionButtonMuted,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={currentParticipant?.isMuted ? "mic-off" : "mic"}
+              size={20}
+              color={theme.colors.text}
+            />
+            <Text style={styles.roomActionLabelSecondary}>
+              {currentParticipant?.isMuted ? "Sessiz" : "Mikrofon"}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {isJoined && !isCurrentSpeaker ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={hasRaisedHand ? "Eli indir" : "El kaldır"}
+            disabled={isManagingStage}
+            onPress={() => void handleToggleHandRaised()}
+            style={({ pressed }) => [
+              styles.roomActionButton,
+              hasRaisedHand && styles.roomActionButtonActive,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={hasRaisedHand ? "hand-left" : "hand-left-outline"}
+              size={20}
+              color={hasRaisedHand ? theme.colors.onPrimary : theme.colors.text}
+            />
+            <Text
+              style={[
+                styles.roomActionLabelSecondary,
+                hasRaisedHand && styles.roomActionLabelActive,
+              ]}
+            >
+              {hasRaisedHand ? "El kalktı" : "El kaldır"}
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {canManageRoom ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Meydan yönetimi"
+            onPress={() => setIsAdminSettingsOpen(true)}
+            style={({ pressed }) => [
+              styles.roomActionButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons name="options-outline" size={20} color={theme.colors.text} />
+            <Text style={styles.roomActionLabelSecondary}>Yönet</Text>
+          </Pressable>
+        ) : null}
+      </View>
 
       {isError ? (
         <View style={styles.errorBox}>
@@ -1157,6 +1459,107 @@ export default function MeydanRoomScreen() {
             keyboardType="url"
             placeholder="Boş bırak: sadece ses"
           />
+          <View style={styles.videoControlPanel}>
+            <View style={styles.videoControlHeader}>
+              <View>
+                <Text style={styles.videoControlTitle}>Ortak video</Text>
+                <Text style={styles.videoControlHint}>
+                  Sadece yönetici ilerletir; herkes aynı zamana hizalanır.
+                </Text>
+              </View>
+              <View style={styles.videoControlStatus}>
+                <Ionicons
+                  name={isVideoPlaying ? "play" : "pause"}
+                  size={12}
+                  color={theme.colors.text}
+                />
+                <Text style={styles.videoControlStatusText}>
+                  {videoSync?.status === "playing"
+                    ? "Oynuyor"
+                    : videoSync?.status === "paused"
+                      ? "Durakladı"
+                      : "Kapalı"}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.videoControlGrid}>
+              <Pressable
+                disabled={isManagingRoom}
+                onPress={() => void handleControlVideo("playing")}
+                style={({ pressed }) => [
+                  styles.videoControlButton,
+                  styles.videoControlButtonPrimary,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons name="play" size={16} color="#FFFFFF" />
+                <Text style={styles.videoControlButtonPrimaryText}>Oynat</Text>
+              </Pressable>
+              <Pressable
+                disabled={isManagingRoom || !room?.streamUrl}
+                onPress={() => void handleControlVideo("paused")}
+                style={({ pressed }) => [
+                  styles.videoControlButton,
+                  pressed && styles.pressed,
+                  (!room?.streamUrl || isManagingRoom) && styles.controlDisabled,
+                ]}
+              >
+                <Ionicons name="pause" size={16} color={theme.colors.text} />
+                <Text style={styles.videoControlButtonText}>Duraklat</Text>
+              </Pressable>
+              <Pressable
+                disabled={isManagingRoom || !room?.streamUrl}
+                onPress={() =>
+                  void handleControlVideo(
+                    videoSync?.status === "paused" ? "paused" : "playing",
+                    syncedPositionMillis - 15000,
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.videoControlButton,
+                  pressed && styles.pressed,
+                  (!room?.streamUrl || isManagingRoom) && styles.controlDisabled,
+                ]}
+              >
+                <Ionicons name="play-back" size={16} color={theme.colors.text} />
+                <Text style={styles.videoControlButtonText}>15 sn</Text>
+              </Pressable>
+              <Pressable
+                disabled={isManagingRoom || !room?.streamUrl}
+                onPress={() =>
+                  void handleControlVideo(
+                    videoSync?.status === "paused" ? "paused" : "playing",
+                    syncedPositionMillis + 15000,
+                  )
+                }
+                style={({ pressed }) => [
+                  styles.videoControlButton,
+                  pressed && styles.pressed,
+                  (!room?.streamUrl || isManagingRoom) && styles.controlDisabled,
+                ]}
+              >
+                <Ionicons
+                  name="play-forward"
+                  size={16}
+                  color={theme.colors.text}
+                />
+                <Text style={styles.videoControlButtonText}>15 sn</Text>
+              </Pressable>
+              <Pressable
+                disabled={isManagingRoom || !room?.streamUrl}
+                onPress={() => void handleControlVideo("idle", 0)}
+                style={({ pressed }) => [
+                  styles.videoControlButton,
+                  styles.videoControlButtonDanger,
+                  pressed && styles.pressed,
+                  (!room?.streamUrl || isManagingRoom) && styles.controlDisabled,
+                ]}
+              >
+                <Ionicons name="close" size={16} color={theme.colors.danger} />
+                <Text style={styles.videoControlButtonDangerText}>Kapat</Text>
+              </Pressable>
+            </View>
+          </View>
           <TextInput
             value={adminDescription}
             onChangeText={setAdminDescription}
@@ -1289,14 +1692,40 @@ export default function MeydanRoomScreen() {
                     ) : null}
                     <Text style={styles.chatBody}>{message.body}</Text>
                   </View>
-                  <Text
+                  <View
                     style={[
-                      styles.messageTime,
-                      message.isCurrentUser && styles.messageTimeOwn,
+                      styles.messageFooter,
+                      message.isCurrentUser && styles.messageFooterOwn,
                     ]}
                   >
-                    {formatMessageTime(message.createdAt)}
-                  </Text>
+                    <Text
+                      style={[
+                        styles.messageTime,
+                        message.isCurrentUser && styles.messageTimeOwn,
+                      ]}
+                    >
+                      {formatMessageTime(message.createdAt)}
+                    </Text>
+                    {!message.isCurrentUser ? (
+                      <Pressable
+                        accessibilityRole="button"
+                        accessibilityLabel="Mesajı bildir"
+                        disabled={isReportingMessage}
+                        onPress={() => confirmReportMessage(message)}
+                        style={({ pressed }) => [
+                          styles.messageReportButton,
+                          pressed && styles.pressed,
+                        ]}
+                      >
+                        <Ionicons
+                          name="flag-outline"
+                          size={12}
+                          color={theme.colors.muted}
+                        />
+                        <Text style={styles.messageReportText}>Bildir</Text>
+                      </Pressable>
+                    ) : null}
+                  </View>
                 </View>
               </View>
             ))
@@ -1380,6 +1809,64 @@ export default function MeydanRoomScreen() {
               <Text numberOfLines={1} style={styles.participantRole}>
                 {participant.role}
               </Text>
+              {participant.handRaisedAt ? (
+                <View style={styles.handRaisedPill}>
+                  <Ionicons name="hand-left" size={11} color="#FFFFFF" />
+                  <Text style={styles.handRaisedText}>El kaldırdı</Text>
+                </View>
+              ) : null}
+              {canManageRoom && !participant.isCurrentUser ? (
+                <View style={styles.participantAdminActions}>
+                  {participant.stageStatus === "speaker" ? (
+                    <Pressable
+                      disabled={isManagingStage}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void handleSetMuted(participant, !participant.isMuted)
+                      }}
+                      style={styles.participantAdminButton}
+                    >
+                      <Ionicons
+                        name={participant.isMuted ? "mic-off" : "mic"}
+                        size={13}
+                        color={theme.colors.text}
+                      />
+                    </Pressable>
+                  ) : (
+                    <Pressable
+                      disabled={isManagingStage}
+                      onPress={(event) => {
+                        event.stopPropagation();
+                        void handleSetParticipantStage(participant.id, "speaker")
+                      }}
+                      style={styles.participantAdminButton}
+                    >
+                      <Ionicons
+                        name="arrow-up-circle-outline"
+                        size={13}
+                        color={theme.colors.text}
+                      />
+                    </Pressable>
+                  )}
+                  <Pressable
+                    disabled={isManagingStage}
+                    onPress={(event) => {
+                      event.stopPropagation();
+                      handleRemoveParticipant(participant);
+                    }}
+                    style={[
+                      styles.participantAdminButton,
+                      styles.participantAdminDanger,
+                    ]}
+                  >
+                    <Ionicons
+                      name="close"
+                      size={13}
+                      color={theme.colors.danger}
+                    />
+                  </Pressable>
+                </View>
+              ) : null}
             </Pressable>
           ))}
         </View>
@@ -1609,12 +2096,30 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
+      flexShrink: 1,
     },
     spaceShareTitle: {
       fontSize: 12,
       lineHeight: 16,
       fontWeight: "900",
       color: "rgba(255, 255, 255, 0.78)",
+    },
+    videoSyncPill: {
+      minHeight: 22,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 4,
+      paddingHorizontal: 8,
+      backgroundColor: "rgba(255, 255, 255, 0.12)",
+      borderWidth: 1,
+      borderColor: "rgba(255, 255, 255, 0.12)",
+    },
+    videoSyncText: {
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      color: "#FFFFFF",
     },
     spaceShareSoundButton: {
       width: 30,
@@ -1729,7 +2234,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     liveSpeakerAction: {
       minHeight: 34,
-      maxWidth: "48%",
+      maxWidth: "100%",
       borderRadius: theme.radius.pill,
       flexDirection: "row",
       alignItems: "center",
@@ -1740,9 +2245,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: "rgba(255, 255, 255, 0.10)",
     },
     liveSpeakerActionText: {
+      minWidth: 58,
       flexShrink: 1,
       ...theme.typography.caption,
       color: "#FFFFFF",
+    },
+    liveSpeakerMiniButton: {
+      width: 28,
+      height: 28,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(255, 255, 255, 0.12)",
+    },
+    liveSpeakerKickButton: {
+      backgroundColor: "rgba(239, 68, 68, 0.72)",
     },
     liveKitErrorBox: {
       borderRadius: 14,
@@ -1792,6 +2309,58 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingVertical: theme.spacing.xs,
       backgroundColor: "rgba(255, 255, 255, 0.14)",
     },
+    roomActionDock: {
+      minHeight: 64,
+      borderRadius: 26,
+      padding: theme.spacing.xs,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    roomActionButton: {
+      flex: 1,
+      minHeight: 50,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingHorizontal: theme.spacing.xs,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    roomActionButtonPrimary: {
+      backgroundColor: theme.colors.text,
+      borderColor: theme.colors.text,
+    },
+    roomActionButtonDanger: {
+      backgroundColor: theme.colors.danger,
+      borderColor: theme.colors.danger,
+    },
+    roomActionButtonMuted: {
+      opacity: 0.72,
+    },
+    roomActionButtonActive: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+    },
+    roomActionLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.background,
+      fontWeight: "900",
+    },
+    roomActionLabelSecondary: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    roomActionLabelActive: {
+      color: theme.colors.onPrimary,
+    },
     errorBox: {
       borderRadius: 18,
       padding: theme.spacing.md,
@@ -1831,6 +2400,91 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       textAlignVertical: "top",
       ...theme.typography.body,
     },
+    videoControlPanel: {
+      gap: theme.spacing.sm,
+      borderRadius: 18,
+      padding: theme.spacing.sm,
+      backgroundColor: theme.colors.background,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    videoControlHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
+    },
+    videoControlTitle: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    videoControlHint: {
+      ...theme.typography.caption,
+      maxWidth: 230,
+      color: theme.colors.muted,
+      fontWeight: "600",
+    },
+    videoControlStatus: {
+      minHeight: 28,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 5,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    videoControlStatusText: {
+      fontSize: 11,
+      lineHeight: 14,
+      fontWeight: "800",
+      color: theme.colors.text,
+    },
+    videoControlGrid: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
+    },
+    videoControlButton: {
+      minHeight: 38,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 6,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    videoControlButtonPrimary: {
+      backgroundColor: theme.colors.text,
+      borderColor: theme.colors.text,
+    },
+    videoControlButtonDanger: {
+      backgroundColor: theme.colors.surface,
+      borderColor: "rgba(239, 68, 68, 0.28)",
+    },
+    videoControlButtonText: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    videoControlButtonPrimaryText: {
+      ...theme.typography.caption,
+      color: theme.colors.background,
+      fontWeight: "900",
+    },
+    videoControlButtonDangerText: {
+      ...theme.typography.caption,
+      color: theme.colors.danger,
+      fontWeight: "900",
+    },
+    controlDisabled: {
+      opacity: 0.42,
+    },
     adminActions: {
       flexDirection: "row",
       gap: theme.spacing.sm,
@@ -1852,7 +2506,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     participant: {
       width: "31.8%",
-      minHeight: 96,
+      minHeight: 116,
       borderRadius: 16,
       alignItems: "center",
       justifyContent: "center",
@@ -1893,6 +2547,39 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "600",
       color: theme.colors.muted,
       textAlign: "center",
+    },
+    handRaisedPill: {
+      minHeight: 20,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 7,
+      backgroundColor: theme.colors.primary,
+    },
+    handRaisedText: {
+      fontSize: 10,
+      lineHeight: 12,
+      fontWeight: "900",
+      color: "#FFFFFF",
+    },
+    participantAdminActions: {
+      flexDirection: "row",
+      gap: 5,
+      marginTop: 2,
+    },
+    participantAdminButton: {
+      width: 26,
+      height: 26,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    participantAdminDanger: {
+      borderColor: "rgba(239, 68, 68, 0.30)",
     },
     chatHeader: {
       flexDirection: "row",
@@ -2017,6 +2704,31 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     chatBody: {
       ...theme.typography.body,
       color: theme.colors.text,
+    },
+    messageFooter: {
+      minHeight: 22,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+      marginTop: 2,
+    },
+    messageFooterOwn: {
+      justifyContent: "flex-end",
+    },
+    messageReportButton: {
+      minHeight: 22,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 3,
+      paddingHorizontal: 7,
+      backgroundColor: theme.colors.elevated,
+    },
+    messageReportText: {
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "800",
+      color: theme.colors.muted,
     },
     chatComposer: {
       minHeight: 58,

@@ -42,6 +42,7 @@ Env:
 EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_...
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_...
 EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=premium
+EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=false
 ```
 
 RevenueCat dashboard:
@@ -50,6 +51,7 @@ RevenueCat dashboard:
 - Current Offering aktif.
 - Current Offering içinde aylık, yıllık ve varsa ömür boyu Premium paketi var.
 - Product identifiers App Store Connect ve RevenueCat'te birebir aynı.
+- App Store/TestFlight build'i RevenueCat Test Store key ile gönderilmiyor.
 - Webhook URL: `https://<project-ref>.supabase.co/functions/v1/revenuecat-webhook`
 - Webhook Authorization Header Value, Supabase `REVENUECAT_WEBHOOK_AUTH_TOKEN` secret'ı ile aynı.
 - Sandbox satın alma sonrası Supabase `users.isPremium` ve `users.badges` güncelleniyor.
@@ -69,7 +71,7 @@ App şu anda `lifetime` satın alma UI'ı da sunuyor. Ömür boyu Premium'u satm
 iOS in-app purchase ürünleri:
 
 - Product ID: `ehlibyte.premium.monthly`
-- Product ID: `ehlibyte.premium.yearly`
+- Product ID: `ehlibyte.premium.year`
 - Product ID: `ehlibyte.premium.lifetime`
 - Product ID: `ehlibyte.fire.100`
 - Product ID: `ehlibyte.fire.500`

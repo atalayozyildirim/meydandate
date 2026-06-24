@@ -21,7 +21,11 @@ const getRevenueCatApiKey = () => {
     return "";
   }
 
-  if (__DEV__ && env.revenueCatTestApiKey.startsWith("test_")) {
+  if (
+    __DEV__ &&
+    env.useRevenueCatTestStore &&
+    env.revenueCatTestApiKey.startsWith("test_")
+  ) {
     return env.revenueCatTestApiKey;
   }
 
@@ -259,13 +263,18 @@ export class RevenueCatPaymentService implements PaymentService {
   }
 
   private async selectProductPackage(
-    productId: string,
+    productIds: string | string[],
   ): Promise<RevenueCatPackage | undefined> {
     const current = await this.getCurrentOffering({ required: true });
     const availablePackages = current?.availablePackages ?? [];
+    const acceptedProductIds = Array.isArray(productIds)
+      ? productIds
+      : [productIds];
 
     return availablePackages.find(
-      (pkg) => pkg?.product?.identifier === productId,
+      (pkg) =>
+        Boolean(pkg?.product?.identifier) &&
+        acceptedProductIds.includes(pkg?.product?.identifier ?? ""),
     );
   }
 
@@ -416,9 +425,10 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Rozet urunu bulunamadi.");
     }
 
-    const packageItem = await this.selectProductPackage(
+    const packageItem = await this.selectProductPackage([
       product.revenueCatProductId,
-    );
+      ...(product.revenueCatProductAliases ?? []),
+    ]);
 
     if (!packageItem) {
       throw new Error(

@@ -5,6 +5,7 @@ import { BadgeIcon } from "@/shared/components/BadgeIcon";
 import { Card } from "@/shared/components/Card";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { Screen } from "@/shared/components/Screen";
 import { badgeLabels, interestOptions } from "@/shared/constants/options";
 import { useUserProfile } from "@/features/profile/hooks/useUserProfile";
@@ -64,9 +65,12 @@ export default function PublicProfileScreen() {
       {primaryPhoto ? (
         <Image source={{ uri: primaryPhoto }} style={styles.photo} />
       ) : null}
-      <Text style={styles.name}>
-        {sanitizePlainText(profile.name, 80)}, {profile.age}
-      </Text>
+      <View style={styles.nameRow}>
+        <Text numberOfLines={1} style={styles.name}>
+          {sanitizePlainText(profile.name, 80)}, {profile.age}
+        </Text>
+        {profile.isPremium ? <PremiumVerifiedBadge size={21} /> : null}
+      </View>
       <Text style={styles.city}>{sanitizePlainText(profile.city, 80)}</Text>
       <Text style={styles.bio}>{sanitizePlainText(profile.bio, 280)}</Text>
 
@@ -166,7 +170,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     name: {
       ...theme.typography.title,
+      flexShrink: 1,
       color: theme.colors.text,
+    },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     city: {
       ...theme.typography.body,

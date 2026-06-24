@@ -50,6 +50,7 @@ import { useFire } from "@/features/fire/hooks/useFire";
 import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { spotifyConnectionService } from "@/features/spotify/services/SpotifyConnectionService";
 import { Avatar } from "@/shared/components/Avatar";
 import { BottomSheet } from "@/shared/components/BottomSheet";
 import { Button } from "@/shared/components/Button";
@@ -611,6 +612,8 @@ export default function DiscoverScreen() {
   const [isMusicPreferenceLoaded, setIsMusicPreferenceLoaded] = useState(false);
   const [isMusicMuted, setIsMusicMuted] = useState(false);
   const [isLoveEffectVisible, setIsLoveEffectVisible] = useState(false);
+  const [isSpotifyLinked, setIsSpotifyLinked] = useState(false);
+  const [isSpotifyConnecting, setIsSpotifyConnecting] = useState(false);
   const [discoverMode, setDiscoverMode] = useState<DiscoverMode>("community");
   const failedSwipeIdsRef = useRef<Set<string>>(new Set());
   const hasAutoOpenedLocationSheetRef = useRef(false);
@@ -650,6 +653,10 @@ export default function DiscoverScreen() {
     : "Yakındaki profilleri keşfet akışında öne çıkar.";
 
   const currentMusicSignal = normalizeMusicSignal(currentUser?.favoriteSong);
+  const isSpotifyModeMissingSignal =
+    discoverMode === "spotify" && !currentMusicSignal && !isSpotifyLinked;
+  const isSpotifyModeWaitingForTrack =
+    discoverMode === "spotify" && !currentMusicSignal && isSpotifyLinked;
   const visibleDeck = useMemo(() => {
     if (discoverMode !== "spotify") {
       return deck;
@@ -669,7 +676,9 @@ export default function DiscoverScreen() {
     discoverMode === "spotify"
       ? currentUser?.favoriteSong
         ? `Spotify · ${sanitizePlainText(currentUser.favoriteSong, 72)}`
-        : "Spotify · profilinde şarkı sinyali yok"
+        : isSpotifyLinked
+          ? "Spotify · aktif şarkı bekleniyor"
+          : "Spotify hesabın bağlı değil"
       : activeCard?.user.profileKind === "member"
         ? "Sağa beğen, sola geç, yukarı Super Like"
         : "Starter öneri · beğenirsen sohbet açılır";
@@ -729,6 +738,23 @@ export default function DiscoverScreen() {
           setIsMusicPreferenceLoaded(true);
         }
       });
+
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+
+    void spotifyConnectionService
+      .hasStoredConnection()
+      .then((connected) => {
+        if (mounted) {
+          setIsSpotifyLinked(connected);
+        }
+      })
+      .catch(() => undefined);
 
     return () => {
       mounted = false;
@@ -937,6 +963,51 @@ export default function DiscoverScreen() {
     void discoverMusicStorage
       .setItem(discoverMusicPreferenceKey, String(nextValue))
       .catch(() => undefined);
+  };
+
+  const connectSpotify = async () => {
+    if (isSpotifyConnecting) {
+      return;
+    }
+
+    if (!currentUser) {
+      Alert.alert("Oturum gerekli", "Spotify bağlantısı için giriş yapman gerekiyor.");
+      return;
+    }
+
+    setIsSpotifyConnecting(true);
+
+    try {
+      const result = await spotifyConnectionService.connectAndGetCurrentTrack();
+      setIsSpotifyLinked(result.connected);
+
+      if (!result.trackSignal) {
+        Alert.alert(
+          "Spotify bağlandı",
+          "Şu an aktif çalan şarkı bulamadık. Spotify'da bir şarkı çalarken tekrar yenile.",
+        );
+        return;
+      }
+
+      const updatedUser = await container.userRepository.updateProfile(
+        currentUser.id,
+        { favoriteSong: result.trackSignal },
+      );
+      setCurrentUser(updatedUser);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
+        queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+      ]);
+      await refresh();
+      Alert.alert("Spotify bağlandı", `${result.trackSignal} ile eşleşme modu güncellendi.`);
+    } catch (error) {
+      Alert.alert(
+        "Spotify bağlanamadı",
+        error instanceof Error ? error.message : "Spotify bağlantısı tamamlanamadı.",
+      );
+    } finally {
+      setIsSpotifyConnecting(false);
+    }
   };
 
   const playLoveEffect = () => {
@@ -1316,6 +1387,10 @@ export default function DiscoverScreen() {
           const selected = discoverMode === mode.value;
           const selectedColor =
             mode.value === "spotify" ? "#1DB954" : theme.colors.primary;
+          const selectedContentColor =
+            mode.value === "spotify" ? "#FFFFFF" : theme.colors.onPrimary;
+          const inactiveContentColor =
+            mode.value === "spotify" ? "#1DB954" : theme.colors.muted;
 
           return (
             <Pressable
@@ -1334,13 +1409,13 @@ export default function DiscoverScreen() {
                 <FontAwesome
                   name="spotify"
                   size={15}
-                  color={selected ? "#FFFFFF" : "#1DB954"}
+                  color={selected ? selectedContentColor : inactiveContentColor}
                 />
               ) : (
                 <Ionicons
                   name={mode.icon as IoniconName}
                   size={16}
-                  color={selected ? "#FFFFFF" : theme.colors.muted}
+                  color={selected ? selectedContentColor : inactiveContentColor}
                 />
               )}
               <Text
@@ -1348,6 +1423,7 @@ export default function DiscoverScreen() {
                 style={[
                   styles.modeChipText,
                   selected && styles.modeChipTextActive,
+                  selected && { color: selectedContentColor },
                 ]}
               >
                 {mode.label}
@@ -1530,7 +1606,7 @@ export default function DiscoverScreen() {
           >
             <SwipeActionButton
               accessibilityLabel="Bu profili geç"
-              accentColor={theme.colors.danger}
+              accentColor={theme.colors.text}
               style={[
                 styles.roundAction,
                 styles.passAction,
@@ -1542,13 +1618,13 @@ export default function DiscoverScreen() {
                   variant="pass"
                   name="close"
                   size={sideIconSize - 4}
-                  color={theme.colors.danger}
+                  color={theme.colors.text}
                 />
               }
             />
             <SwipeActionButton
               accessibilityLabel="Son kaydırmayı geri al"
-              accentColor={theme.colors.border}
+              accentColor={theme.colors.text}
               style={[
                 styles.roundAction,
                 styles.undoAction,
@@ -1561,7 +1637,7 @@ export default function DiscoverScreen() {
                   variant="undo"
                   name="arrow-undo-outline"
                   size={secondaryIconSize - 5}
-                  color={theme.colors.warning}
+                  color={theme.colors.text}
                 />
               }
             />
@@ -1599,7 +1675,7 @@ export default function DiscoverScreen() {
             />
             <SwipeActionButton
               accessibilityLabel="Super Like gönder"
-              accentColor={theme.colors.secondary}
+              accentColor={theme.colors.text}
               style={[
                 styles.roundAction,
                 styles.superAction,
@@ -1611,13 +1687,13 @@ export default function DiscoverScreen() {
                   variant="super"
                   name="flash-outline"
                   size={secondaryIconSize - 3}
-                  color={theme.colors.secondary}
+                  color={theme.colors.text}
                 />
               }
             />
             <SwipeActionButton
               accessibilityLabel="Bu profili beğen"
-              accentColor={theme.colors.primary}
+              accentColor={theme.colors.text}
               style={[
                 styles.roundAction,
                 styles.likeAction,
@@ -1629,7 +1705,7 @@ export default function DiscoverScreen() {
                   variant="like"
                   name="heart"
                   size={sideIconSize - 4}
-                  color={theme.colors.primary}
+                  color={theme.colors.text}
                 />
               }
               overlay={
@@ -1651,15 +1727,39 @@ export default function DiscoverScreen() {
         </>
       ) : (
         <EmptyState
-          title="Şimdilik yeni profil yok"
+          title={
+            isSpotifyModeMissingSignal
+              ? "Spotify hesabın bağlı değil"
+              : isSpotifyModeWaitingForTrack
+                ? "Spotify'da aktif şarkı yok"
+              : "Şimdilik yeni profil yok"
+          }
           description={
-            discoverMode === "spotify"
-              ? currentMusicSignal
+            isSpotifyModeMissingSignal
+              ? "Anlık şarkı eşleşmesi için Spotify hesabını bağla. Uygulama çalan şarkını okuyup aynı müzik sinyalindeki profilleri gösterecek."
+              : isSpotifyModeWaitingForTrack
+                ? "Hesap bağlı. Spotify'da bir şarkı çalarken yenilersen eşleşme sinyalini güncelleriz."
+              : discoverMode === "spotify"
                 ? "Aynı şarkı sinyalinde yeni profil yok. Topluluk moduna geçerek genel önerilere bakabilirsin."
-                : "Spotify modu için önce profilindeki favori/anlık şarkı sinyalini doldur."
               : currentUser?.matchByLocation
               ? "Yakında yeni profil yoksa Ayarlar'dan mesafe aralığını genişletebilirsin."
               : "Yeni profiller geldiğinde Discover akışı otomatik yenilenecek."
+          }
+          actionLabel={
+            isSpotifyModeMissingSignal
+              ? isSpotifyConnecting
+                ? "Bağlanıyor"
+                : "Spotify bağla"
+              : isSpotifyModeWaitingForTrack
+                ? isSpotifyConnecting
+                  ? "Yenileniyor"
+                  : "Şarkıyı yenile"
+                : undefined
+          }
+          onAction={
+            isSpotifyModeMissingSignal || isSpotifyModeWaitingForTrack
+              ? () => void connectSpotify()
+              : undefined
           }
         />
       )}
@@ -1948,7 +2048,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontWeight: "800",
     },
     modeChipTextActive: {
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
     },
     deckArea: {
       width: "100%",
@@ -2043,7 +2143,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 34,
       borderWidth: 1,
       borderColor: theme.isDark ? "rgba(128, 128, 128, 0.22)" : "rgba(128, 128, 128, 0.16)",
-      backgroundColor: theme.isDark ? "rgba(19, 22, 32, 0.96)" : "rgba(255, 255, 255, 0.96)",
+      backgroundColor: theme.isDark
+        ? "rgba(17, 17, 17, 0.96)"
+        : "rgba(255, 255, 255, 0.96)",
       zIndex: 4,
       shadowColor: "#000000",
       shadowOpacity: theme.isDark ? 0.18 : 0.08,
@@ -2096,7 +2198,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "center",
       borderWidth: 1,
       overflow: "visible",
-      backgroundColor: theme.isDark ? "#171B25" : "#FFFFFF",
+      backgroundColor: theme.colors.surface,
       shadowColor: "#000000",
       shadowOpacity: theme.isDark ? 0.2 : 0.06,
       shadowRadius: 10,
@@ -2137,7 +2239,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     locationIconWrapActive: {
       borderColor: "rgba(128, 128, 128, 0.22)",
-      backgroundColor: theme.isDark ? "#231821" : "#FFF1F4",
+      backgroundColor: theme.colors.elevated,
     },
     locationTextWrap: {
       flex: 1,
@@ -2179,7 +2281,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 18,
       borderWidth: 1,
       borderColor: "rgba(128, 128, 128, 0.14)",
-      backgroundColor: theme.isDark ? "#161925" : "#FCFCFE",
+      backgroundColor: theme.colors.elevated,
     },
     locationSheetInfoText: {
       ...theme.typography.caption,
@@ -2196,7 +2298,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: 18,
       borderWidth: 1,
       borderColor: "rgba(128, 128, 128, 0.14)",
-      backgroundColor: theme.isDark ? "#161925" : "#FCFCFE",
+      backgroundColor: theme.colors.elevated,
     },
     musicSettingTextWrap: {
       flex: 1,
@@ -2230,7 +2332,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.isDark ? "#231821" : "#FFF1F4",
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
       borderColor: "rgba(128, 128, 128, 0.16)",
     },
@@ -2289,23 +2391,29 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       lineHeight: 19,
     },
     passAction: {
-      borderColor: "rgba(248, 113, 113, 0.72)",
-      backgroundColor: theme.isDark ? "#20181D" : "#FFF5F5",
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.34)"
+        : "rgba(10, 10, 10, 0.26)",
+      backgroundColor: theme.colors.surface,
     },
     superAction: {
-      borderColor: "rgba(168, 85, 247, 0.72)",
-      backgroundColor: theme.isDark ? "#211A31" : "#F8F0FF",
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.34)"
+        : "rgba(10, 10, 10, 0.26)",
+      backgroundColor: theme.colors.surface,
     },
     undoAction: {
-      borderColor: "rgba(245, 158, 11, 0.58)",
-      backgroundColor: theme.isDark ? "#221D14" : "#FFF8E7",
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.34)"
+        : "rgba(10, 10, 10, 0.26)",
+      backgroundColor: theme.colors.surface,
     },
     fireAction: {
       width: 62,
       height: 62,
       borderColor: "rgba(128, 128, 128, 0.88)",
       borderWidth: 2,
-      backgroundColor: theme.isDark ? "#111111" : "#F5F5F5",
+      backgroundColor: theme.colors.surface,
       shadowColor: theme.colors.primary,
       shadowOpacity: theme.isDark ? 0.28 : 0.18,
       shadowRadius: 14,
@@ -2320,7 +2428,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       width: "100%",
       height: "100%",
       borderRadius: 999,
-      backgroundColor: "rgba(128, 128, 128, 0.28)",
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.18)"
+        : "rgba(10, 10, 10, 0.12)",
     },
     fireBadge: {
       position: "absolute",
@@ -2332,19 +2442,21 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 2,
-      borderColor: theme.isDark ? "#111111" : "#F5F5F5",
+      borderColor: theme.colors.surface,
       backgroundColor: theme.colors.primary,
     },
     fireBadgeText: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.colors.onPrimary,
       fontSize: 11,
       lineHeight: 12,
       fontWeight: "900",
     },
     likeAction: {
-      borderColor: "rgba(128, 128, 128, 0.76)",
-      backgroundColor: theme.isDark ? "#241721" : "#FFF4F6",
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.34)"
+        : "rgba(10, 10, 10, 0.26)",
+      backgroundColor: theme.colors.surface,
     },
     loveEffect: {
       position: "absolute",

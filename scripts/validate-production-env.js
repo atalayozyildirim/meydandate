@@ -79,6 +79,10 @@ if (value("EXPO_PUBLIC_USE_REVENUECAT") !== "true") {
   errors.push("Production için EXPO_PUBLIC_USE_REVENUECAT=true olmalı.");
 }
 
+if (value("EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE") === "true") {
+  errors.push("Production build RevenueCat Test Store key ile gönderilemez. EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=false olmalı.");
+}
+
 if (
   isPlaceholder(value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY")) ||
   !value("EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY").startsWith("goog_")

@@ -1,6 +1,16 @@
 // Backend olmadiginda canli oda akisini kirilmadan gosteren fallback repository.
-import type { LiveRoom, LiveParticipant, LiveChatMessage } from "@/domain/entities/LiveRoom";
-import type { LiveKitJoinInfo, LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
+import type {
+  LiveRoom,
+  LiveParticipant,
+  LiveChatMessage,
+  LiveVideoPlaybackStatus,
+} from "@/domain/entities/LiveRoom";
+import type {
+  ControlLiveVideoPayload,
+  LiveKitJoinInfo,
+  LiveRoomRepository,
+  StartLiveRoomPayload,
+} from "@/domain/repositories/LiveRoomRepository";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
 import { createId } from "@/shared/utils/id";
 
@@ -14,6 +24,9 @@ const participants: LiveParticipant[] = [
 let roomStatus: LiveRoom["status"] = "scheduled";
 let roomStreamUrl: string | undefined;
 let roomStartedAt: string | undefined;
+let roomVideoStatus: LiveVideoPlaybackStatus = "idle";
+let roomVideoPositionMillis = 0;
+let roomVideoUpdatedAt: string | undefined;
 let roomTitle = "Meydan";
 let roomDescription = "Admin yayını açtığında herkes aynı canlı akışı ve sohbeti burada görür.";
 let roomParticipants = [...participants];
@@ -27,6 +40,12 @@ const createRoom = (): LiveRoom => ({
   voiceProvider: "livekit",
   livekitRoomName: "ehlibyte-meydan-erkani",
   streamUrl: roomStreamUrl,
+  videoSync: {
+    status: roomVideoStatus,
+    positionMillis: roomVideoPositionMillis,
+    updatedAt: roomVideoUpdatedAt ?? roomStartedAt,
+    controlledBy: "mock-admin",
+  },
   participantCount: roomParticipants.length,
   speakerCount: roomParticipants.filter((participant) => participant.stageStatus === "speaker").length,
   participants: roomParticipants,
@@ -89,12 +108,19 @@ export class MockLiveRoomRepository implements LiveRoomRepository {
     return createRoom();
   }
 
+  async reportMessage(): Promise<void> {
+    return undefined;
+  }
+
   async startRoom(_roomId: string, _userId: string, payload: StartLiveRoomPayload): Promise<LiveRoom> {
     roomTitle = payload.title;
     roomDescription = payload.description;
     roomStreamUrl = payload.streamUrl;
+    roomVideoStatus = payload.streamUrl ? "playing" : "idle";
+    roomVideoPositionMillis = 0;
     roomStatus = "live";
     roomStartedAt = new Date().toISOString();
+    roomVideoUpdatedAt = roomStartedAt;
 
     return createRoom();
   }
@@ -102,6 +128,27 @@ export class MockLiveRoomRepository implements LiveRoomRepository {
   async stopRoom(): Promise<LiveRoom> {
     roomStatus = "offline";
     roomStartedAt = undefined;
+    roomVideoStatus = "idle";
+    roomVideoPositionMillis = 0;
+    roomVideoUpdatedAt = undefined;
+
+    return createRoom();
+  }
+
+  async controlVideo(
+    _roomId: string,
+    _userId: string,
+    payload: ControlLiveVideoPayload,
+  ): Promise<LiveRoom> {
+    roomStreamUrl = payload.streamUrl;
+    roomVideoStatus = payload.status;
+    roomVideoPositionMillis = Math.max(0, payload.positionMillis);
+    roomVideoUpdatedAt = new Date().toISOString();
+
+    if (payload.streamUrl && roomStatus !== "live") {
+      roomStatus = "live";
+      roomStartedAt = roomVideoUpdatedAt;
+    }
 
     return createRoom();
   }
@@ -130,6 +177,46 @@ export class MockLiveRoomRepository implements LiveRoomRepository {
             isMuted: stageStatus !== "speaker",
           }
         : participant,
+    );
+
+    return createRoom();
+  }
+
+  async setParticipantMuted(
+    _roomId: string,
+    targetUserId: string,
+    isMuted: boolean,
+  ): Promise<LiveRoom> {
+    roomParticipants = roomParticipants.map((participant) =>
+      participant.id === targetUserId ? { ...participant, isMuted } : participant,
+    );
+
+    return createRoom();
+  }
+
+  async setHandRaised(
+    _roomId: string,
+    userId: string,
+    isRaised: boolean,
+  ): Promise<LiveRoom> {
+    roomParticipants = roomParticipants.map((participant) =>
+      participant.id === userId
+        ? {
+            ...participant,
+            handRaisedAt: isRaised ? new Date().toISOString() : null,
+          }
+        : participant,
+    );
+
+    return createRoom();
+  }
+
+  async removeParticipant(
+    _roomId: string,
+    targetUserId: string,
+  ): Promise<LiveRoom> {
+    roomParticipants = roomParticipants.filter(
+      (participant) => participant.id !== targetUserId,
     );
 
     return createRoom();

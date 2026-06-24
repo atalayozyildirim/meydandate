@@ -65,11 +65,15 @@ const activeSubscriptionEvents = new Set<string>([
 const badgeProductById: Record<string, Badge> = {
   "ehlibyte.badge.muharrem_follower": "muharrem_follower",
   "ehlibyte.badge.cem_room_supporter": "cem_room_supporter",
+  "ehlibyte.badge.meydan": "cem_room_supporter",
   "ehlibyte.badge.culture_guardian": "culture_guardian",
   "ehlibyte.badge.zulfiqar_sword": "zulfiqar_sword",
+  "ehlibyte.badges.zulfikar": "zulfiqar_sword",
   "ehlibyte.badge.haci_bektas_veli": "haci_bektas_veli",
+  "ehlibyte.badge.hacibektas": "haci_bektas_veli",
   "ehlibyte.badge.la_fetta_illa": "la_fetta_illa",
   "ehlibyte.badge.night_badge": "night_badge",
+  "ehlibyte.badge.nightlove": "night_badge",
 };
 
 const firePackageByProductId: Record<string, FirePackageAmount> = {

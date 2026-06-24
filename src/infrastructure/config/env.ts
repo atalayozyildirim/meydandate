@@ -18,7 +18,9 @@ const supabasePublishableKey =
 
 const tenorApiKey = readEnv(process.env.EXPO_PUBLIC_TENOR_API_KEY);
 const giphyApiKey = readEnv(process.env.EXPO_PUBLIC_GIPHY_API_KEY);
-const spotifyClientId = readEnv(process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID);
+const spotifyClientId =
+  readEnv(process.env.EXPO_PUBLIC_SPOTIFY_CLIENT_ID) ||
+  readEnv(process.env.SPOTIFY_CLIENT_ID);
 const spotifyRedirectUri =
   readEnv(process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI) ||
   "ehlibyte://spotify/callback";
@@ -39,6 +41,8 @@ const useRevenueCatPayments =
   explicitUseRevenueCat === ""
     ? appEnv === "production"
     : explicitUseRevenueCat === "true";
+const useRevenueCatTestStore =
+  readEnv(process.env.EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE) === "true";
 
 export const env = {
   appEnv,
@@ -60,6 +64,7 @@ export const env = {
   revenueCatEntitlementId:
     readEnv(process.env.EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID) || "premium",
   useRevenueCatPayments,
+  useRevenueCatTestStore,
   adMobIosAppId: readEnv(process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID),
   adMobAndroidAppId: readEnv(process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID),
   adMobBannerUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID),
@@ -101,6 +106,10 @@ export const getRuntimeConfigIssues = () => {
   }
 
   if (env.isProduction) {
+    if (env.useRevenueCatTestStore) {
+      errors.push("Production build RevenueCat Test Store key ile gönderilemez. EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=false olmalı.");
+    }
+
     if (
       isPlaceholder(env.revenueCatIosApiKey, ["your_key", "your-key", "placeholder"]) ||
       !env.revenueCatIosApiKey.startsWith("appl_")

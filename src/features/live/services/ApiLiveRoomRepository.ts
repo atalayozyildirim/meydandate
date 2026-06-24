@@ -1,6 +1,11 @@
 // Canli oda verisini backend live endpoint'lerinden okur.
 import type { LiveParticipantStageStatus, LiveRoom } from "@/domain/entities/LiveRoom";
-import type { LiveKitJoinInfo, LiveRoomRepository, StartLiveRoomPayload } from "@/domain/repositories/LiveRoomRepository";
+import type {
+  ControlLiveVideoPayload,
+  LiveKitJoinInfo,
+  LiveRoomRepository,
+  StartLiveRoomPayload,
+} from "@/domain/repositories/LiveRoomRepository";
 import type { ApiClient } from "@/infrastructure/api/ApiClient";
 
 export class ApiLiveRoomRepository implements LiveRoomRepository {
@@ -45,6 +50,22 @@ export class ApiLiveRoomRepository implements LiveRoomRepository {
     );
   }
 
+  async reportMessage(
+    roomId: string,
+    messageId: string,
+    reporterId: string,
+    accessToken?: string | null,
+  ): Promise<void> {
+    await this.apiClient.http.request<void, { reporterId: string }>(
+      `/live/rooms/${roomId}/messages/${messageId}/report`,
+      {
+        method: "POST",
+        body: { reporterId },
+        token: accessToken ?? undefined,
+      },
+    );
+  }
+
   startRoom(
     roomId: string,
     userId: string,
@@ -72,6 +93,22 @@ export class ApiLiveRoomRepository implements LiveRoomRepository {
     );
   }
 
+  controlVideo(
+    roomId: string,
+    userId: string,
+    payload: ControlLiveVideoPayload,
+    accessToken?: string | null,
+  ): Promise<LiveRoom> {
+    return this.apiClient.http.request<
+      LiveRoom,
+      ControlLiveVideoPayload & { userId: string }
+    >(`/live/rooms/${roomId}/video`, {
+      method: "POST",
+      body: { userId, ...payload },
+      token: accessToken ?? undefined,
+    });
+  }
+
   getLiveKitToken(roomId: string, accessToken?: string | null): Promise<LiveKitJoinInfo> {
     return this.apiClient.http.request<LiveKitJoinInfo>(
       `/live/rooms/${roomId}/livekit-token`,
@@ -96,5 +133,52 @@ export class ApiLiveRoomRepository implements LiveRoomRepository {
       body: { targetUserId, stageStatus },
       token: accessToken ?? undefined,
     });
+  }
+
+  setParticipantMuted(
+    roomId: string,
+    targetUserId: string,
+    isMuted: boolean,
+    accessToken?: string | null,
+  ): Promise<LiveRoom> {
+    return this.apiClient.http.request<
+      LiveRoom,
+      { targetUserId: string; isMuted: boolean }
+    >(`/live/rooms/${roomId}/participants/mute`, {
+      method: "POST",
+      body: { targetUserId, isMuted },
+      token: accessToken ?? undefined,
+    });
+  }
+
+  setHandRaised(
+    roomId: string,
+    userId: string,
+    isRaised: boolean,
+    accessToken?: string | null,
+  ): Promise<LiveRoom> {
+    return this.apiClient.http.request<
+      LiveRoom,
+      { userId: string; isRaised: boolean }
+    >(`/live/rooms/${roomId}/participants/hand`, {
+      method: "POST",
+      body: { userId, isRaised },
+      token: accessToken ?? undefined,
+    });
+  }
+
+  removeParticipant(
+    roomId: string,
+    targetUserId: string,
+    accessToken?: string | null,
+  ): Promise<LiveRoom> {
+    return this.apiClient.http.request<LiveRoom, { targetUserId: string }>(
+      `/live/rooms/${roomId}/participants/remove`,
+      {
+        method: "POST",
+        body: { targetUserId },
+        token: accessToken ?? undefined,
+      },
+    );
   }
 }

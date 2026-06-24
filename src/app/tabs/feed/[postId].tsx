@@ -24,6 +24,7 @@ import type { FeedTag } from "@/domain/entities/Feed";
 import { Avatar } from "@/shared/components/Avatar";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { Screen } from "@/shared/components/Screen";
 import { formatDateTime } from "@/shared/utils/date";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
@@ -284,9 +285,14 @@ export default function FeedPostDetailScreen() {
           <View style={styles.postBody}>
             <View style={styles.postHeader}>
               <View style={styles.postHeaderCopy}>
-                <Text style={styles.postName} numberOfLines={1}>
-                  {sanitizePlainText(post.author.name, 80)}
-                </Text>
+                <View style={styles.verifiedNameRow}>
+                  <Text style={styles.postName} numberOfLines={1}>
+                    {sanitizePlainText(post.author.name, 80)}
+                  </Text>
+                  {post.author.isPremium ? (
+                    <PremiumVerifiedBadge size={17} />
+                  ) : null}
+                </View>
                 <Text style={styles.postDate}>{formatDateTime(post.createdAt)}</Text>
               </View>
               <View style={styles.headerActions}>
@@ -500,9 +506,14 @@ export default function FeedPostDetailScreen() {
                 </Pressable>
                 <View style={styles.commentBody}>
                   <View style={styles.commentHeader}>
-                    <Text style={styles.commentName} numberOfLines={1}>
-                      {sanitizePlainText(comment.author.name, 80)}
-                    </Text>
+                    <View style={styles.verifiedNameRow}>
+                      <Text style={styles.commentName} numberOfLines={1}>
+                        {sanitizePlainText(comment.author.name, 80)}
+                      </Text>
+                      {comment.author.isPremium ? (
+                        <PremiumVerifiedBadge size={15} />
+                      ) : null}
+                    </View>
                     <Text style={styles.commentDate}>
                       {formatDateTime(comment.createdAt)}
                     </Text>
@@ -568,9 +579,14 @@ export default function FeedPostDetailScreen() {
                       />
                       <View style={styles.replyBody}>
                         <View style={styles.commentHeader}>
-                          <Text style={styles.replyName} numberOfLines={1}>
-                            {sanitizePlainText(reply.author.name, 80)}
-                          </Text>
+                          <View style={styles.verifiedNameRow}>
+                            <Text style={styles.replyName} numberOfLines={1}>
+                              {sanitizePlainText(reply.author.name, 80)}
+                            </Text>
+                            {reply.author.isPremium ? (
+                              <PremiumVerifiedBadge size={14} />
+                            ) : null}
+                          </View>
                           <Text style={styles.commentDate}>
                             {formatDateTime(reply.createdAt)}
                           </Text>
@@ -709,11 +725,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     postHeaderCopy: {
       flex: 1,
+      minWidth: 0,
+    },
+    verifiedNameRow: {
+      minWidth: 0,
+      flexShrink: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     postName: {
       ...theme.typography.subheading,
       color: theme.colors.text,
       fontSize: 17,
+      flexShrink: 1,
     },
     postDate: {
       ...theme.typography.caption,
@@ -887,6 +912,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
+      minWidth: 0,
     },
     commentName: {
       ...theme.typography.subheading,

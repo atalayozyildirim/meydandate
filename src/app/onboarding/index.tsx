@@ -1,4 +1,3 @@
-// Kayıt sonrası profil, ilgi alanı ve giriş uygunluğu onboarding akışını yönetir.
 import { useEffect, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -29,9 +28,20 @@ import {
 } from "@/shared/constants/options";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
 import { useTheme } from "@/shared/theme";
+import { culturalKnowledgeQuestions as aleviQuestions } from "@/shared/constants/alevi";
 
 const MAX_KNOWLEDGE_TEST_ATTEMPTS = 2;
 const KNOWLEDGE_TEST_LOCK_DURATION_MS = 60 * 60 * 1000;
+
+const getRandomQuestions = (
+  questions: typeof aleviQuestions,
+  count: number,
+) => {
+  const shuffled = [...questions].sort(() => 0.5 - Math.random());
+  return shuffled.slice(0, count);
+};
+
+const culturalKnowledgeQuestions = getRandomQuestions(aleviQuestions, 5);
 
 interface KnowledgeTestAttemptState {
   failedAttempts: number;
@@ -55,66 +65,6 @@ const saveKnowledgeTestAttemptState = (state: KnowledgeTestAttemptState) =>
   container.tokenStorage
     .setItem(env.knowledgeTestAttemptKey, JSON.stringify(state))
     .catch(() => undefined);
-
-const culturalKnowledgeQuestions = [
-  {
-    id: "cem",
-    question: "Aşure lokması paylaşılırken temel yaklaşım ne olmalı?",
-    options: [
-      { id: "saygi", label: "Saygı ve rıza gözetilir", correct: true },
-      { id: "israr", label: "Israr edilir", correct: false },
-      { id: "gosteris", label: "Paylaşım gösteriş için yapılır", correct: false },
-    ],
-  },
-  {
-    id: "semah",
-    question: "Cem erkanı gelenekte hangi mekanda yürütülür?",
-    options: [
-      { id: "ibadet", label: "Cemevi", correct: true },
-      { id: "one1", label: "Herhangi bir yer", correct: false },
-      { id: "spor", label: "Köylerde", correct: false },
-    ],
-  },
-  {
-    id: "yali",
-    question: '"Lâ fetâ illâ Ali, lâ seyfe illâ Zülfikār" anlamı nedir ?',
-    options: [
-      {
-        id: "one4",
-        label: "Ali'den başka yiğit Zülfikar'dan keskin kılıç yoktur.",
-        correct: false,
-      },
-      {
-        id: "one5",
-        label: "Ali'den başka yiğit Zülfikar'dan başka güç yoktur",
-        correct: false,
-      },
-      {
-        id: "one6",
-        label: "Ali'den başka yiğit, Zülfikar'dan başka kılıç yoktur",
-        correct: true,
-      },
-    ],
-  },
-  {
-    id: "muharrem",
-    question: "Muharrem orucu hangi değerlerle ilişkilidir?",
-    options: [
-      { id: "yas", label: "Yas, sabır ve arınma", correct: true },
-      { id: "test100", label: "Sabır", correct: false },
-      { id: "zorunlu", label: "İnanç", correct: false },
-    ],
-  },
-  {
-    id: "lokma",
-    question: "Muharrem orucu kaç gündür?",
-    options: [
-      { id: "11", label: "11", correct: false },
-      { id: "12", label: "12", correct: true },
-      { id: "14", label: "14", correct: false },
-    ],
-  },
-] as const;
 
 const toProfilePayload = (values: OnboardingFormValues): OnboardingProfile => {
   const payload: OnboardingProfile = {
@@ -331,7 +281,12 @@ export default function OnboardingScreen() {
 
     if (!option.correct) {
       const nextFailedAttempts = failedAttempts + 1;
-      setQuizAnswers({});
+      // Remove only the wrong answer, keep correct ones
+      setQuizAnswers((current) => {
+        const newAnswers = { ...current };
+        delete newAnswers[questionId];
+        return newAnswers;
+      });
 
       if (nextFailedAttempts >= MAX_KNOWLEDGE_TEST_ATTEMPTS) {
         const nextLockedUntil = Date.now() + KNOWLEDGE_TEST_LOCK_DURATION_MS;
@@ -360,7 +315,7 @@ export default function OnboardingScreen() {
 
       Alert.alert(
         "Yanlış cevap",
-        `Test sıfırlandı. ${MAX_KNOWLEDGE_TEST_ATTEMPTS - nextFailedAttempts} deneme hakkın kaldı.`,
+        `Bu soruyu tekrar cevapla. ${MAX_KNOWLEDGE_TEST_ATTEMPTS - nextFailedAttempts} deneme hakkın kaldı.`,
       );
       return;
     }
@@ -386,19 +341,19 @@ export default function OnboardingScreen() {
         </Text>
         <View style={styles.heroSteps}>
           <View style={styles.heroStep}>
-            <Ionicons name="person-circle" size={18} color="#FFFFFF" />
+            <Ionicons name="person-circle" size={18} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
             <Text style={styles.heroStepText}>Profil</Text>
           </View>
           <View style={styles.heroStep}>
-            <FontAwesome name="spotify" size={16} color="#FFFFFF" />
+            <FontAwesome name="spotify" size={16} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
             <Text style={styles.heroStepText}>Spotify</Text>
           </View>
           <View style={styles.heroStep}>
-            <Ionicons name="radio" size={18} color="#FFFFFF" />
+            <Ionicons name="radio" size={18} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
             <Text style={styles.heroStepText}>Meydan</Text>
           </View>
           <View style={styles.heroStep}>
-            <Ionicons name="sparkles" size={18} color="#FFFFFF" />
+            <Ionicons name="sparkles" size={18} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
             <Text style={styles.heroStepText}>Uyum</Text>
           </View>
         </View>
@@ -408,7 +363,8 @@ export default function OnboardingScreen() {
         <Text style={styles.kicker}>Onboarding</Text>
         <Text style={styles.title}>Kartını hazırla</Text>
         <Text style={styles.description}>
-          Bu bilgiler profil kartında, Spotify modunda ve uyum detaylarında kullanılır.
+          Bu bilgiler profil kartında, Spotify modunda ve uyum detaylarında
+          kullanılır.
         </Text>
       </View>
 
@@ -430,7 +386,8 @@ export default function OnboardingScreen() {
                 hasPassedKnowledgeTest && styles.scoreTextPassed,
               ]}
             >
-              {Object.keys(quizAnswers).length}/{culturalKnowledgeQuestions.length}
+              {Object.keys(quizAnswers).length}/
+              {culturalKnowledgeQuestions.length}
             </Text>
           </View>
         </View>
@@ -843,9 +800,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     quizOptionSelected: {
       borderColor: theme.colors.primary,
-      backgroundColor: theme.isDark
-        ? "rgba(128, 128, 128, 0.22)"
-        : "#F5F5F5",
+      backgroundColor: theme.isDark ? "rgba(128, 128, 128, 0.22)" : "#F5F5F5",
     },
     quizOptionDisabled: {
       opacity: 0.5,

@@ -3,6 +3,7 @@
 import { Image, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Badge } from "@/domain/entities/User";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { useTheme } from "@/shared/theme";
 
 interface BadgeIconProps {
@@ -93,7 +94,6 @@ const iconBadgeConfig: Record<
 // TIP B: Özel PNG/görsel olan rozetler
 // Görseli assets/ klasörüne koy, buraya require() ile ekle
 const imageBadgeAssets: Partial<Record<Badge, ReturnType<typeof require>>> = {
-  premium_member: require("../../../assets/badges/premium_exclusive.png"),
   muharrem_orucu_2026: require("../../../assets/badges/asure.png"),
   asure_lokmasi: require("../../../assets/badges/asure.png"),
   ilk_eslesme: require("../../../assets/badges/matched.png"),
@@ -115,11 +115,6 @@ const imageBadgeConfig: Partial<
     }
   >
 > = {
-  premium_member: {
-    bgColor: "rgba(167,139,250,0.26)",
-    borderColor: "rgba(216,180,254,0.68)",
-    imageScale: 1.08,
-  },
   muharrem_orucu_2026: {
     bgColor: "rgba(20,184,166,0.25)",
     borderColor: "rgba(94,234,212,0.68)",
@@ -171,6 +166,25 @@ const imageBadgeConfig: Partial<
 
 export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
   const theme = useTheme();
+
+  if (badge === "premium_member") {
+    return (
+      <View
+        style={{
+          width: size,
+          height: size,
+          borderRadius: size / 2,
+          alignItems: "center",
+          justifyContent: "center",
+          backgroundColor: theme.colors.elevated,
+          borderWidth: Math.max(1, size * 0.04),
+          borderColor: theme.colors.border,
+        }}
+      >
+        <PremiumVerifiedBadge size={size * 0.68} variant="blue" />
+      </View>
+    );
+  }
 
   // TIP B: Özel PNG görseli var mı?
   const imageAsset = imageBadgeAssets[badge];

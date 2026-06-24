@@ -6,6 +6,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import type { CulturalCompatibility } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { Card } from "@/shared/components/Card";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { formatDistanceKm } from "@/shared/utils/location";
 import { formatScore } from "@/shared/utils/score";
 import { isProfileBoostActive } from "@/shared/utils/profileBoost";
@@ -116,14 +117,17 @@ const SwipeProfileCardComponent = ({
                 pressed && styles.pressed,
               ]}
             >
-              <Text
-                numberOfLines={1}
-                adjustsFontSizeToFit
-                minimumFontScale={0.82}
-                style={styles.name}
-              >
-                {user.name}, {user.age}
-              </Text>
+              <View style={styles.nameContent}>
+                <Text
+                  numberOfLines={1}
+                  adjustsFontSizeToFit
+                  minimumFontScale={0.82}
+                  style={styles.name}
+                >
+                  {user.name}, {user.age}
+                </Text>
+                {user.isPremium ? <PremiumVerifiedBadge size={19} /> : null}
+              </View>
               <View style={styles.profileCta}>
                 <Ionicons name="person-outline" size={15} color="#FFFFFF" />
                 <Text numberOfLines={1} style={styles.profileCtaText}>
@@ -133,14 +137,17 @@ const SwipeProfileCardComponent = ({
               </View>
             </Pressable>
           ) : (
-            <Text
-              numberOfLines={1}
-              adjustsFontSizeToFit
-              minimumFontScale={0.82}
-              style={styles.name}
-            >
-              {user.name}, {user.age}
-            </Text>
+            <View style={styles.nameContent}>
+              <Text
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.82}
+                style={styles.name}
+              >
+                {user.name}, {user.age}
+              </Text>
+              {user.isPremium ? <PremiumVerifiedBadge size={19} /> : null}
+            </View>
           )}
           <View style={styles.metaRow}>
             <Ionicons name="location" size={16} color="#FFFFFF" />
@@ -263,6 +270,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       lineHeight: 36,
       fontWeight: "900",
       color: "#FFFFFF"
+    },
+    nameContent: {
+      flex: 1,
+      minWidth: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     nameButton: {
       flexDirection: "row",

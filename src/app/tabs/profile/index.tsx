@@ -6,6 +6,7 @@ import { BadgeIcon } from "@/shared/components/BadgeIcon";
 import { Button } from "@/shared/components/Button";
 import { Card } from "@/shared/components/Card";
 import { Loading } from "@/shared/components/Loading";
+import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { Screen } from "@/shared/components/Screen";
 import { badgeLabels, interestOptions } from "@/shared/constants/options";
 import { useProfile } from "@/features/profile/hooks/useProfile";
@@ -61,9 +62,12 @@ export default function ProfileScreen() {
       {primaryPhoto ? (
         <Image source={{ uri: primaryPhoto }} style={styles.photo} />
       ) : null}
-      <Text style={styles.name}>
-        {profile.name}, {profile.age}
-      </Text>
+      <View style={styles.nameRow}>
+        <Text numberOfLines={1} style={styles.name}>
+          {profile.name}, {profile.age}
+        </Text>
+        {profile.isPremium ? <PremiumVerifiedBadge size={21} /> : null}
+      </View>
       <Text style={styles.city}>{profile.city}</Text>
       <Text style={styles.bio}>{profile.bio}</Text>
 
@@ -186,7 +190,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     name: {
       ...theme.typography.title,
+      flexShrink: 1,
       color: theme.colors.text,
+    },
+    nameRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
     },
     city: {
       ...theme.typography.body,

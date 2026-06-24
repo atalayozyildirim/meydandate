@@ -24,7 +24,7 @@ ile başlayan secret anahtarları `EXPO_PUBLIC_*` değişkenlerine koyma.
 Premium product id listesi:
 
 - `ehlibyte.premium.monthly` - ₺79,99 / ay
-- `ehlibyte.premium.yearly` - ₺599,99 / yıl
+- `ehlibyte.premium.year` - ₺599,99 / yıl
 - `ehlibyte.premium.lifetime` - ₺899,99
 
 Fire product id listesi:
@@ -36,12 +36,12 @@ Fire product id listesi:
 Rozet product id listesi:
 
 - `ehlibyte.badge.muharrem_follower` - ₺29,99
-- `ehlibyte.badge.cem_room_supporter` - ₺39,99
+- `ehlibyte.badge.meydan` - ₺39,99
 - `ehlibyte.badge.culture_guardian` - ₺49,99
 - `ehlibyte.badge.la_fetta_illa` - ₺99,99
-- `ehlibyte.badge.night_badge` - ₺119,99
-- `ehlibyte.badge.haci_bektas_veli` - ₺129,99
-- `ehlibyte.badge.zulfiqar_sword` - ₺149,99
+- `ehlibyte.badge.nightlove` - ₺119,99
+- `ehlibyte.badge.hacibektas` - ₺129,99
+- `ehlibyte.badges.zulfikar` - ₺149,99
 
 Detaylı App Store Connect ürün listesi için [APP_STORE_IAP_PRODUCTS.md](./APP_STORE_IAP_PRODUCTS.md)
 dosyasını kullan.
@@ -54,12 +54,15 @@ EXPO_PUBLIC_REVENUECAT_IOS_API_KEY=appl_your_public_key
 EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY=goog_your_public_key
 EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID=premium
 EXPO_PUBLIC_USE_REVENUECAT=false
+EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=false
 ```
 
 Development ortamında `EXPO_PUBLIC_USE_REVENUECAT` boş veya `false` ise uygulama mock
 ödeme servisini kullanır. StoreKit/App Store ürünleri hazır olduğunda yerel test için
-`EXPO_PUBLIC_USE_REVENUECAT=true` yap. App Store/TestFlight build'lerinde platforma
-özel public anahtarı kullan.
+`EXPO_PUBLIC_USE_REVENUECAT=true` yap; iOS sandbox/StoreKit testinde `appl_` key
+kullanılır. RevenueCat Test Store ürünlerini test edeceksen ayrıca
+`EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=true` yap. App Store/TestFlight build'lerinde
+platforma özel public anahtarı kullanılmalı, Test Store key ile build gönderilmemeli.
 
 ## Supabase Webhook
 
@@ -96,6 +99,8 @@ konfigürasyonu hizalanmalıdır.
   App şu anda `monthly`, `yearly` ve `lifetime` planlarını satın alma UI'ında sunar.
 - Current offering içinde App Store Connect'te oluşturulmamış ürün varsa mağazada
   gerçekten oluşturulana kadar offering'den çıkar.
+- `test_` ile başlayan RevenueCat Test Store key, StoreKit/App Store Connect ürünlerini
+  sorgulamaz; yalnızca RevenueCat Test Store ürünleriyle kullanılmalı.
 - App Store Connect'te Paid Applications Agreement, Tax ve Banking durumları tamamlanmalı.
 - iOS 18.4-18.5 simulator sandbox ürün sorgusu boş döndürebilir; fiziksel cihaz, iOS 26+
   simulator veya StoreKit Configuration ile test et.
