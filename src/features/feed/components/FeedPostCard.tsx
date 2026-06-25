@@ -23,6 +23,7 @@ import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { formatDateTime } from "@/shared/utils/date";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
+import { shouldShowVerifiedBadge } from "@/shared/utils/userRole";
 import { useTheme } from "@/shared/theme";
 
 interface FeedPostCardProps {
@@ -218,7 +219,7 @@ export const FeedPostCard = ({
                   <Text style={styles.name} numberOfLines={1}>
                     {sanitizePlainText(post.author.name, 80)}
                   </Text>
-                  {post.author.isPremium ? (
+                  {shouldShowVerifiedBadge(post.author) ? (
                     <PremiumVerifiedBadge size={16} />
                   ) : null}
                   {isSponsored ? (
@@ -340,7 +341,7 @@ export const FeedPostCard = ({
                     <Text style={styles.nativeSponsorTitle} numberOfLines={1}>
                       {sanitizePlainText(post.author.name, 80)}
                     </Text>
-                    {post.author.isPremium ? (
+                    {shouldShowVerifiedBadge(post.author) ? (
                       <PremiumVerifiedBadge size={16} />
                     ) : null}
                   </View>
@@ -391,7 +392,7 @@ export const FeedPostCard = ({
                   color={theme.colors.muted}
                 />
                 <Text style={styles.actionText}>
-                  {post.comments.length > 0 ? compactCount(post.comments.length) : ""}
+                  {compactCount(post.comments.length)}
                 </Text>
               </Pressable>
               <Pressable

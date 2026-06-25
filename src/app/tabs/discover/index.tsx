@@ -1,4 +1,3 @@
-// Discover sekmesi swipe kartlarini, animasyonlari ve match modalini calistirir.
 import {
   useCallback,
   useEffect,
@@ -22,7 +21,6 @@ import {
 } from "react-native";
 import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { useFocusEffect, useRouter } from "expo-router";
-import Constants from "expo-constants";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import * as Location from "expo-location";
 import LottieView from "lottie-react-native";
@@ -85,35 +83,41 @@ type AudioModule = typeof import("expo-audio");
 type DiscoverSound = AudioPlayer;
 
 let audioModule: AudioModule | null = null;
-
-const isExpoGo = () =>
-  Constants.appOwnership === "expo" ||
-  Constants.executionEnvironment === "storeClient";
+let createAudioPlayerFn: typeof import("expo-audio").createAudioPlayer | null =
+  null;
 
 const canUseDiscoverAudio = () => {
-  if (isExpoGo()) {
-    return false;
-  }
-
   try {
-    return Boolean(requireOptionalNativeModule("ExpoAudio"));
-  } catch {
+    const result = Boolean(requireOptionalNativeModule("ExpoAudio"));
+    console.log("[Discover Music] ExpoAudio module available:", result);
+    return result;
+  } catch (error) {
+    console.log(
+      "[Discover Music] Cannot use audio - module check failed:",
+      error,
+    );
     return false;
   }
 };
 
 const loadAudio = async () => {
-  if (audioModule) {
+  if (audioModule && createAudioPlayerFn) {
+    console.log("[Discover Music] Audio module already loaded");
     return audioModule;
   }
 
   if (!canUseDiscoverAudio()) {
+    console.log("[Discover Music] Cannot use audio, skipping load");
     return null;
   }
 
   try {
+    console.log("[Discover Music] Loading expo-audio module");
     audioModule = await import("expo-audio");
-  } catch {
+    createAudioPlayerFn = audioModule.createAudioPlayer;
+    console.log("[Discover Music] Audio module loaded successfully");
+  } catch (error) {
+    console.error("[Discover Music] Failed to load audio module:", error);
     return null;
   }
 
@@ -152,7 +156,9 @@ const discoverModes: Array<{
 ];
 
 const normalizeMusicSignal = (value?: string | null) =>
-  sanitizePlainText(value ?? "", 120).trim().toLocaleLowerCase("tr-TR");
+  sanitizePlainText(value ?? "", 120)
+    .trim()
+    .toLocaleLowerCase("tr-TR");
 
 const getCultureImportanceLabel = (value: User["cultureImportance"]) =>
   cultureImportanceOptions.find((option) => option.value === value)?.label ??
@@ -183,7 +189,9 @@ const getCompatibilityReasons = (currentUser: User | null, candidate: User) => {
     currentUser.hometown.toLocaleLowerCase("tr-TR") ===
       candidate.hometown.toLocaleLowerCase("tr-TR")
   ) {
-    reasons.push(`Aynı memleket sinyali: ${sanitizePlainText(candidate.hometown, 80)}`);
+    reasons.push(
+      `Aynı memleket sinyali: ${sanitizePlainText(candidate.hometown, 80)}`,
+    );
   }
 
   if (
@@ -192,7 +200,9 @@ const getCompatibilityReasons = (currentUser: User | null, candidate: User) => {
     currentUser.favoritePoet.toLocaleLowerCase("tr-TR") ===
       candidate.favoritePoet.toLocaleLowerCase("tr-TR")
   ) {
-    reasons.push(`Favori ozan ortak: ${sanitizePlainText(candidate.favoritePoet, 80)}`);
+    reasons.push(
+      `Favori ozan ortak: ${sanitizePlainText(candidate.favoritePoet, 80)}`,
+    );
   }
 
   if (
@@ -201,7 +211,9 @@ const getCompatibilityReasons = (currentUser: User | null, candidate: User) => {
     currentUser.favoriteSong.toLocaleLowerCase("tr-TR") ===
       candidate.favoriteSong.toLocaleLowerCase("tr-TR")
   ) {
-    reasons.push(`Favori türkü ortak: ${sanitizePlainText(candidate.favoriteSong, 80)}`);
+    reasons.push(
+      `Favori türkü ortak: ${sanitizePlainText(candidate.favoriteSong, 80)}`,
+    );
   }
 
   if (currentUser.cultureImportance === candidate.cultureImportance) {
@@ -216,7 +228,9 @@ const getCompatibilityReasons = (currentUser: User | null, candidate: User) => {
 
   return reasons.length > 0
     ? reasons
-    : ["Uyum skoru; kültürel beyan, ilgi alanları ve yaşam tarzı sinyallerinden hesaplanıyor."];
+    : [
+        "Uyum skoru; kültürel beyan, ilgi alanları ve yaşam tarzı sinyallerinden hesaplanıyor.",
+      ];
 };
 
 const getLocationPreferenceErrorMessage = (error: unknown) => {
@@ -610,6 +624,8 @@ export default function DiscoverScreen() {
   const [isLocationSheetVisible, setIsLocationSheetVisible] = useState(false);
   const [isDiscoverFocused, setIsDiscoverFocused] = useState(false);
   const [isMusicPreferenceLoaded, setIsMusicPreferenceLoaded] = useState(false);
+  const [isDiscoverAudioAvailable, setIsDiscoverAudioAvailable] =
+    useState(false);
   const [isMusicMuted, setIsMusicMuted] = useState(false);
   const [isLoveEffectVisible, setIsLoveEffectVisible] = useState(false);
   const [isSpotifyLinked, setIsSpotifyLinked] = useState(false);
@@ -667,7 +683,8 @@ export default function DiscoverScreen() {
     }
 
     return deck.filter(
-      (card) => normalizeMusicSignal(card.user.favoriteSong) === currentMusicSignal,
+      (card) =>
+        normalizeMusicSignal(card.user.favoriteSong) === currentMusicSignal,
     );
   }, [currentMusicSignal, deck, discoverMode]);
   const activeCard = visibleDeck[0];
@@ -690,8 +707,7 @@ export default function DiscoverScreen() {
     nativeTabAvoidance + 34,
   );
   const cardHeightOffset =
-    nativeTabAvoidance * (isCompactViewport ? 0.62 : 0.76) +
-    actionTabClearance;
+    nativeTabAvoidance * (isCompactViewport ? 0.62 : 0.76) + actionTabClearance;
   const cardHeight = Math.min(
     Math.max(
       height * (isCompactViewport ? 0.48 : 0.55) - cardHeightOffset,
@@ -722,6 +738,9 @@ export default function DiscoverScreen() {
 
   useEffect(() => {
     let mounted = true;
+
+    const audioAvailable = canUseDiscoverAudio();
+    setIsDiscoverAudioAvailable(audioAvailable);
 
     void discoverMusicStorage
       .getItem(discoverMusicPreferenceKey)
@@ -762,37 +781,59 @@ export default function DiscoverScreen() {
   }, []);
 
   useEffect(() => {
-    if (!isMusicPreferenceLoaded || !canUseDiscoverAudio()) {
+    if (!isMusicPreferenceLoaded || !isDiscoverAudioAvailable) {
+      console.log(
+        "[Discover Music] Skipped - preference not loaded or audio not available",
+      );
       return undefined;
     }
 
     let cancelled = false;
     shouldPlayMusicRef.current = isDiscoverFocused && !isMusicMuted;
+    console.log(
+      "[Discover Music] useEffect triggered - isDiscoverFocused:",
+      isDiscoverFocused,
+      "isMusicMuted:",
+      isMusicMuted,
+      "shouldPlay:",
+      shouldPlayMusicRef.current,
+    );
 
     const unloadCurrentSound = async () => {
       const currentSound = soundRef.current;
       soundRef.current = null;
 
       if (currentSound) {
-        currentSound.pause();
-        currentSound.remove();
+        try {
+          console.log("[Discover Music] Unloading current sound");
+          currentSound.pause();
+          currentSound.release();
+          console.log("[Discover Music] Sound unloaded successfully");
+        } catch (error) {
+          console.error("[Discover Music] Error unloading sound:", error);
+        }
       }
     };
 
     const playTrack = async (trackIndex: number) => {
       if (cancelled || !shouldPlayMusicRef.current) {
+        console.log("[Discover Music] Skipped playTrack - cancelled or muted");
         return;
       }
 
       await unloadCurrentSound();
 
       if (cancelled || !shouldPlayMusicRef.current) {
+        console.log(
+          "[Discover Music] Skipped playTrack after unload - cancelled or muted",
+        );
         return;
       }
 
       const Audio = await loadAudio();
 
-      if (!Audio) {
+      if (!Audio || !createAudioPlayerFn) {
+        console.log("[Discover Music] Failed to load audio module");
         shouldPlayMusicRef.current = false;
         return;
       }
@@ -800,67 +841,105 @@ export default function DiscoverScreen() {
       try {
         await Audio.setAudioModeAsync({
           playsInSilentMode: true,
+          interruptionMode: "doNotMix",
+          allowsRecording: false,
           shouldPlayInBackground: false,
-          interruptionModeAndroid: "duckOthers",
-          interruptionMode: "mixWithOthers",
+          shouldRouteThroughEarpiece: false,
         });
+        console.log("[Discover Music] Audio mode set successfully");
       } catch (error) {
-        console.error("Audio mode setup failed:", error);
+        console.error("[Discover Music] Audio mode setup failed:", error);
       }
 
-      const sound = Audio.createAudioPlayer(
-        discoverMusicTracks[trackIndex],
-        {
+      try {
+        console.log(
+          "[Discover Music] Creating audio player for track:",
+          trackIndex,
+        );
+        const sound = createAudioPlayerFn(discoverMusicTracks[trackIndex], {
           updateInterval: 500,
-        },
-      );
-      sound.loop = false;
-      sound.volume = 0.42;
+          keepAudioSessionActive: true,
+        });
 
-      if (cancelled || !shouldPlayMusicRef.current) {
-        sound.remove();
-        return;
-      }
+        sound.volume = 1.0;
+        console.log("[Discover Music] Audio player created, volume set to 1.0");
 
-      soundRef.current = sound;
-      sound.addListener("playbackStatusUpdate", (status) => {
-        if (
-          !status.isLoaded ||
-          cancelled ||
-          !shouldPlayMusicRef.current ||
-          !status.didJustFinish
-        ) {
+        if (cancelled || !shouldPlayMusicRef.current) {
+          console.log("[Discover Music] Releasing sound - cancelled or muted");
+          sound.release();
           return;
         }
 
-        musicTrackIndexRef.current =
-          (musicTrackIndexRef.current + 1) % discoverMusicTracks.length;
-        void playTrack(musicTrackIndexRef.current).catch(() => undefined);
-      });
-      
-      try {
-        await sound.play();
+        soundRef.current = sound;
+
+        // Set up status listener for track completion
+        sound.addListener("playbackStatusUpdate" as any, (status: any) => {
+          console.log("[Discover Music] Playback status update:", status);
+          if (
+            !status.isLoaded ||
+            cancelled ||
+            !shouldPlayMusicRef.current ||
+            !status.didJustFinish
+          ) {
+            return;
+          }
+
+          console.log("[Discover Music] Track finished, playing next track");
+          musicTrackIndexRef.current =
+            (musicTrackIndexRef.current + 1) % discoverMusicTracks.length;
+          void playTrack(musicTrackIndexRef.current).catch(() => undefined);
+        });
+
+        try {
+          console.log("[Discover Music] Starting playback");
+          await sound.play();
+          console.log("[Discover Music] Playback started successfully");
+
+          // Wait a moment and check if playing
+          setTimeout(() => {
+            console.log(
+              "[Discover Music] Playback check - playing:",
+              sound.playing,
+              "isLoaded:",
+              sound.isLoaded,
+            );
+          }, 1000);
+        } catch (error) {
+          console.error("[Discover Music] Audio playback failed:", error);
+          sound.release();
+        }
       } catch (error) {
-        console.error("Audio playback failed:", error);
-        sound.remove();
+        console.error("[Discover Music] Audio player creation failed:", error);
+        shouldPlayMusicRef.current = false;
       }
     };
 
     if (!shouldPlayMusicRef.current) {
+      console.log("[Discover Music] Should not play, unloading current sound");
       void unloadCurrentSound();
       return () => {
         cancelled = true;
       };
     }
 
+    console.log(
+      "[Discover Music] Starting to play track:",
+      musicTrackIndexRef.current,
+    );
     void playTrack(musicTrackIndexRef.current).catch(() => undefined);
 
     return () => {
+      console.log("[Discover Music] Cleanup - cancelling playback");
       cancelled = true;
       shouldPlayMusicRef.current = false;
       void unloadCurrentSound();
     };
-  }, [isDiscoverFocused, isMusicMuted, isMusicPreferenceLoaded]);
+  }, [
+    isDiscoverAudioAvailable,
+    isDiscoverFocused,
+    isMusicMuted,
+    isMusicPreferenceLoaded,
+  ]);
 
   useEffect(() => {
     translateX.value = 0;
@@ -981,7 +1060,10 @@ export default function DiscoverScreen() {
     }
 
     if (!currentUser) {
-      Alert.alert("Oturum gerekli", "Spotify bağlantısı için giriş yapman gerekiyor.");
+      Alert.alert(
+        "Oturum gerekli",
+        "Spotify bağlantısı için giriş yapman gerekiyor.",
+      );
       return;
     }
 
@@ -1009,11 +1091,16 @@ export default function DiscoverScreen() {
         queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
       ]);
       await refresh();
-      Alert.alert("Spotify bağlandı", `${result.trackSignal} ile eşleşme modu güncellendi.`);
+      Alert.alert(
+        "Spotify bağlandı",
+        `${result.trackSignal} ile eşleşme modu güncellendi.`,
+      );
     } catch (error) {
       Alert.alert(
         "Spotify bağlanamadı",
-        error instanceof Error ? error.message : "Spotify bağlantısı tamamlanamadı.",
+        error instanceof Error
+          ? error.message
+          : "Spotify bağlantısı tamamlanamadı.",
       );
     } finally {
       setIsSpotifyConnecting(false);
@@ -1093,10 +1180,7 @@ export default function DiscoverScreen() {
         return;
       }
 
-      Alert.alert(
-        "İşlem tamamlanamadı",
-        message,
-      );
+      Alert.alert("İşlem tamamlanamadı", message);
     }
   };
 
@@ -1325,7 +1409,7 @@ export default function DiscoverScreen() {
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Akışa dön"
-            onPress={() => router.replace("/tabs/feed")}
+            onPress={() => router.back()}
             style={({ pressed }) => [
               styles.iconButton,
               styles.backButton,
@@ -1389,10 +1473,7 @@ export default function DiscoverScreen() {
         </View>
       </View>
 
-      <View
-        accessibilityRole="tablist"
-        style={styles.modeSwitch}
-      >
+      <View accessibilityRole="tablist" style={styles.modeSwitch}>
         {discoverModes.map((mode) => {
           const selected = discoverMode === mode.value;
           const selectedColor =
@@ -1592,9 +1673,7 @@ export default function DiscoverScreen() {
             </GestureDetector>
           </View>
           <View style={styles.deckMeta}>
-            <Text style={styles.deckMetaText}>
-              {activeModeLabel}
-            </Text>
+            <Text style={styles.deckMetaText}>{activeModeLabel}</Text>
             <View style={styles.progressDots}>
               {visibleDeck.slice(0, 4).map((item, index) => (
                 <View
@@ -1669,7 +1748,9 @@ export default function DiscoverScreen() {
               }
               icon={
                 <>
-                  <Animated.View style={[styles.fireGlyphWrap, fireButtonStyle]}>
+                  <Animated.View
+                    style={[styles.fireGlyphWrap, fireButtonStyle]}
+                  >
                     <ActionGlyph
                       variant="fire"
                       name="flame"
@@ -1742,18 +1823,18 @@ export default function DiscoverScreen() {
               ? "Spotify hesabın bağlı değil"
               : isSpotifyModeWaitingForTrack
                 ? "Spotify'da aktif şarkı yok"
-              : "Şimdilik yeni profil yok"
+                : "Şimdilik yeni profil yok"
           }
           description={
             isSpotifyModeMissingSignal
               ? "Anlık şarkı eşleşmesi için Spotify hesabını bağla. Uygulama çalan şarkını okuyup aynı müzik sinyalindeki profilleri gösterecek."
               : isSpotifyModeWaitingForTrack
                 ? "Hesap bağlı. Spotify'da bir şarkı çalarken yenilersen eşleşme sinyalini güncelleriz."
-              : discoverMode === "spotify"
-                ? "Aynı şarkı sinyalinde yeni profil yok. Topluluk moduna geçerek genel önerilere bakabilirsin."
-              : currentUser?.matchByLocation
-              ? "Yakında yeni profil yoksa Ayarlar'dan mesafe aralığını genişletebilirsin."
-              : "Yeni profiller geldiğinde Discover akışı otomatik yenilenecek."
+                : discoverMode === "spotify"
+                  ? "Aynı şarkı sinyalinde yeni profil yok. Topluluk moduna geçerek genel önerilere bakabilirsin."
+                  : currentUser?.matchByLocation
+                    ? "Yakında yeni profil yoksa Ayarlar'dan mesafe aralığını genişletebilirsin."
+                    : "Yeni profiller geldiğinde Discover akışı otomatik yenilenecek."
           }
           actionLabel={
             isSpotifyModeMissingSignal
@@ -1807,26 +1888,38 @@ export default function DiscoverScreen() {
           <View
             style={[
               styles.locationIconWrap,
-              !isMusicMuted && styles.locationIconWrapActive,
+              isDiscoverAudioAvailable &&
+                !isMusicMuted &&
+                styles.locationIconWrapActive,
             ]}
           >
             <Ionicons
-              name={isMusicMuted ? "volume-mute-outline" : "volume-high-outline"}
+              name={
+                !isDiscoverAudioAvailable || isMusicMuted
+                  ? "volume-mute-outline"
+                  : "volume-high-outline"
+              }
               size={16}
-              color={isMusicMuted ? theme.colors.muted : theme.colors.primary}
+              color={
+                !isDiscoverAudioAvailable || isMusicMuted
+                  ? theme.colors.muted
+                  : theme.colors.primary
+              }
             />
           </View>
           <View style={styles.musicSettingTextWrap}>
             <Text style={styles.musicSettingTitle}>Keşfet müziği</Text>
             <Text style={styles.musicSettingSubtitle}>
-              {isMusicMuted
+              {!isDiscoverAudioAvailable
+                ? "Bu build ses modülünü desteklemiyor. TestFlight veya development build kullan."
+                : isMusicMuted
                 ? "Müzik kapalı; Keşfet sessiz açılır."
                 : "Keşfet açılınca müzik otomatik çalar."}
             </Text>
           </View>
           <Switch
-            value={!isMusicMuted}
-            disabled={!isMusicPreferenceLoaded}
+            value={isDiscoverAudioAvailable && !isMusicMuted}
+            disabled={!isMusicPreferenceLoaded || !isDiscoverAudioAvailable}
             onValueChange={(enabled) =>
               setDiscoverMusicMutedPreference(!enabled)
             }
@@ -1896,11 +1989,7 @@ export default function DiscoverScreen() {
           <>
             <View style={styles.compatibilityHeader}>
               <View style={styles.compatibilityIcon}>
-                <Ionicons
-                  name="star"
-                  size={18}
-                  color={theme.colors.primary}
-                />
+                <Ionicons name="star" size={18} color={theme.colors.primary} />
               </View>
               <View style={styles.compatibilityTitleWrap}>
                 <Text style={styles.compatibilityTitle}>Uyum detayı</Text>
@@ -2152,7 +2241,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       paddingVertical: 8,
       borderRadius: 34,
       borderWidth: 1,
-      borderColor: theme.isDark ? "rgba(128, 128, 128, 0.22)" : "rgba(128, 128, 128, 0.16)",
+      borderColor: theme.isDark
+        ? "rgba(128, 128, 128, 0.22)"
+        : "rgba(128, 128, 128, 0.16)",
       backgroundColor: theme.isDark
         ? "rgba(17, 17, 17, 0.96)"
         : "rgba(255, 255, 255, 0.96)",

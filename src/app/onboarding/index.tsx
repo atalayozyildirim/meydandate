@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
-import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+  Alert,
+  Image,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { FontAwesome } from "@expo/vector-icons";
@@ -42,6 +50,91 @@ const getRandomQuestions = (
 };
 
 const culturalKnowledgeQuestions = getRandomQuestions(aleviQuestions, 5);
+
+type OnboardingStepId =
+  | "intro"
+  | "quiz"
+  | "culture"
+  | "interests"
+  | "profile"
+  | "details"
+  | "review";
+
+const onboardingSteps: Array<{
+  id: OnboardingStepId;
+  eyebrow: string;
+  title: string;
+  description: string;
+}> = [
+  {
+    id: "intro",
+    eyebrow: "Kart",
+    title: "Kartın nasıl çalışır?",
+    description: "Profil, müzik ve uyum sinyalleri keşifte birlikte çalışır.",
+  },
+  {
+    id: "quiz",
+    eyebrow: "Yol ve erkân",
+    title: "Bilgi testini geç",
+    description: "Soruları sırayla cevapla; doğru cevaplar ilerlemeni açar.",
+  },
+  {
+    id: "culture",
+    eyebrow: "Kimlik",
+    title: "Kültürel yakınlığını seç",
+    description: "Bu sinyaller uyum detaylarında ve önerilerde kullanılır.",
+  },
+  {
+    id: "interests",
+    eyebrow: "İlgi",
+    title: "Seni anlatan alanları seç",
+    description: "En az bir ilgi alanı seçerek kartını kişiselleştir.",
+  },
+  {
+    id: "profile",
+    eyebrow: "Profil",
+    title: "Temel bilgilerini gir",
+    description: "İsim, yaş ve şehir profil kartında görünür.",
+  },
+  {
+    id: "details",
+    eyebrow: "Detay",
+    title: "Sohbet başlatan detaylar ekle",
+    description: "Bio ve sevdiğin kültürel detaylar daha iyi eşleşme sağlar.",
+  },
+  {
+    id: "review",
+    eyebrow: "Kontrol",
+    title: "Kartını son kez kontrol et",
+    description: "Her şey hazırsa onboarding'i tamamlayabilirsin.",
+  },
+];
+
+const stepValidationFields: Record<
+  OnboardingStepId,
+  Array<keyof OnboardingFormValues>
+> = {
+  intro: [],
+  quiz: [],
+  culture: ["culturalIdentity", "cultureImportance"],
+  interests: ["interests"],
+  profile: ["photoUri", "name", "age", "city"],
+  details: ["occupation", "bio", "hometown", "favoriteSong", "favoritePoet"],
+  review: [
+    "photoUri",
+    "name",
+    "age",
+    "city",
+    "occupation",
+    "bio",
+    "hometown",
+    "favoriteSong",
+    "favoritePoet",
+    "culturalIdentity",
+    "cultureImportance",
+    "interests",
+  ],
+};
 
 interface KnowledgeTestAttemptState {
   failedAttempts: number;
@@ -113,6 +206,8 @@ export default function OnboardingScreen() {
   const [lockedUntil, setLockedUntil] = useState<number | null>(null);
   const [attemptStateLoaded, setAttemptStateLoaded] = useState(false);
   const [now, setNow] = useState(Date.now());
+  const [activeStepIndex, setActiveStepIndex] = useState(0);
+  const [activeQuizIndex, setActiveQuizIndex] = useState(0);
   const form = useForm<OnboardingFormValues>({
     resolver: zodResolver(onboardingSchema),
     defaultValues: {
@@ -134,11 +229,28 @@ export default function OnboardingScreen() {
   const hasPassedKnowledgeTest = culturalKnowledgeQuestions.every((question) =>
     Boolean(quizAnswers[question.id]),
   );
+  const activeStep = onboardingSteps[activeStepIndex] ?? onboardingSteps[0];
+  const activeQuizQuestion = culturalKnowledgeQuestions[activeQuizIndex];
+  const activeQuizAnswer = activeQuizQuestion
+    ? quizAnswers[activeQuizQuestion.id]
+    : undefined;
+  const answeredKnowledgeQuestionCount = Object.keys(quizAnswers).length;
   const isKnowledgeTestLocked = lockedUntil !== null && lockedUntil > now;
   const remainingAttempts = Math.max(
     0,
     MAX_KNOWLEDGE_TEST_ATTEMPTS - failedAttempts,
   );
+  const formValues = form.watch();
+  const isFirstStep = activeStepIndex === 0;
+  const isLastStep = activeStep.id === "review";
+  const isLastQuizQuestion =
+    activeQuizIndex === culturalKnowledgeQuestions.length - 1;
+  const stepProgress =
+    activeStep.id === "quiz"
+      ? (activeStepIndex +
+          (activeQuizIndex + 1) / culturalKnowledgeQuestions.length) /
+        onboardingSteps.length
+      : (activeStepIndex + 1) / onboardingSteps.length;
 
   useEffect(() => {
     let isMounted = true;
@@ -326,94 +438,269 @@ export default function OnboardingScreen() {
     }));
   };
 
+  const goBack = () => {
+    if (activeStep.id === "quiz" && activeQuizIndex > 0) {
+      setActiveQuizIndex((index) => Math.max(0, index - 1));
+      return;
+    }
+
+    setActiveStepIndex((index) => Math.max(0, index - 1));
+  };
+
+  const validateStepFields = async (stepId: OnboardingStepId) => {
+    const fields = stepValidationFields[stepId];
+
+    if (fields.length === 0) {
+      return true;
+    }
+
+    return form.trigger(fields);
+  };
+
+  const goNext = async () => {
+    if (activeStep.id === "quiz") {
+      if (isKnowledgeTestLocked) {
+        Alert.alert(
+          "Test geçici olarak kilitli",
+          `${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`,
+        );
+        return;
+      }
+
+      if (!activeQuizQuestion || !activeQuizAnswer) {
+        Alert.alert("Cevap gerekli", "Devam etmek için bu soruyu cevapla.");
+        return;
+      }
+
+      if (!isLastQuizQuestion) {
+        setActiveQuizIndex((index) =>
+          Math.min(culturalKnowledgeQuestions.length - 1, index + 1),
+        );
+        return;
+      }
+
+      setActiveStepIndex((index) =>
+        Math.min(onboardingSteps.length - 1, index + 1),
+      );
+      return;
+    }
+
+    if (isLastStep) {
+      void onSubmit();
+      return;
+    }
+
+    const isStepValid = await validateStepFields(activeStep.id);
+
+    if (!isStepValid) {
+      return;
+    }
+
+    setActiveStepIndex((index) =>
+      Math.min(onboardingSteps.length - 1, index + 1),
+    );
+  };
+
+  const nextButtonLabel =
+    activeStep.id === "intro"
+      ? "Teste başla"
+      : activeStep.id === "quiz"
+        ? isLastQuizQuestion
+          ? "Bilgilere geç"
+          : "Sonraki soru"
+        : isLastStep
+          ? "Tamamla"
+          : "İleri";
+  const isNextDisabled =
+    isCompleting ||
+    (activeStep.id === "quiz" &&
+      (!attemptStateLoaded || isKnowledgeTestLocked || !activeQuizAnswer));
+  const culturalIdentityLabel =
+    culturalIdentityOptions.find(
+      (option) => option.value === formValues.culturalIdentity,
+    )?.label ?? "Seçilmedi";
+  const cultureImportanceLabel =
+    cultureImportanceOptions.find(
+      (option) => option.value === formValues.cultureImportance,
+    )?.label ?? "Seçilmedi";
+
   return (
-    <Screen>
-      <LinearGradient
-        colors={["#0A0A0A", "#525252", "#525252"]}
-        style={styles.hero}
+    <Screen scroll={false} style={styles.screenContent}>
+      <ScrollView
+        contentContainerStyle={styles.flowContent}
+        showsVerticalScrollIndicator={false}
       >
-        <View style={styles.heroMark}>
-          <Text style={styles.heroLetter}>e</Text>
-        </View>
-        <Text style={styles.heroKicker}>Ehlibyte'e hoş geldin</Text>
-        <Text style={styles.heroTitle}>
-          Profilini kur, müzik ve uyum sinyallerinle görün.
-        </Text>
-        <View style={styles.heroSteps}>
-          <View style={styles.heroStep}>
-            <Ionicons name="person-circle" size={18} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
-            <Text style={styles.heroStepText}>Profil</Text>
+        <View style={styles.topBar}>
+          <View style={styles.brandMark}>
+            <Text style={styles.brandLetter}>e</Text>
           </View>
-          <View style={styles.heroStep}>
-            <FontAwesome name="spotify" size={16} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
-            <Text style={styles.heroStepText}>Spotify</Text>
+          <View style={styles.topCopy}>
+            <Text style={styles.kicker}>Ehlibyte onboarding</Text>
+            <Text style={styles.topTitle}>Kartını kur</Text>
           </View>
-          <View style={styles.heroStep}>
-            <Ionicons name="radio" size={18} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
-            <Text style={styles.heroStepText}>Meydan</Text>
-          </View>
-          <View style={styles.heroStep}>
-            <Ionicons name="sparkles" size={18} color={theme.isDark ? "#FFFFFF" : theme.colors.text} />
-            <Text style={styles.heroStepText}>Uyum</Text>
-          </View>
-        </View>
-      </LinearGradient>
-
-      <View style={styles.header}>
-        <Text style={styles.kicker}>Onboarding</Text>
-        <Text style={styles.title}>Kartını hazırla</Text>
-        <Text style={styles.description}>
-          Bu bilgiler profil kartında, Spotify modunda ve uyum detaylarında
-          kullanılır.
-        </Text>
-      </View>
-
-      <View style={styles.quizCard}>
-        <View style={styles.quizHeader}>
-          <View>
-            <Text style={styles.kicker}>Yol ve erkân bilgi testi</Text>
-            <Text style={styles.sectionTitle}>Giriş için tüm soruları geç</Text>
-          </View>
-          <View
-            style={[
-              styles.scoreBadge,
-              hasPassedKnowledgeTest && styles.scoreBadgePassed,
-            ]}
-          >
-            <Text
-              style={[
-                styles.scoreText,
-                hasPassedKnowledgeTest && styles.scoreTextPassed,
-              ]}
-            >
-              {Object.keys(quizAnswers).length}/
-              {culturalKnowledgeQuestions.length}
+          <View style={styles.stepCounter}>
+            <Text style={styles.stepCounterText}>
+              {activeStepIndex + 1}/{onboardingSteps.length}
             </Text>
           </View>
         </View>
-        <Text
-          style={[
-            styles.quizStatus,
-            isKnowledgeTestLocked && styles.quizStatusLocked,
-          ]}
-        >
-          {isKnowledgeTestLocked
-            ? `Test kilitli. ${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`
-            : `Kalan deneme hakkı: ${remainingAttempts}`}
-        </Text>
-        {culturalKnowledgeQuestions.map((question) => (
-          <View key={question.id} style={styles.quizQuestion}>
-            <Text style={styles.quizQuestionText}>{question.question}</Text>
+
+        <View style={styles.progressTrack}>
+          <View
+            style={[
+              styles.progressFill,
+              { width: `${Math.max(8, Math.min(100, stepProgress * 100))}%` },
+            ]}
+          />
+        </View>
+
+        <View style={styles.lessonHeader}>
+          <Text style={styles.kicker}>{activeStep.eyebrow}</Text>
+          <Text style={styles.title}>{activeStep.title}</Text>
+          <Text style={styles.description}>{activeStep.description}</Text>
+        </View>
+
+        {activeStep.id === "intro" ? (
+          <LinearGradient
+            colors={
+              theme.isDark
+                ? ["#101010", "#1B1B1B", "#2B2B2B"]
+                : ["#FFFFFF", "#F4F4F4", "#E9E9E9"]
+            }
+            style={styles.introCard}
+          >
+            <View style={styles.mockCardTop}>
+              <View style={styles.mockAvatar}>
+                <Text style={styles.mockAvatarText}>
+                  {"Ç".charAt(0).toLocaleUpperCase("tr-TR")}
+                </Text>
+              </View>
+              <View style={styles.mockSignalBadge}>
+                <Ionicons
+                  name="sparkles"
+                  size={16}
+                  color={theme.isDark ? "#050505" : "#FFFFFF"}
+                />
+                <Text style={styles.mockSignalText}>Uyum %82</Text>
+              </View>
+            </View>
+            <View style={styles.mockCardCopy}>
+              <Text style={styles.mockName}>{"Senin kartın"}</Text>
+              <Text style={styles.mockMeta}>
+                Profil bilgileri, müzik sinyali ve ilgi alanları burada
+                birleşir.
+              </Text>
+            </View>
+            <View style={styles.mockStats}>
+              <View style={styles.mockStat}>
+                <Text style={styles.mockStatValue}>%68</Text>
+                <Text style={styles.mockStatLabel}>Kültür</Text>
+              </View>
+              <View style={styles.mockStat}>
+                <Text style={styles.mockStatValue}>%55</Text>
+                <Text style={styles.mockStatLabel}>Müzik</Text>
+              </View>
+              <View style={styles.mockStat}>
+                <Text style={styles.mockStatValue}>%81</Text>
+                <Text style={styles.mockStatLabel}>Sohbet</Text>
+              </View>
+            </View>
+            <View style={styles.introSignals}>
+              <View style={styles.introSignal}>
+                <Ionicons
+                  name="person-circle"
+                  size={18}
+                  color={theme.colors.text}
+                />
+                <Text style={styles.introSignalText}>Profil</Text>
+              </View>
+              <View style={styles.introSignal}>
+                <FontAwesome
+                  name="spotify"
+                  size={15}
+                  color={theme.colors.text}
+                />
+                <Text style={styles.introSignalText}>Müzik</Text>
+              </View>
+              <View style={styles.introSignal}>
+                <Ionicons name="radio" size={18} color={theme.colors.text} />
+                <Text style={styles.introSignalText}>Meydan</Text>
+              </View>
+              <View style={styles.introSignal}>
+                <Ionicons name="sparkles" size={18} color={theme.colors.text} />
+                <Text style={styles.introSignalText}>Uyum</Text>
+              </View>
+            </View>
+          </LinearGradient>
+        ) : null}
+
+        {activeStep.id === "quiz" && activeQuizQuestion ? (
+          <View style={styles.stepCard}>
+            <View style={styles.quizHeader}>
+              <View style={styles.quizTitleBlock}>
+                <Text style={styles.kicker}>
+                  Soru {activeQuizIndex + 1}/{culturalKnowledgeQuestions.length}
+                </Text>
+                <Text style={styles.sectionTitle}>
+                  {activeQuizQuestion.question}
+                </Text>
+              </View>
+              <View
+                style={[
+                  styles.scoreBadge,
+                  hasPassedKnowledgeTest && styles.scoreBadgePassed,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.scoreText,
+                    hasPassedKnowledgeTest && styles.scoreTextPassed,
+                  ]}
+                >
+                  {answeredKnowledgeQuestionCount}/
+                  {culturalKnowledgeQuestions.length}
+                </Text>
+              </View>
+            </View>
+            <View style={styles.quizDots}>
+              {culturalKnowledgeQuestions.map((question, index) => {
+                const isAnswered = Boolean(quizAnswers[question.id]);
+
+                return (
+                  <View
+                    key={question.id}
+                    style={[
+                      styles.quizDot,
+                      index === activeQuizIndex && styles.quizDotActive,
+                      isAnswered && styles.quizDotDone,
+                    ]}
+                  />
+                );
+              })}
+            </View>
+            <Text
+              style={[
+                styles.quizStatus,
+                isKnowledgeTestLocked && styles.quizStatusLocked,
+              ]}
+            >
+              {isKnowledgeTestLocked
+                ? `Test kilitli. ${formatRemainingTime((lockedUntil ?? now) - now)} sonra tekrar deneyebilirsin.`
+                : `Kalan deneme hakkı: ${remainingAttempts}`}
+            </Text>
             <View style={styles.quizOptions}>
-              {question.options.map((option) => {
-                const selected = quizAnswers[question.id] === option.id;
+              {activeQuizQuestion.options.map((option) => {
+                const selected = activeQuizAnswer === option.id;
 
                 return (
                   <Pressable
                     key={option.id}
                     disabled={!attemptStateLoaded || isKnowledgeTestLocked}
                     onPress={() =>
-                      void answerKnowledgeQuestion(question.id, option)
+                      void answerKnowledgeQuestion(
+                        activeQuizQuestion.id,
+                        option,
+                      )
                     }
                     style={({ pressed }) => [
                       styles.quizOption,
@@ -435,270 +722,570 @@ export default function OnboardingScreen() {
               })}
             </View>
           </View>
-        ))}
-      </View>
+        ) : null}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Kültürel yakınlığını nasıl anlatırsın?
-        </Text>
-        <Controller
-          control={form.control}
-          name="culturalIdentity"
-          render={({ field }) => (
-            <View style={styles.chipWrap}>
-              {culturalIdentityOptions.map((option) => (
-                <OptionChip
-                  key={option.value}
-                  label={option.label}
-                  selected={field.value === option.value}
-                  onPress={() => field.onChange(option.value)}
-                />
-              ))}
+        {activeStep.id === "culture" ? (
+          <View style={styles.stepCard}>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>
+                Kültürel yakınlığını nasıl anlatırsın?
+              </Text>
+              <Controller
+                control={form.control}
+                name="culturalIdentity"
+                render={({ field }) => (
+                  <View style={styles.chipWrap}>
+                    {culturalIdentityOptions.map((option) => (
+                      <OptionChip
+                        key={option.value}
+                        label={option.label}
+                        selected={field.value === option.value}
+                        onPress={() => field.onChange(option.value)}
+                      />
+                    ))}
+                  </View>
+                )}
+              />
             </View>
-          )}
-        />
-      </View>
-
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>
-          Bu kültür hayatında ne kadar önemli?
-        </Text>
-        <Controller
-          control={form.control}
-          name="cultureImportance"
-          render={({ field }) => (
-            <View style={styles.chipWrap}>
-              {cultureImportanceOptions.map((option) => (
-                <OptionChip
-                  key={option.value}
-                  label={option.label}
-                  selected={field.value === option.value}
-                  onPress={() => field.onChange(option.value)}
-                />
-              ))}
+            <View style={styles.sectionLast}>
+              <Text style={styles.sectionTitle}>
+                Bu kültür hayatında ne kadar önemli?
+              </Text>
+              <Controller
+                control={form.control}
+                name="cultureImportance"
+                render={({ field }) => (
+                  <View style={styles.chipWrap}>
+                    {cultureImportanceOptions.map((option) => (
+                      <OptionChip
+                        key={option.value}
+                        label={option.label}
+                        selected={field.value === option.value}
+                        onPress={() => field.onChange(option.value)}
+                      />
+                    ))}
+                  </View>
+                )}
+              />
             </View>
-          )}
-        />
-      </View>
+          </View>
+        ) : null}
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>İlgi alanları</Text>
-        <Controller
-          control={form.control}
-          name="interests"
-          render={({ field, fieldState }) => (
-            <>
-              <View style={styles.chipWrap}>
-                {interestOptions.map((option) => {
-                  const isSelected = field.value.includes(option.value);
+        {activeStep.id === "interests" ? (
+          <View style={styles.stepCard}>
+            <Text style={styles.sectionTitle}>İlgi alanları</Text>
+            <Text style={styles.description}>
+              En az bir tane seç. Bunlar Keşfet kartlarında ortak sinyal üretir.
+            </Text>
+            <Controller
+              control={form.control}
+              name="interests"
+              render={({ field, fieldState }) => (
+                <>
+                  <View style={styles.chipWrap}>
+                    {interestOptions.map((option) => {
+                      const isSelected = field.value.includes(option.value);
 
-                  return (
-                    <OptionChip
-                      key={option.value}
-                      label={option.label}
-                      selected={isSelected}
-                      onPress={() => {
-                        field.onChange(
-                          isSelected
-                            ? field.value.filter(
-                                (interest) => interest !== option.value,
-                              )
-                            : [...field.value, option.value],
-                        );
-                      }}
+                      return (
+                        <OptionChip
+                          key={option.value}
+                          label={option.label}
+                          selected={isSelected}
+                          onPress={() => {
+                            field.onChange(
+                              isSelected
+                                ? field.value.filter(
+                                    (interest) => interest !== option.value,
+                                  )
+                                : [...field.value, option.value],
+                            );
+                          }}
+                        />
+                      );
+                    })}
+                  </View>
+                  {fieldState.error ? (
+                    <Text style={styles.error}>{fieldState.error.message}</Text>
+                  ) : null}
+                </>
+              )}
+            />
+          </View>
+        ) : null}
+
+        {activeStep.id === "profile" ? (
+          <View style={styles.stepCard}>
+            <Controller
+              control={form.control}
+              name="photoUri"
+              render={({ field }) => (
+                <View style={styles.photoRow}>
+                  {selectedPhotoUri ? (
+                    <Image
+                      source={{ uri: selectedPhotoUri }}
+                      style={styles.previewPhoto}
                     />
-                  );
-                })}
-              </View>
-              {fieldState.error ? (
-                <Text style={styles.error}>{fieldState.error.message}</Text>
-              ) : null}
-            </>
-          )}
-        />
-      </View>
+                  ) : (
+                    <View style={styles.emptyPhoto}>
+                      <Ionicons
+                        name="person-add-outline"
+                        size={28}
+                        color={theme.colors.muted}
+                      />
+                      <Text style={styles.emptyPhotoText}>
+                        Profil fotoğrafı ekleyebilirsin
+                      </Text>
+                    </View>
+                  )}
+                  <Button
+                    label={
+                      selectedPhotoUri ? "Fotoğrafı değiştir" : "Fotoğraf yükle"
+                    }
+                    variant="secondary"
+                    loading={imagePicker.isPicking}
+                    onPress={async () => {
+                      const uri = await imagePicker.pickImage();
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Profil bilgileri</Text>
-        <Controller
-          control={form.control}
-          name="photoUri"
-          render={({ field }) => (
-            <View style={styles.photoRow}>
+                      if (uri) {
+                        field.onChange(uri);
+                      }
+                    }}
+                  />
+                </View>
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="name"
+              render={({ field, fieldState }) => (
+                <Input
+                  label="İsim"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <View style={styles.twoColumn}>
+              <View style={styles.twoColumnItem}>
+                <Controller
+                  control={form.control}
+                  name="age"
+                  render={({ field, fieldState }) => (
+                    <Input
+                      label="Yaş"
+                      keyboardType="number-pad"
+                      value={field.value ? String(field.value) : ""}
+                      onChangeText={(value) => field.onChange(Number(value))}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
+              </View>
+              <View style={styles.twoColumnItem}>
+                <Controller
+                  control={form.control}
+                  name="city"
+                  render={({ field, fieldState }) => (
+                    <Input
+                      label="Şehir"
+                      value={field.value}
+                      onChangeText={field.onChange}
+                      error={fieldState.error?.message}
+                    />
+                  )}
+                />
+              </View>
+            </View>
+          </View>
+        ) : null}
+
+        {activeStep.id === "details" ? (
+          <View style={styles.stepCard}>
+            <Controller
+              control={form.control}
+              name="bio"
+              render={({ field, fieldState }) => (
+                <Input
+                  label="Bio"
+                  multiline
+                  value={field.value}
+                  onChangeText={field.onChange}
+                  error={fieldState.error?.message}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="occupation"
+              render={({ field }) => (
+                <Input
+                  label="Meslek"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="hometown"
+              render={({ field }) => (
+                <Input
+                  label="Memleket"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="favoriteSong"
+              render={({ field }) => (
+                <Input
+                  label="Favori türkü"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                />
+              )}
+            />
+            <Controller
+              control={form.control}
+              name="favoritePoet"
+              render={({ field }) => (
+                <Input
+                  label="Favori ozan"
+                  value={field.value}
+                  onChangeText={field.onChange}
+                />
+              )}
+            />
+          </View>
+        ) : null}
+
+        {activeStep.id === "review" ? (
+          <View style={styles.stepCard}>
+            <View style={styles.reviewHeader}>
               {selectedPhotoUri ? (
                 <Image
                   source={{ uri: selectedPhotoUri }}
-                  style={styles.previewPhoto}
+                  style={styles.reviewPhoto}
                 />
-              ) : null}
-              <Button
-                label={
-                  selectedPhotoUri ? "Fotoğrafı değiştir" : "Fotoğraf yükle"
-                }
-                variant="secondary"
-                loading={imagePicker.isPicking}
-                onPress={async () => {
-                  const uri = await imagePicker.pickImage();
-
-                  if (uri) {
-                    field.onChange(uri);
-                  }
-                }}
-              />
+              ) : (
+                <View style={styles.reviewPhotoPlaceholder}>
+                  <Text style={styles.reviewPhotoInitial}>
+                    {(formValues.name || "E")
+                      .charAt(0)
+                      .toLocaleUpperCase("tr-TR")}
+                  </Text>
+                </View>
+              )}
+              <View style={styles.reviewIdentity}>
+                <Text style={styles.reviewName}>
+                  {formValues.name || "İsimsiz profil"}
+                  {formValues.age ? `, ${formValues.age}` : ""}
+                </Text>
+                <Text style={styles.description}>
+                  {formValues.city || "Şehir eklenmedi"}
+                </Text>
+              </View>
             </View>
-          )}
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Kültür</Text>
+              <Text style={styles.reviewValue}>{culturalIdentityLabel}</Text>
+            </View>
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>Önem</Text>
+              <Text style={styles.reviewValue}>{cultureImportanceLabel}</Text>
+            </View>
+            <View style={styles.reviewRow}>
+              <Text style={styles.reviewLabel}>İlgi alanı</Text>
+              <Text style={styles.reviewValue}>
+                {formValues.interests.length} seçim
+              </Text>
+            </View>
+            <View style={styles.reviewBio}>
+              <Text style={styles.reviewLabel}>Bio</Text>
+              <Text style={styles.reviewBioText}>
+                {formValues.bio || "Bio eklenmedi."}
+              </Text>
+            </View>
+          </View>
+        ) : null}
+      </ScrollView>
+
+      <View style={styles.actionRow}>
+        <Button
+          label="Geri"
+          variant="ghost"
+          disabled={isFirstStep || isCompleting}
+          onPress={goBack}
+          style={styles.backButton}
         />
-        <Controller
-          control={form.control}
-          name="name"
-          render={({ field, fieldState }) => (
-            <Input
-              label="İsim"
-              value={field.value}
-              onChangeText={field.onChange}
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="age"
-          render={({ field, fieldState }) => (
-            <Input
-              label="Yaş"
-              keyboardType="number-pad"
-              value={String(field.value)}
-              onChangeText={(value) => field.onChange(Number(value))}
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="city"
-          render={({ field, fieldState }) => (
-            <Input
-              label="Şehir"
-              value={field.value}
-              onChangeText={field.onChange}
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="occupation"
-          render={({ field }) => (
-            <Input
-              label="Meslek"
-              value={field.value}
-              onChangeText={field.onChange}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="bio"
-          render={({ field, fieldState }) => (
-            <Input
-              label="Bio"
-              multiline
-              value={field.value}
-              onChangeText={field.onChange}
-              error={fieldState.error?.message}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="hometown"
-          render={({ field }) => (
-            <Input
-              label="Memleket"
-              value={field.value}
-              onChangeText={field.onChange}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="favoriteSong"
-          render={({ field }) => (
-            <Input
-              label="Favori türkü"
-              value={field.value}
-              onChangeText={field.onChange}
-            />
-          )}
-        />
-        <Controller
-          control={form.control}
-          name="favoritePoet"
-          render={({ field }) => (
-            <Input
-              label="Favori ozan"
-              value={field.value}
-              onChangeText={field.onChange}
-            />
-          )}
+        <Button
+          label={nextButtonLabel}
+          disabled={isNextDisabled}
+          loading={isLastStep && isCompleting}
+          onPress={() => void goNext()}
+          style={styles.nextButton}
         />
       </View>
-
-      <Button
-        label="Onboarding'i tamamla"
-        disabled={!attemptStateLoaded || isKnowledgeTestLocked}
-        loading={isCompleting}
-        onPress={onSubmit}
-      />
     </Screen>
   );
 }
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
-    header: {
-      gap: theme.spacing.xs,
-      marginBottom: theme.spacing.lg,
+    screenContent: {
+      flex: 1,
+      gap: theme.spacing.sm,
+      paddingBottom: theme.spacing.lg,
     },
-    hero: {
-      minHeight: 300,
-      borderRadius: 28,
-      justifyContent: "flex-end",
-      gap: theme.spacing.md,
-      padding: theme.spacing.lg,
-      marginBottom: theme.spacing.xl,
-      backgroundColor: theme.colors.primary,
+    flowContent: {
+      gap: theme.spacing.sm,
+      paddingBottom: theme.spacing.md,
+    },
+    topBar: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+    },
+    brandMark: {
+      width: 42,
+      height: 42,
+      borderRadius: 15,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.text,
+    },
+    brandLetter: {
+      fontSize: 27,
+      lineHeight: 30,
+      fontWeight: "900",
+      color: theme.colors.background,
+    },
+    topCopy: {
+      flex: 1,
+      gap: 1,
+    },
+    topTitle: {
+      fontSize: 26,
+      lineHeight: 30,
+      fontWeight: "900",
+      color: theme.colors.text,
+    },
+    stepCounter: {
+      minWidth: 58,
+      minHeight: 34,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    stepCounterText: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+    },
+    lessonHeader: {
+      gap: theme.spacing.xxs,
+    },
+    introCard: {
+      gap: theme.spacing.sm,
+      borderRadius: 26,
+      padding: theme.spacing.md,
+      marginBottom: theme.spacing.xs,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.13)"
+        : "rgba(0, 0, 0, 0.10)",
       shadowColor: theme.colors.shadow,
       shadowOpacity: 1,
       shadowRadius: 20,
       shadowOffset: { width: 0, height: 12 },
+      elevation: 4,
+    },
+    mockCardTop: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
+    },
+    mockAvatar: {
+      width: 56,
+      height: 56,
+      borderRadius: 21,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.text,
+    },
+    mockAvatarText: {
+      fontSize: 28,
+      lineHeight: 32,
+      fontWeight: "900",
+      color: theme.colors.background,
+    },
+    mockSignalBadge: {
+      minHeight: 34,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.colors.text,
+    },
+    mockSignalText: {
+      ...theme.typography.caption,
+      color: theme.colors.background,
+    },
+    mockCardCopy: {
+      gap: theme.spacing.xs,
+    },
+    mockName: {
+      fontSize: 28,
+      lineHeight: 32,
+      fontWeight: "900",
+      color: theme.colors.text,
+    },
+    mockMeta: {
+      ...theme.typography.body,
+      color: theme.colors.muted,
+    },
+    mockStats: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+    },
+    mockStat: {
+      flex: 1,
+      minHeight: 58,
+      borderRadius: 18,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.08)"
+        : "rgba(0, 0, 0, 0.06)",
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.12)"
+        : "rgba(0, 0, 0, 0.08)",
+    },
+    mockStatValue: {
+      fontSize: 20,
+      lineHeight: 24,
+      fontWeight: "900",
+      color: theme.colors.text,
+    },
+    mockStatLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    introSignals: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
+    },
+    introSignal: {
+      minHeight: 36,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.07)"
+        : "rgba(0, 0, 0, 0.05)",
+    },
+    introSignalText: {
+      ...theme.typography.caption,
+      color: theme.colors.text,
+    },
+    header: {
+      gap: theme.spacing.sm,
+      marginBottom: theme.spacing.lg,
+    },
+    hero: {
+      minHeight: 268,
+      borderRadius: 30,
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+      padding: 22,
+      marginBottom: theme.spacing.xl,
+      overflow: "hidden",
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.10)"
+        : "rgba(0, 0, 0, 0.08)",
+      backgroundColor: theme.colors.elevated,
+      shadowColor: theme.colors.shadow,
+      shadowOpacity: 1,
+      shadowRadius: 24,
+      shadowOffset: { width: 0, height: 12 },
       elevation: 5,
     },
+    heroTopRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+    },
     heroMark: {
-      width: 62,
-      height: 62,
+      width: 58,
+      height: 58,
       borderRadius: 20,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "#FFFFFF",
+      backgroundColor: theme.isDark ? "#FFFFFF" : "#0A0A0A",
     },
     heroLetter: {
-      fontSize: 38,
-      lineHeight: 42,
+      fontSize: 36,
+      lineHeight: 40,
       fontWeight: "900",
-      color: theme.colors.primary,
+      color: theme.isDark ? "#0A0A0A" : "#FFFFFF",
+    },
+    heroCounter: {
+      minHeight: 36,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xxs,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.10)"
+        : "rgba(0, 0, 0, 0.07)",
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.10)"
+        : "rgba(0, 0, 0, 0.06)",
+    },
+    heroCounterText: {
+      ...theme.typography.caption,
+      color: theme.isDark ? "#FFFFFF" : "#0A0A0A",
+    },
+    heroCopy: {
+      gap: theme.spacing.xs,
     },
     heroKicker: {
       ...theme.typography.caption,
-      color: "rgba(255, 255, 255, 0.76)",
+      color: theme.isDark
+        ? "rgba(255, 255, 255, 0.62)"
+        : "rgba(10, 10, 10, 0.56)",
       textTransform: "uppercase",
     },
     heroTitle: {
-      fontSize: 34,
-      lineHeight: 39,
+      fontSize: 31,
+      lineHeight: 36,
       fontWeight: "900",
-      color: "#FFFFFF",
+      color: theme.isDark ? "#FFFFFF" : "#0A0A0A",
+      maxWidth: 330,
+    },
+    heroSubtitle: {
+      ...theme.typography.body,
+      maxWidth: 320,
+      color: theme.isDark
+        ? "rgba(255, 255, 255, 0.62)"
+        : "rgba(10, 10, 10, 0.58)",
     },
     heroSteps: {
       flexDirection: "row",
@@ -712,11 +1299,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignItems: "center",
       gap: theme.spacing.xxs,
       paddingHorizontal: theme.spacing.md,
-      backgroundColor: "rgba(255, 255, 255, 0.18)",
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.10)"
+        : "rgba(0, 0, 0, 0.07)",
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.10)"
+        : "rgba(0, 0, 0, 0.06)",
     },
     heroStepText: {
       ...theme.typography.caption,
-      color: "#FFFFFF",
+      color: theme.isDark ? "#FFFFFF" : "#0A0A0A",
     },
     kicker: {
       ...theme.typography.caption,
@@ -731,18 +1324,116 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.body,
       color: theme.colors.muted,
     },
+    summaryRow: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+      marginTop: theme.spacing.xs,
+    },
+    summaryItem: {
+      minWidth: 78,
+      minHeight: 54,
+      borderRadius: 18,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    summaryValue: {
+      fontSize: 18,
+      lineHeight: 22,
+      fontWeight: "900",
+      color: theme.colors.text,
+    },
+    summaryLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      textTransform: "uppercase",
+    },
+    progressCard: {
+      gap: theme.spacing.md,
+      borderRadius: 24,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing.lg,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    progressHeader: {
+      gap: theme.spacing.xs,
+    },
+    progressTrack: {
+      height: 7,
+      borderRadius: theme.radius.pill,
+      overflow: "hidden",
+      backgroundColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.10)"
+        : "rgba(0, 0, 0, 0.08)",
+    },
+    progressFill: {
+      height: "100%",
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.text,
+    },
+    stepPills: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      gap: theme.spacing.xs,
+    },
+    stepPill: {
+      minHeight: 30,
+      borderRadius: theme.radius.pill,
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.sm,
+      backgroundColor: theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    stepPillActive: {
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
+    },
+    stepPillDone: {
+      backgroundColor: theme.isDark ? "#151515" : "#F5F5F5",
+    },
+    stepPillText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
+    stepPillTextActive: {
+      color: theme.colors.onPrimary,
+    },
+    stepPillTextDone: {
+      color: theme.colors.text,
+    },
     section: {
       gap: theme.spacing.sm,
       marginBottom: theme.spacing.lg,
     },
+    sectionLast: {
+      gap: theme.spacing.sm,
+    },
+    stepCard: {
+      gap: theme.spacing.md,
+      borderRadius: 24,
+      padding: theme.spacing.lg,
+      marginBottom: theme.spacing.lg,
+      backgroundColor: theme.isDark ? "#050505" : theme.colors.surface,
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.12)"
+        : "rgba(0, 0, 0, 0.10)",
+    },
     quizCard: {
       gap: theme.spacing.md,
       borderRadius: 24,
-      padding: theme.spacing.md,
+      padding: theme.spacing.lg,
       marginBottom: theme.spacing.lg,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.isDark ? "#050505" : theme.colors.surface,
       borderWidth: 1,
-      borderColor: "rgba(128, 128, 128, 0.12)",
+      borderColor: theme.isDark
+        ? "rgba(255, 255, 255, 0.12)"
+        : "rgba(0, 0, 0, 0.10)",
     },
     quizHeader: {
       flexDirection: "row",
@@ -750,23 +1441,46 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       justifyContent: "space-between",
       gap: theme.spacing.md,
     },
+    quizTitleBlock: {
+      flex: 1,
+      gap: theme.spacing.xxs,
+    },
+    quizDots: {
+      flexDirection: "row",
+      gap: theme.spacing.xs,
+    },
+    quizDot: {
+      flex: 1,
+      height: 5,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.border,
+    },
+    quizDotActive: {
+      backgroundColor: theme.colors.muted,
+    },
+    quizDotDone: {
+      backgroundColor: theme.colors.primary,
+    },
     scoreBadge: {
-      minWidth: 54,
-      height: 38,
+      minWidth: 64,
+      height: 46,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
+      backgroundColor: theme.isDark ? "#151515" : theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     scoreBadgePassed: {
       backgroundColor: theme.colors.success,
+      borderColor: theme.colors.success,
     },
     scoreText: {
-      ...theme.typography.caption,
+      ...theme.typography.subheading,
       color: theme.colors.text,
     },
     scoreTextPassed: {
-      color: "#FFFFFF",
+      color: theme.isDark ? "#052E16" : "#FFFFFF",
     },
     quizStatus: {
       ...theme.typography.caption,
@@ -778,6 +1492,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     quizQuestion: {
       gap: theme.spacing.sm,
+      paddingTop: theme.spacing.xs,
     },
     quizQuestionText: {
       ...theme.typography.subheading,
@@ -788,19 +1503,17 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     quizOption: {
       minHeight: 52,
-      borderRadius: 16,
+      borderRadius: 18,
       borderWidth: 1,
       borderColor: theme.colors.border,
       paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.sm,
       justifyContent: "center",
-      backgroundColor: theme.isDark
-        ? theme.colors.elevated
-        : "rgba(255, 255, 255, 0.86)",
+      backgroundColor: theme.isDark ? "#101010" : "#FAFAFA",
     },
     quizOptionSelected: {
-      borderColor: theme.colors.primary,
-      backgroundColor: theme.isDark ? "rgba(128, 128, 128, 0.22)" : "#F5F5F5",
+      borderColor: theme.colors.text,
+      backgroundColor: theme.colors.text,
     },
     quizOptionDisabled: {
       opacity: 0.5,
@@ -811,7 +1524,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexShrink: 1,
     },
     quizOptionTextSelected: {
-      color: theme.colors.primary,
+      color: theme.colors.background,
       fontWeight: "700",
     },
     pressed: {
@@ -833,10 +1546,107 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     photoRow: {
       gap: theme.spacing.sm,
     },
+    emptyPhoto: {
+      minHeight: 150,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xs,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderStyle: "dashed",
+    },
+    emptyPhotoText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+    },
     previewPhoto: {
       width: "100%",
       height: 220,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.elevated,
+    },
+    twoColumn: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+    },
+    twoColumnItem: {
+      flex: 1,
+    },
+    reviewHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.md,
+    },
+    reviewPhoto: {
+      width: 74,
+      height: 74,
+      borderRadius: 26,
+      backgroundColor: theme.colors.elevated,
+    },
+    reviewPhotoPlaceholder: {
+      width: 74,
+      height: 74,
+      borderRadius: 26,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+    },
+    reviewPhotoInitial: {
+      fontSize: 28,
+      lineHeight: 32,
+      fontWeight: "900",
+      color: theme.colors.onPrimary,
+    },
+    reviewIdentity: {
+      flex: 1,
+      gap: theme.spacing.xxs,
+    },
+    reviewName: {
+      ...theme.typography.heading,
+      color: theme.colors.text,
+    },
+    reviewRow: {
+      minHeight: 48,
+      borderRadius: 16,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+      paddingHorizontal: theme.spacing.md,
+      backgroundColor: theme.colors.elevated,
+    },
+    reviewLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      textTransform: "uppercase",
+    },
+    reviewValue: {
+      ...theme.typography.caption,
+      maxWidth: "58%",
+      color: theme.colors.text,
+      textAlign: "right",
+    },
+    reviewBio: {
+      gap: theme.spacing.xs,
+      borderRadius: 18,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.elevated,
+    },
+    reviewBioText: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+    },
+    actionRow: {
+      flexDirection: "row",
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
+    },
+    backButton: {
+      flex: 0.42,
+    },
+    nextButton: {
+      flex: 0.58,
     },
   });

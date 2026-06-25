@@ -11,6 +11,12 @@ import type {
 } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
+import { 
+  calculateBehavioralMatchScore, 
+  createMockActivityProfile,
+  type AdvancedMatchFilters,
+  filterByAdvancedCriteria 
+} from "@/domain/services/BehavioralMatchScoring";
 import { supabase } from "./client";
 import { mapSupabaseUser, publicUserColumns } from "./userMapper";
 
@@ -265,10 +271,21 @@ export class SupabaseMatchRepository implements MatchRepository {
       users.find((user) => user.id === row.user2Id) ??
       createMissingMatchUser(row.user2Id, row.matchedAt);
 
+    // Gelişmiş behavioral scoring
+    const user1Activity = createMockActivityProfile(user1);
+    const user2Activity = createMockActivityProfile(user2);
+    
+    const compatibility = calculateBehavioralMatchScore(
+      user1,
+      user2,
+      user1Activity,
+      user2Activity
+    );
+
     return {
       id: row.id,
       users: [user1, user2],
-      compatibility: calculateCulturalMatchScore(user1, user2),
+      compatibility,
       createdAt: row.matchedAt,
     };
   }
@@ -409,7 +426,7 @@ export class SupabaseMatchRepository implements MatchRepository {
     });
   }
 
-  async listMatches(userId: string): Promise<Match[]> {
+  async listMatches(userId: string, filters?: AdvancedMatchFilters): Promise<Match[]> {
     const { data, error } = await supabase
       .from("matches")
       .select("id,user1Id,user2Id,matchedAt")
@@ -426,9 +443,29 @@ export class SupabaseMatchRepository implements MatchRepository {
       ),
     );
 
-    return matches.flatMap((match) =>
+    const resolvedMatches = matches.flatMap((match) =>
       match.status === "fulfilled" ? [match.value] : [],
     );
+
+    // Advanced filtreleme
+    if (filters) {
+      const filteredMatches = [];
+      
+      for (const match of resolvedMatches) {
+        const otherUser = match.users.find(u => u.id !== userId);
+        if (!otherUser) continue;
+        
+        const activityProfile = createMockActivityProfile(otherUser);
+        
+        if (filterByAdvancedCriteria(otherUser, activityProfile, filters)) {
+          filteredMatches.push(match);
+        }
+      }
+      
+      return filteredMatches;
+    }
+
+    return resolvedMatches;
   }
 
   async claimSpecialInvite(_userId: string): Promise<void> {

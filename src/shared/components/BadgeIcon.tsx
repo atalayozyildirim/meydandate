@@ -1,6 +1,7 @@
 // Her rozet tipine karsilik gorsel badge bileseni.
 // Yeni rozet eklemek icin asagidaki ROZET EKLEME REHBERI'ni takip et.
 import { Image, View } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import type { Badge } from "@/domain/entities/User";
 import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
@@ -44,43 +45,43 @@ type IconBadge = Exclude<Badge, ImageBadge>;
 
 const iconBadgeConfig: Record<
   IconBadge,
-  { icon: string; color: string; bgColor: string; borderColor: string }
+  { icon: string; color: string; bgColor: string | string[]; borderColor: string }
 > = {
   community_member: {
     icon: "people",
     color: "#FFFFFF",
-    bgColor: "#2563EB",
-    borderColor: "rgba(147,197,253,0.72)",
+    bgColor: ["#3B82F6", "#2563EB"],
+    borderColor: "rgba(147,197,253,0.90)",
   },
   verified_profile: {
     icon: "checkmark-circle",
     color: "#FFFFFF",
-    bgColor: "#059669",
-    borderColor: "rgba(110,231,183,0.70)",
+    bgColor: ["#60A5FA", "#3B82F6", "#1D4ED8"],
+    borderColor: "rgba(147,197,253,0.95)",
   },
   active_user: {
     icon: "flash",
     color: "#FFFFFF",
-    bgColor: "#D97706",
-    borderColor: "rgba(252,211,77,0.72)",
+    bgColor: ["#F59E0B", "#D97706"],
+    borderColor: "rgba(252,211,77,0.90)",
   },
   muharrem_follower: {
     icon: "moon",
     color: "#FFFFFF",
-    bgColor: "#6366F1",
-    borderColor: "rgba(199,210,254,0.70)",
+    bgColor: ["#818CF8", "#6366F1"],
+    borderColor: "rgba(199,210,254,0.90)",
   },
   cem_room_supporter: {
     icon: "radio",
     color: "#FFFFFF",
-    bgColor: "#DB2777",
-    borderColor: "rgba(249,168,212,0.70)",
+    bgColor: ["#EC4899", "#DB2777"],
+    borderColor: "rgba(249,168,212,0.90)",
   },
   culture_guardian: {
     icon: "shield-checkmark",
     color: "#FFFFFF",
-    bgColor: "#0F766E",
-    borderColor: "rgba(94,234,212,0.70)",
+    bgColor: ["#14B8A6", "#0F766E"],
+    borderColor: "rgba(94,234,212,0.90)",
   },
   // Buraya Ionicons kullanan yeni rozet ekle:
   // yeni_rozet: {
@@ -242,24 +243,44 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
     );
   }
 
+  const isGradient = Array.isArray(config.bgColor);
+  const background = isGradient ? undefined : config.bgColor as string;
+  const gradientColors = isGradient ? config.bgColor as string[] : undefined;
+
+  const baseStyle = {
+    width: size,
+    height: size,
+    borderRadius: size / 2,
+    alignItems: "center" as const,
+    justifyContent: "center" as const,
+    borderWidth: Math.max(1, size * 0.04),
+    borderColor: config.borderColor,
+  };
+
+  const iconElement = (
+    <Ionicons
+      name={config.icon as any}
+      size={size * 0.48}
+      color={config.color}
+    />
+  );
+
+  if (isGradient && gradientColors) {
+    return (
+      <LinearGradient
+        colors={gradientColors as [string, string, ...string[]]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={baseStyle}
+      >
+        {iconElement}
+      </LinearGradient>
+    );
+  }
+
   return (
-    <View
-      style={{
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        alignItems: "center",
-        justifyContent: "center",
-        backgroundColor: config.bgColor,
-        borderWidth: Math.max(1, size * 0.04),
-        borderColor: config.borderColor,
-      }}
-    >
-      <Ionicons
-        name={config.icon as any}
-        size={size * 0.48}
-        color={config.color}
-      />
+    <View style={{ ...baseStyle, backgroundColor: background }}>
+      {iconElement}
     </View>
   );
 };

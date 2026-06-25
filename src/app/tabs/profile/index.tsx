@@ -10,6 +10,7 @@ import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { Screen } from "@/shared/components/Screen";
 import { badgeLabels, interestOptions } from "@/shared/constants/options";
 import { useProfile } from "@/features/profile/hooks/useProfile";
+import { shouldShowVerifiedBadge } from "@/shared/utils/userRole";
 import { useTheme } from "@/shared/theme";
 
 export default function ProfileScreen() {
@@ -66,7 +67,7 @@ export default function ProfileScreen() {
         <Text numberOfLines={1} style={styles.name}>
           {profile.name}, {profile.age}
         </Text>
-        {profile.isPremium ? <PremiumVerifiedBadge size={21} /> : null}
+        {shouldShowVerifiedBadge(profile) ? <PremiumVerifiedBadge size={21} /> : null}
       </View>
       <Text style={styles.city}>{profile.city}</Text>
       <Text style={styles.bio}>{profile.bio}</Text>

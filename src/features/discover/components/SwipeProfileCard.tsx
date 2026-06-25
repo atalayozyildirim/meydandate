@@ -10,6 +10,7 @@ import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { formatDistanceKm } from "@/shared/utils/location";
 import { formatScore } from "@/shared/utils/score";
 import { isProfileBoostActive } from "@/shared/utils/profileBoost";
+import { shouldShowVerifiedBadge } from "@/shared/utils/userRole";
 import { useTheme } from "@/shared/theme";
 
 interface SwipeProfileCardProps {
@@ -126,7 +127,7 @@ const SwipeProfileCardComponent = ({
                 >
                   {user.name}, {user.age}
                 </Text>
-                {user.isPremium ? <PremiumVerifiedBadge size={19} /> : null}
+                {shouldShowVerifiedBadge(user) ? <PremiumVerifiedBadge size={19} /> : null}
               </View>
               <View style={styles.profileCta}>
                 <Ionicons name="person-outline" size={15} color="#FFFFFF" />
@@ -146,7 +147,7 @@ const SwipeProfileCardComponent = ({
               >
                 {user.name}, {user.age}
               </Text>
-              {user.isPremium ? <PremiumVerifiedBadge size={19} /> : null}
+              {shouldShowVerifiedBadge(user) ? <PremiumVerifiedBadge size={19} /> : null}
             </View>
           )}
           <View style={styles.metaRow}>

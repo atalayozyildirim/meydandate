@@ -10,6 +10,7 @@ import { Screen } from "@/shared/components/Screen";
 import { badgeLabels, interestOptions } from "@/shared/constants/options";
 import { useUserProfile } from "@/features/profile/hooks/useUserProfile";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
+import { shouldShowVerifiedBadge } from "@/shared/utils/userRole";
 import { useTheme } from "@/shared/theme";
 
 export default function PublicProfileScreen() {
@@ -69,7 +70,7 @@ export default function PublicProfileScreen() {
         <Text numberOfLines={1} style={styles.name}>
           {sanitizePlainText(profile.name, 80)}, {profile.age}
         </Text>
-        {profile.isPremium ? <PremiumVerifiedBadge size={21} /> : null}
+        {shouldShowVerifiedBadge(profile) ? <PremiumVerifiedBadge size={21} /> : null}
       </View>
       <Text style={styles.city}>{sanitizePlainText(profile.city, 80)}</Text>
       <Text style={styles.bio}>{sanitizePlainText(profile.bio, 280)}</Text>

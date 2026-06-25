@@ -18,6 +18,7 @@ import type {
   FeedPageOptions,
   FeedRepository,
 } from "@/domain/repositories/FeedRepository";
+import { balanceContentVariety, createFeedScoringContext, rankFeedPosts } from "@/domain/services/FeedRankingService";
 import { ehlibyteBotUser } from "@/shared/constants/ehlibyteBot";
 import { fetchLinkPreview } from "@/shared/utils/linkPreview";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
@@ -482,6 +483,30 @@ export class SupabaseFeedRepository implements FeedRepository {
   ): Promise<FeedPage> {
     const offset = options.offset ?? 0;
     const limit = options.limit ?? DEFAULT_FEED_PAGE_SIZE;
+    
+    // Kullanıcı profil bilgilerini al
+    const { data: userData, error: userError } = await supabase
+      .from("users")
+      .select("id,name,age,city,bio,culturalIdentity,cultureImportance,interests,photos,profilePrompts,badges,isPremium,hasPassedEntryTest,hasCompletedOnboarding,createdAt,updatedAt")
+      .eq("id", userId)
+      .single();
+    
+    const currentUser = userError || !userData ? null : mapSupabaseUser(userData as unknown as Partial<User>);
+    
+    // Arkadaş ID'lerini al (eşleşmiş kullanıcılar)
+    const { data: matches } = await supabase
+      .from("matches")
+      .select("user1Id,user2Id")
+      .or(`user1Id.eq.${userId},user2Id.eq.${userId}`);
+    
+    const friendIds = matches 
+      ? matches.flatMap(m => 
+          (m as { user1Id: string; user2Id: string }).user1Id === userId 
+            ? [(m as { user1Id: string; user2Id: string }).user2Id]
+            : [(m as { user1Id: string; user2Id: string }).user1Id]
+        )
+      : [];
+    
     const buildFeedQuery = (select: string) => {
       let query = supabase
         .from("feed_posts")
@@ -515,8 +540,26 @@ export class SupabaseFeedRepository implements FeedRepository {
     const botPosts =
       offset === 0 ? await this.listFeaturedBotPosts(tag) : [];
 
-    return {
-      posts: [...botPosts, ...posts].sort((first, second) => {
+    // Kişiselleştirilmiş ranking
+    let rankedPosts: FeedPost[];
+    if (currentUser) {
+      const scoringContext = createFeedScoringContext(
+        currentUser,
+        friendIds,
+        [], // recentPostIds - opsiyonel implementasyon
+        5.0 // averageEngagement - varsayılan değer
+      );
+      
+      const allPosts = [...botPosts, ...posts];
+      rankedPosts = rankFeedPosts(allPosts, scoringContext);
+      
+      // Content variety balancing
+      if (offset === 0) {
+        rankedPosts = balanceContentVariety(rankedPosts, limit);
+      }
+    } else {
+      // Fallback to simple sorting
+      rankedPosts = [...botPosts, ...posts].sort((first, second) => {
         if (first.isSponsored && !second.isSponsored) return -1;
         if (!first.isSponsored && second.isSponsored) return 1;
         if (first.isPinned && !second.isPinned) return -1;
@@ -525,7 +568,11 @@ export class SupabaseFeedRepository implements FeedRepository {
           new Date(second.updatedAt).getTime() -
           new Date(first.updatedAt).getTime()
         );
-      }),
+      });
+    }
+
+    return {
+      posts: rankedPosts,
       nextOffset: offset + rows.length,
       hasMore: (data ?? []).length > limit,
     };

@@ -1,5 +1,7 @@
 # App Store Submission Pack
 
+> Güncel App Store Connect kopyası için `doc/APP_STORE_CONNECT_METADATA_2026-06-25.md` dosyasını baz al. Bu dosya 25 Haziran 2026 sürümü için yenilenen konumlandırma, screenshot sırası, What’s New ve IAP metadata metinlerini içerir.
+
 Son guncelleme: 16 Haziran 2026
 
 ## 1. Mevcut durum

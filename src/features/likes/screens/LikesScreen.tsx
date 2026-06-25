@@ -16,6 +16,7 @@ import { queryKeys } from "@/shared/constants/queryKeys";
 import { container } from "@/infrastructure/config/Container";
 import { formatScore } from "@/shared/utils/score";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
+import { shouldShowVerifiedBadge } from "@/shared/utils/userRole";
 import { useTheme } from "@/shared/theme";
 
 const formatLikedAt = (value: string) => {
@@ -201,7 +202,7 @@ export default function LikedMeScreen() {
                       <Text numberOfLines={1} style={styles.likeName}>
                         {sanitizePlainText(item.user.name, 80)}, {item.user.age}
                       </Text>
-                      {item.user.isPremium ? (
+                      {shouldShowVerifiedBadge(item.user) ? (
                         <PremiumVerifiedBadge size={17} />
                       ) : null}
                       <View

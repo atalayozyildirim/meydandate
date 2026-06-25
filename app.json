@@ -2,7 +2,7 @@
   "expo": {
     "name": "Ehlibyte",
     "slug": "ehlibyte",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "sdkVersion": "54.0.0",
     "platforms": ["ios", "android"],
     "scheme": "ehlibyte",
@@ -23,7 +23,7 @@
         "expo-splash-screen",
         {
           "image": "./assets/splash-icon.png",
-          "imageWidth": 180,
+          "imageWidth": 128,
           "resizeMode": "contain",
           "backgroundColor": "#FFFFFF"
         }
@@ -47,6 +47,14 @@
           "androidAppId": "ca-app-pub-3940256099942544~3347511713",
           "iosAppId": "ca-app-pub-3940256099942544~1458002511",
           "userTrackingUsageDescription": "Bu kimlik sana daha ilgili reklamlar sunmak icin kullanilabilir."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Meydan canlı ses odalarında konuşabilmen için mikrofon erişimi gerekiyor.",
+          "enableBackgroundPlayback": true,
+          "enableBackgroundRecording": false
         }
       ]
     ],

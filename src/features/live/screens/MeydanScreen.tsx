@@ -34,6 +34,7 @@ import { useLiveRoom } from "@/features/live/hooks/useLiveRoom";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 import { isExpoGo } from "@/shared/utils/expoRuntime";
+import { shouldShowVerifiedBadgeForParticipant } from "@/shared/utils/userRole";
 
 type LiveKitRoomProps = {
   serverUrl: string;
@@ -1382,7 +1383,7 @@ export default function MeydanRoomScreen() {
                     <Ionicons name="mic" size={12} color="#FFFFFF" />
                   </View>
                 )}
-                {participant.isPremium ? (
+                {shouldShowVerifiedBadgeForParticipant(participant.badges, participant.isPremium) ? (
                   <View style={styles.premiumBadge}>
                     <Ionicons
                       name="checkmark-circle"

@@ -13,6 +13,7 @@ export interface LiveParticipant {
   handRaisedAt?: string | null;
   photoUri?: string;
   isPremium?: boolean;
+  badges?: string[];
   isCurrentUser?: boolean;
 }
 

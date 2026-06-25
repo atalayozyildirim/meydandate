@@ -256,6 +256,7 @@ export class SupabaseLiveRoomRepository implements LiveRoomRepository {
           handRaisedAt: participant.hand_raised_at ?? null,
           photoUri: user?.photos?.[0]?.uri,
           isPremium: user?.isPremium ?? false,
+          badges: user?.badges ?? [],
           isCurrentUser: participant.user_id === currentUserId,
         };
       },
