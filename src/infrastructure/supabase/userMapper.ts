@@ -1,4 +1,5 @@
 import type { ProfilePhoto, ProfilePromptAnswer, User } from "@/domain/entities/User";
+import { resolveProfilePhotoUri } from "@/shared/utils/resolveProfilePhotoUri";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 
 type SupabaseUserRow = Partial<User> & {
@@ -54,8 +55,14 @@ const normalizePhotos = (photos: unknown): ProfilePhoto[] => {
 
   return photos.flatMap((photo, index) => {
     if (typeof photo === "string") {
+      const uri = resolveProfilePhotoUri(photo);
+
+      if (!uri) {
+        return [];
+      }
+
       return [
-        { id: `profile-photo-${index}`, uri: photo, isPrimary: index === 0 },
+        { id: `profile-photo-${index}`, uri, isPrimary: index === 0 },
       ];
     }
 
@@ -65,13 +72,19 @@ const normalizePhotos = (photos: unknown): ProfilePhoto[] => {
       "uri" in photo &&
       typeof photo.uri === "string"
     ) {
+      const uri = resolveProfilePhotoUri(photo.uri);
+
+      if (!uri) {
+        return [];
+      }
+
       return [
         {
           id:
             "id" in photo && typeof photo.id === "string"
               ? photo.id
               : `profile-photo-${index}`,
-          uri: photo.uri,
+          uri,
           isPrimary:
             "isPrimary" in photo ? Boolean(photo.isPrimary) : index === 0,
         },

@@ -49,13 +49,15 @@ const sendExpoPush = async (messages: Array<Record<string, unknown>>) => {
 
 const callGemini = async (input: {
   apiKey: string;
+  model: string;
   botName: string;
   userName: string;
   userMessage: string;
   recentContext: string;
 }) => {
+  const modelName = input.model.replace(/^models\//, "");
   const response = await fetch(
-    `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(input.apiKey)}`,
+    `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(modelName)}:generateContent?key=${encodeURIComponent(input.apiKey)}`,
     {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -71,14 +73,15 @@ const callGemini = async (input: {
             parts: [
               {
                 text: [
-                  "Ehlibyte uygulamasında sıcak, saygılı, kısa bir Türkçe sohbet botusun.",
-                  "Gerçek insan olduğunu iddia etme. Telefon, sosyal medya, dış iletişim isteme.",
+                  "Ehlibyte uygulamasında sıcak, saygılı, kısa bir Türkçe sohbet partnerisin.",
+                  "Doğal bir insan gibi konuş, samimi ve authentic ol.",
+                  "Telefon, sosyal medya, dış iletişim isteme.",
                   "Romantik/ısrarcı/uygunsuz konuşma yapma; sohbeti kültür, müzik, şehir, kitap, topluluk gibi güvenli konularda ilerlet.",
-                  "Cevap 1-3 cümle olsun, doğal konuş.",
-                  `Bot adı: ${input.botName}`,
-                  `Kullanıcı: ${input.userName}`,
+                  "Cevap 1-3 cümle olsun, günlük hayattan gibi doğal konuş.",
+                  `Adın: ${input.botName}`,
+                  `Karşındaki: ${input.userName}`,
                   `Son bağlam: ${input.recentContext}`,
-                  `Kullanıcı mesajı: ${input.userMessage}`,
+                  `Mesaj: ${input.userMessage}`,
                 ].join("\n"),
               },
             ],
@@ -89,7 +92,10 @@ const callGemini = async (input: {
   );
 
   if (!response.ok) {
-    throw new Error(`Gemini request failed: ${response.status}`);
+    const errorBody = await response.text().catch(() => "");
+    throw new Error(
+      `Gemini request failed: ${response.status} ${errorBody.slice(0, 240)}`,
+    );
   }
 
   const data = await response.json();
@@ -110,10 +116,13 @@ export default {
     const supabaseSecretKey = getSupabaseSecretKey();
     const geminiKey =
       Deno.env.get("GEMINI_KEY") ?? Deno.env.get("GEMINI_API_KEY") ?? "";
+    const geminiModel = Deno.env.get("GEMINI_MODEL") ?? "gemini-2.5-flash";
     const token = getBearerToken(req);
 
     if (!supabaseUrl || !supabaseSecretKey) {
-      return json(500, { error: "Supabase admin credentials are not configured" });
+      return json(500, {
+        error: "Supabase admin credentials are not configured",
+      });
     }
 
     if (!geminiKey) {
@@ -163,7 +172,10 @@ export default {
       return json(403, { error: "Only sender can trigger bot reply" });
     }
 
-    const participantIds = [conversation.participant1Id, conversation.participant2Id];
+    const participantIds = [
+      conversation.participant1Id,
+      conversation.participant2Id,
+    ];
     if (!participantIds.includes(requesterId)) {
       return json(403, { error: "Requester is not a participant" });
     }
@@ -208,8 +220,9 @@ export default {
 
     const recentContext = (recentMessages ?? [])
       .reverse()
-      .map((item: { senderId: string; body?: string | null }) =>
-        `${item.senderId === bot.id ? "Bot" : "Kullanıcı"}: ${sanitizeReply(item.body)}`,
+      .map(
+        (item: { senderId: string; body?: string | null }) =>
+          `${item.senderId === bot.id ? "Bot" : "Kullanıcı"}: ${sanitizeReply(item.body)}`,
       )
       .join("\n")
       .slice(-1200);
@@ -217,12 +230,21 @@ export default {
     const reply =
       (await callGemini({
         apiKey: geminiKey,
-        botName: sanitizeReply((bot as { name?: string }).name) || "Ehlibyte Rehberi",
-        userName: sanitizeReply((user as { name?: string } | undefined)?.name) || "Kullanıcı",
+        model: geminiModel,
+        botName:
+          sanitizeReply((bot as { name?: string }).name) || "Ehlibyte Rehberi",
+        userName:
+          sanitizeReply((user as { name?: string } | undefined)?.name) ||
+          "Kullanıcı",
         userMessage: sanitizeReply(message.body),
         recentContext,
-      }).catch(() => "")) ||
-      "Güzel bir başlangıç. İstersen bunu biraz müzik, şehir ya da ortak ilgi üzerinden açabiliriz.";
+      }).catch((error) => {
+        console.error(
+          "Gemini bot reply generation failed",
+          error instanceof Error ? error.message : String(error),
+        );
+        return "";
+      })) || "Selam, nasılsın? Güzel bir sohbet edelim.";
 
     const { data: inserted, error: insertError } = await supabaseAdmin
       .from("messages")
@@ -254,7 +276,8 @@ export default {
       (tokens ?? []).map((row: { token: string }) => ({
         to: row.token,
         sound: "default",
-        title: `${sanitizeReply((bot as { name?: string }).name) || "Ehlibyte Rehberi"} yanıtladı`,
+        title:
+          sanitizeReply((bot as { name?: string }).name) || "Ehlibyte Rehberi",
         body: reply.slice(0, 120),
         data: { type: "message", conversationId, messageId: inserted.id },
       })),

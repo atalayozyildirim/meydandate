@@ -18,7 +18,7 @@ const safeOptionalText = (max: number, maxMessage: string) =>
 
 export const onboardingSchema = z.object({
   name: safeRequiredText(2, 80, "İsim gerekli.", "İsim 80 karakteri geçemez."),
-  age: z.number().min(18, "18 yaş ve üzeri kullanıcılar kaydolabilir.").max(85, "Yaş değerini kontrol edin."),
+  age: z.number().min(18, "18 yaş ve üzeri kullanıcılar kaydolabilir.").max(85, "Yaş değerini kontrol edin.").optional(),
   city: safeRequiredText(2, 80, "Şehir gerekli.", "Şehir 80 karakteri geçemez."),
   occupation: safeOptionalText(120, "Meslek 120 karakteri geçemez."),
   bio: safeRequiredText(12, 280, "Kısa bir bio yazın.", "Bio 280 karakteri geçemez."),

@@ -1,5 +1,5 @@
 // Profil düzenleme ekranında form, fotoğraf seçimi ve ilgi alanı güncellemesi yapılır.
-import { useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +26,7 @@ import {
   profilePromptOptions,
 } from "@/shared/constants/options";
 import { useImagePicker } from "@/shared/hooks/useImagePicker";
+import { usePhotoUpload } from "@/shared/hooks/usePhotoUpload";
 import { useTheme } from "@/shared/theme";
 
 const getProfilePromptDefaults = (
@@ -98,13 +99,17 @@ export default function ProfileEditScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const imagePicker = useImagePicker();
+  const photoUpload = usePhotoUpload();
   const { profile, isLoading, updateProfile, isUpdating } = useProfile();
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const hasUnsavedChanges = useRef(false);
+  const [isUploadingPhoto, setIsUploadingPhoto] = useState(false);
   const form = useForm<ProfileFormValues>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
       name: "",
-      age: 18,
+      age: undefined,
       city: "",
       occupation: "",
       bio: "",
@@ -140,7 +145,39 @@ export default function ProfileEditScreen() {
       profilePrompts: getProfilePromptDefaults(profile.profilePrompts),
       photoUri: profile.photos[0]?.uri ?? "",
     });
+    hasUnsavedChanges.current = false;
   }, [form, profile]);
+
+  // Form değişikliklerini takip et
+  useEffect(() => {
+    const subscription = form.watch(() => {
+      hasUnsavedChanges.current = true;
+    });
+    return () => subscription.unsubscribe();
+  }, [form]);
+
+  // Kaydedilmemiş değişiklik varsa kullanıcıyı uyar
+  const handleBack = () => {
+    if (hasUnsavedChanges.current) {
+      Alert.alert(
+        "Kaydedilmemiş değişiklikler",
+        "Yaptığın değişiklikleri kaydetmeden çıkacaksın. Devam etmek istiyor musun?",
+        [
+          {
+            text: "İptal",
+            style: "cancel",
+          },
+          {
+            text: "Çık",
+            style: "destructive",
+            onPress: () => router.back(),
+          },
+        ],
+      );
+    } else {
+      router.back();
+    }
+  };
 
   if (isLoading || !profile) {
     return <Loading label="Profil formu hazırlanıyor" />;
@@ -149,6 +186,7 @@ export default function ProfileEditScreen() {
   const onSubmit = form.handleSubmit(async (values) => {
     try {
       await updateProfile(toProfileUpdate(values));
+      hasUnsavedChanges.current = false;
       router.back();
     } catch (error) {
       if (isPermanentBanError(error)) {
@@ -181,7 +219,7 @@ export default function ProfileEditScreen() {
       <View style={styles.header}>
         <Pressable
           accessibilityRole="button"
-          onPress={() => router.back()}
+          onPress={handleBack}
           style={styles.backButton}
         >
           <Ionicons name="chevron-back" size={23} color={theme.colors.text} />
@@ -190,6 +228,12 @@ export default function ProfileEditScreen() {
           <Text style={styles.kicker}>Profil</Text>
           <Text style={styles.title}>Profili düzenle</Text>
         </View>
+        <Button
+          label="Kaydet"
+          loading={isUpdating}
+          style={styles.headerSaveButton}
+          onPress={onSubmit}
+        />
       </View>
 
       <Card style={styles.photoCard}>
@@ -218,7 +262,7 @@ export default function ProfileEditScreen() {
                 label="Değiştir"
                 variant="ghost"
                 style={styles.photoButton}
-                loading={imagePicker.isPicking}
+                loading={imagePicker.isPicking || isUploadingPhoto}
                 icon={
                   <Ionicons
                     name="image-outline"
@@ -227,11 +271,51 @@ export default function ProfileEditScreen() {
                   />
                 }
                 onPress={async () => {
-                  const uri = await imagePicker.pickImage();
+                  const asset = await imagePicker.pickImageAsset();
 
-                  if (uri) {
-                    field.onChange(uri);
+                  if (!asset?.uri) {
+                    return;
                   }
+
+                  const previousUri = field.value ?? "";
+                  field.onChange(asset.uri);
+
+                  if (!currentUser) {
+                    return;
+                  }
+
+                  setIsUploadingPhoto(true);
+                  const publicUrl = await photoUpload.uploadPhoto({
+                    userId: currentUser.id,
+                    fileUri: asset.uri,
+                    contentType: asset.mimeType,
+                  });
+                  setIsUploadingPhoto(false);
+
+                  if (publicUrl) {
+                    field.onChange(publicUrl);
+
+                    try {
+                      await updateProfile({
+                        photos: [
+                          {
+                            id: "profile-photo-primary",
+                            uri: publicUrl,
+                            isPrimary: true,
+                          },
+                        ],
+                      });
+                    } catch (error) {
+                      field.onChange(previousUri);
+                      Alert.alert(
+                        "Profil fotoğrafı kaydedilemedi",
+                        error instanceof Error ? error.message : "Tekrar deneyin.",
+                      );
+                    }
+                    return;
+                  }
+
+                  field.onChange(previousUri);
                 }}
               />
             </>
@@ -444,21 +528,6 @@ export default function ProfileEditScreen() {
           )}
         />
       </Card>
-
-      <View style={styles.footerActions}>
-        <Button
-          label="Vazgeç"
-          variant="ghost"
-          style={styles.footerButton}
-          onPress={() => router.back()}
-        />
-        <Button
-          label="Kaydet"
-          loading={isUpdating}
-          style={styles.footerButton}
-          onPress={onSubmit}
-        />
-      </View>
     </Screen>
   );
 }
@@ -487,6 +556,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     headerText: {
       flex: 1,
       gap: theme.spacing.xxs,
+    },
+    headerSaveButton: {
+      minHeight: 36,
+      paddingHorizontal: theme.spacing.md,
     },
     kicker: {
       ...theme.typography.caption,
@@ -555,13 +628,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderRadius: theme.radius.lg,
       paddingTop: theme.spacing.sm,
       textAlignVertical: "top",
-    },
-    footerActions: {
-      flexDirection: "row",
-      gap: theme.spacing.sm,
-    },
-    footerButton: {
-      flex: 1,
     },
     error: {
       ...theme.typography.caption,

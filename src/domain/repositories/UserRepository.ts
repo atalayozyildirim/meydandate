@@ -7,7 +7,7 @@ export interface OnboardingProfile extends Required<Pick<User, "name" | "age" | 
   hometown?: string;
   favoriteSong?: string;
   favoritePoet?: string;
-  photoUri?: string;
+  photos?: Array<{ id: string; uri: string; isPrimary: boolean }>;
 }
 
 export interface ReportPayload {

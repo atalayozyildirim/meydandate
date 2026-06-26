@@ -36,6 +36,8 @@ Ehlibyte; ortak değerler, kültür, güvenli sohbet ve topluluk deneyimini tek 
 
 Profilini oluştur, ilgi alanlarını ve kendini anlatan detayları ekle. Keşfet ekranında topluluk sinyalleri, yakınlık tercihleri ve müzik uyumu gibi ipuçlarıyla sana daha anlamlı öneriler sunulur.
 
+Hesabını Spotify ile bağlantı kurduğunda anlık olarak senle aynı şarkıyı dinleyenlerle eşleş.
+
 Akış bölümünde gündeme katılabilir, soru sorabilir, deyiş ve Muharrem başlıklarını takip edebilir, yorum yapabilir ve paylaşımları alıntılayabilirsin. Topluluk güvenliği için kullanıcı engelleme, içerik şikayet etme ve moderasyon akışları uygulama içinde yer alır.
 
 Meydan odalarında canlı sohbetlere katıl, el kaldır, sahneye çık ve moderatörlerin yönettiği güvenli topluluk buluşmalarında yer al. Admin ve moderatörler oda düzenini, konuşmacıları ve güvenlik kontrollerini yönetebilir.
@@ -188,4 +190,3 @@ Profil vitrininde kalıcı olarak görünen özel destek rozeti.
 ## Privacy URL Alanı İçin Kısa Özet
 
 Ehlibyte; hesap oluşturma, profil, mesajlaşma, canlı oda, akış, yorum, şikayet, satın alma, güvenlik ve destek süreçleri için veri işler. Kullanıcılar uygulama içinden hesap silme, engelleme, şikayet ve gizlilik tercihlerini yönetebilir.
-

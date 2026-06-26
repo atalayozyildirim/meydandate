@@ -1,6 +1,7 @@
 // Profil fotograflari icin fallback harf destekli avatar bileseni.
 import { Image, StyleSheet, Text, View } from "react-native";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { resolveProfilePhotoUri } from "@/shared/utils/resolveProfilePhotoUri";
 import { useTheme } from "@/shared/theme";
 
 interface AvatarProps {
@@ -19,11 +20,17 @@ export const Avatar = ({ name, uri, size = 56 }: AvatarProps) => {
     .slice(0, 2)
     .toLocaleUpperCase("tr-TR");
   const [imageError, setImageError] = useState(false);
+  const resolvedUri = resolveProfilePhotoUri(uri);
 
-  if (uri && !imageError) {
+  useEffect(() => {
+    setImageError(false);
+  }, [resolvedUri]);
+
+  if (resolvedUri && !imageError) {
     return (
       <Image
-        source={{ uri }}
+        key={resolvedUri}
+        source={{ uri: resolvedUri }}
         style={styles.avatar}
         resizeMode="cover"
         onError={() => setImageError(true)}

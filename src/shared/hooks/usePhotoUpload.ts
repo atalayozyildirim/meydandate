@@ -2,6 +2,11 @@
 import { useState } from "react";
 import { Alert } from "react-native";
 import { supabase } from "@/infrastructure/supabase/client";
+import {
+  extensionForContentType,
+  readLocalImageBytes,
+  resolveImageContentType,
+} from "@/shared/utils/readLocalImageBytes";
 
 const PROFILE_PHOTOS_BUCKET = "profile-photos";
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
@@ -9,6 +14,7 @@ const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 interface UploadPhotoOptions {
   userId: string;
   fileUri: string;
+  contentType?: string;
 }
 
 export const usePhotoUpload = () => {
@@ -17,6 +23,7 @@ export const usePhotoUpload = () => {
   const uploadPhoto = async ({
     userId,
     fileUri,
+    contentType,
   }: UploadPhotoOptions): Promise<string | null> => {
     setIsUploading(true);
 
@@ -30,33 +37,23 @@ export const usePhotoUpload = () => {
         throw new Error("Oturum doğrulanamadı. Lütfen tekrar giriş yap.");
       }
 
-      // Fetch the file from the URI
-      const response = await fetch(fileUri);
-      const blob = await response.blob();
+      const bytes = await readLocalImageBytes(fileUri);
 
-      // Check file size
-      if (blob.size > MAX_FILE_SIZE) {
+      if (bytes.byteLength > MAX_FILE_SIZE) {
         throw new Error("Fotoğraf en fazla 5 MB olabilir.");
       }
 
-      // Determine file extension from mime type
-      const mimeTypes: Record<string, string> = {
-        "image/jpeg": "jpg",
-        "image/png": "png",
-        "image/webp": "webp",
-      };
-
-      const extension = mimeTypes[blob.type] || "jpg";
+      const resolvedContentType = resolveImageContentType(contentType, fileUri);
+      const extension = extensionForContentType(resolvedContentType);
       const fileName = `${Date.now()}-${Math.random().toString(36).slice(2)}.${extension}`;
       const ownerId = authUser.id || userId;
       const filePath = `${ownerId}/${fileName}`;
 
-      // Upload to Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from(PROFILE_PHOTOS_BUCKET)
-        .upload(filePath, blob, {
+        .upload(filePath, bytes, {
           cacheControl: "3600",
-          contentType: blob.type || "image/jpeg",
+          contentType: resolvedContentType,
           upsert: false,
         });
 
@@ -70,7 +67,6 @@ export const usePhotoUpload = () => {
         throw new Error(`Fotoğraf yüklenemedi: ${uploadMessage}`);
       }
 
-      // Get public URL
       const {
         data: { publicUrl },
       } = supabase.storage.from(PROFILE_PHOTOS_BUCKET).getPublicUrl(filePath);

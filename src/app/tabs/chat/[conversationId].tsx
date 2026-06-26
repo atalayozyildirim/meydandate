@@ -53,6 +53,8 @@ export default function ConversationScreen() {
   const [message, setMessage] = useState("");
   const [floatingHearts, setFloatingHearts] = useState<FloatingHeart[]>([]);
   const lastAnimatedHeartIdRef = useRef<string | null>(null);
+  const scrollViewRef = useRef<ScrollView>(null);
+  const previousMessageCountRef = useRef(0);
   const {
     conversation,
     currentUser,
@@ -106,6 +108,30 @@ export default function ConversationScreen() {
     spawnHeart(false);
   }, [conversation?.messages, currentUser, spawnHeart]);
 
+  // Otomatik scroll - yeni mesaj geldiğinde aşağı kaydır
+  useEffect(() => {
+    const currentMessageCount = conversation?.messages.length ?? 0;
+    
+    // İlk yükleme veya mesaj sayısı arttıysa scroll yap
+    if (currentMessageCount > 0 && currentMessageCount > previousMessageCountRef.current) {
+      // Bir sonraki render'da scroll yap
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 100);
+    }
+    
+    previousMessageCountRef.current = currentMessageCount;
+  }, [conversation?.messages]);
+
+  // İlk yükleme sırasında en son mesaja scroll
+  useEffect(() => {
+    if (conversation && conversation.messages.length > 0) {
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: false });
+      }, 300);
+    }
+  }, [conversation?.id]);
+
   if (isLoading || !conversation || !currentUser) {
     return <Loading label="Sohbet aciliyor" />;
   }
@@ -124,6 +150,10 @@ export default function ConversationScreen() {
     try {
       await sendMessage(trimmedBody);
       setMessage("");
+      // Mesaj gönderildikten sonra aşağı scroll
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 200);
     } catch (error) {
       if (isPermanentBanError(error)) {
         Alert.alert(
@@ -154,6 +184,10 @@ export default function ConversationScreen() {
     try {
       await sendMessage(HEART_MESSAGE);
       spawnHeart(true);
+      // Kalp gönderildikten sonra aşağı scroll
+      setTimeout(() => {
+        scrollViewRef.current?.scrollToEnd({ animated: true });
+      }, 200);
     } catch (error) {
       Alert.alert(
         "Kalp gönderilemedi",
@@ -285,6 +319,7 @@ export default function ConversationScreen() {
           </Text>
         </View>
         <ScrollView
+          ref={scrollViewRef}
           style={styles.messageList}
           contentContainerStyle={styles.messages}
           showsVerticalScrollIndicator={false}

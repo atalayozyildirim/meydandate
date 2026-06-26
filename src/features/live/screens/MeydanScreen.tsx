@@ -35,6 +35,7 @@ import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useTheme } from "@/shared/theme";
 import { isExpoGo } from "@/shared/utils/expoRuntime";
 import { shouldShowVerifiedBadgeForParticipant } from "@/shared/utils/userRole";
+import { resolveProfilePhotoUri } from "@/shared/utils/resolveProfilePhotoUri";
 
 type LiveKitRoomProps = {
   serverUrl: string;
@@ -1801,7 +1802,9 @@ export default function MeydanRoomScreen() {
                   <Avatar
                     name={message.isCurrentUser ? "Sen" : message.senderName}
                     uri={
-                      message.isCurrentUser ? undefined : message.senderPhotoUri
+                      message.isCurrentUser
+                        ? resolveProfilePhotoUri(currentUser?.photos[0]?.uri)
+                        : message.senderPhotoUri
                     }
                     size={message.isCurrentUser ? 28 : 32}
                   />

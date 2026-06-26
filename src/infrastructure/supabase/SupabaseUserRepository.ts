@@ -124,18 +124,40 @@ export class SupabaseUserRepository implements UserRepository {
     userId: string,
     profile: OnboardingProfile,
   ): Promise<User> {
+    const updateData: any = {
+      name: profile.name,
+      age: profile.age,
+      city: profile.city,
+      bio: profile.bio,
+      culturalIdentity: profile.culturalIdentity,
+      cultureImportance: profile.cultureImportance,
+      interests: profile.interests,
+      hasCompletedOnboarding: true,
+    };
+
+    if (profile.occupation) {
+      updateData.occupation = profile.occupation;
+    }
+
+    if (profile.hometown) {
+      updateData.hometown = profile.hometown;
+    }
+
+    if (profile.favoriteSong) {
+      updateData.favoriteSong = profile.favoriteSong;
+    }
+
+    if (profile.favoritePoet) {
+      updateData.favoritePoet = profile.favoritePoet;
+    }
+
+    if (profile.photos) {
+      updateData.photos = profile.photos;
+    }
+
     const { error } = await supabase
       .from("users")
-      .update({
-        name: profile.name,
-        age: profile.age,
-        city: profile.city,
-        bio: profile.bio,
-        culturalIdentity: profile.culturalIdentity,
-        cultureImportance: profile.cultureImportance,
-        interests: profile.interests,
-        hasCompletedOnboarding: true,
-      })
+      .update(updateData)
       .eq("id", userId);
 
     if (error) {

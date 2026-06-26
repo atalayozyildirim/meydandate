@@ -1,6 +1,7 @@
 // Uygulama kok layout'u providerlari, session bootstrap'i ve stack router'i kurar.
 import "react-native-gesture-handler";
 import { useEffect, useMemo } from "react";
+import * as Crypto from "expo-crypto";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import {
@@ -14,6 +15,35 @@ import { ThemeProvider, useTheme } from "@/shared/theme";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { initializeAdMob } from "@/features/ads";
 import { registerPushNotifications } from "@/features/notifications/services/pushNotifications";
+
+// WebCrypto polyfill for Supabase PKCE flow
+if (typeof global.crypto === "undefined") {
+  global.crypto = {
+    subtle: {
+      digest: async (algorithm: AlgorithmIdentifier, data: Uint8Array) => {
+        if (algorithm === "SHA-256") {
+          const dataString = new TextDecoder().decode(data);
+          const hash = await Crypto.digestStringAsync(
+            Crypto.CryptoDigestAlgorithm.SHA256,
+            dataString
+          );
+          // Convert hex string to ArrayBuffer format expected by WebCrypto
+          const hashBytes = new Uint8Array(
+            hash.match(/.{1,2}/g)?.map((byte) => parseInt(byte, 16)) || []
+          );
+          return hashBytes.buffer;
+        }
+        throw new Error(`Unsupported algorithm: ${algorithm}`);
+      },
+    },
+    getRandomValues: (array: Uint8Array) => {
+      for (let i = 0; i < array.length; i++) {
+        array[i] = Math.floor(Math.random() * 256);
+      }
+      return array;
+    },
+  } as any;
+}
 
 const queryClient = new QueryClient();
 

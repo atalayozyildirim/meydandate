@@ -5,6 +5,7 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { moderateStrictTextFields } from "@/features/moderation/utils/strictTextModeration";
 import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
+import { invalidateProfileCaches } from "@/features/profile/utils/invalidateProfileCaches";
 
 const profileTextFields = [
   { key: "name", label: "Profil adı" },
@@ -42,10 +43,16 @@ export const useProfile = () => {
 
       return container.userRepository.updateProfile(currentUser.id, moderatedUpdate);
     },
-    onSuccess: async (updatedUser) => {
+    onSuccess: async (updatedUser, update) => {
       setCurrentUser(updatedUser);
+
+      if (update.photos) {
+        await invalidateProfileCaches(queryClient);
+        return;
+      }
+
       await queryClient.invalidateQueries({ queryKey: [queryKeys.profile] });
-    }
+    },
   });
 
   return {

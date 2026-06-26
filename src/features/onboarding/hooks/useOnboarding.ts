@@ -1,7 +1,8 @@
 // Onboarding tamamlamayi repository ve auth store ile koordine eder.
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import type { OnboardingProfile } from "@/domain/repositories/UserRepository";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { invalidateProfileCaches } from "@/features/profile/utils/invalidateProfileCaches";
 import { moderateStrictTextFields } from "@/features/moderation/utils/strictTextModeration";
 import { container } from "@/infrastructure/config/Container";
 
@@ -16,6 +17,7 @@ const onboardingTextFields = [
 ] satisfies Array<{ key: keyof OnboardingProfile; label: string }>;
 
 export const useOnboarding = () => {
+  const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.currentUser);
   const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
 
@@ -42,7 +44,13 @@ export const useOnboarding = () => {
 
       return updatedUser;
     },
-    onSuccess: (updatedUser) => setCurrentUser(updatedUser)
+    onSuccess: async (updatedUser, profile) => {
+      setCurrentUser(updatedUser);
+
+      if (profile.photos?.length) {
+        await invalidateProfileCaches(queryClient);
+      }
+    },
   });
 
   return {

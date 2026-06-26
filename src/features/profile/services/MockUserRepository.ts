@@ -111,8 +111,8 @@ export class MockUserRepository implements UserRepository {
       update.favoritePoet = profile.favoritePoet;
     }
 
-    if (profile.photoUri) {
-      update.photos = [{ id: createId("photo"), uri: profile.photoUri, isPrimary: true }];
+    if (profile.photos) {
+      update.photos = profile.photos;
     }
 
     const updatedUser: User = {

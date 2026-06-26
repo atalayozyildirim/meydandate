@@ -1,5 +1,5 @@
 // Hesap, bildirim, gizlilik, dil, tema ve hukuki ayarlari sunar.
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Alert,
   Pressable,
@@ -101,6 +101,7 @@ export default function SettingsScreen() {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [privacyStrict, setPrivacyStrict] = useState(true);
   const [language, setLanguage] = useState<"tr" | "en">("tr");
+  const hasUnsavedChanges = useRef(false);
 
   // Tercihleri SecureStore'dan yukle
   useEffect(() => {
@@ -125,17 +126,43 @@ export default function SettingsScreen() {
 
   const handleNotificationsChange = (enabled: boolean) => {
     setNotificationsEnabled(enabled);
+    hasUnsavedChanges.current = true;
     void SecureStore.setItemAsync("settings_notifications", String(enabled));
   };
 
   const handlePrivacyStrictChange = (strict: boolean) => {
     setPrivacyStrict(strict);
+    hasUnsavedChanges.current = true;
     void SecureStore.setItemAsync("settings_privacy_strict", String(strict));
   };
 
   const handleLanguageChange = (lang: "tr" | "en") => {
     setLanguage(lang);
+    hasUnsavedChanges.current = true;
     void SecureStore.setItemAsync("settings_language", lang);
+  };
+
+  // Warn user before leaving with unsaved changes
+  const handleBack = () => {
+    if (hasUnsavedChanges.current) {
+      Alert.alert(
+        "Kaydedilmemiş değişiklikler",
+        "Yaptığın değişiklikleri kaydetmeden çıkacaksın. Devam etmek istiyor musun?",
+        [
+          {
+            text: "İptal",
+            style: "cancel",
+          },
+          {
+            text: "Çık",
+            style: "destructive",
+            onPress: () => router.back(),
+          },
+        ],
+      );
+    } else {
+      router.back();
+    }
   };
   const blockedCount = currentUser?.blockedUsers?.length ?? 0;
   const profileHidden = currentUser
@@ -179,6 +206,7 @@ export default function SettingsScreen() {
     },
     onSuccess: async (updatedUser) => {
       setCurrentUser(updatedUser);
+      hasUnsavedChanges.current = false;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
         queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
@@ -215,6 +243,7 @@ export default function SettingsScreen() {
     },
     onSuccess: async (updatedUser) => {
       setCurrentUser(updatedUser);
+      hasUnsavedChanges.current = false;
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
         queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
@@ -290,7 +319,7 @@ export default function SettingsScreen() {
           accessibilityRole="button"
           accessibilityLabel="Geri dön"
           hitSlop={8}
-          onPress={() => router.back()}
+          onPress={handleBack}
           style={styles.backButton}
         >
           <Ionicons name="chevron-back" size={22} color={theme.colors.text} />
