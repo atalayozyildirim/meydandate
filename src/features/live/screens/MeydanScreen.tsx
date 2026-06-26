@@ -3,12 +3,14 @@ import {
   Alert,
   Animated,
   Easing,
+  FlatList,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   View,
+  type ListRenderItem,
   type StyleProp,
   type ViewStyle,
 } from "react-native";
@@ -391,7 +393,7 @@ export default function MeydanRoomScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
   const embedWebViewRef = useRef<WebView>(null);
-  const chatScrollViewRef = useRef<ScrollView>(null);
+  const chatListRef = useRef<FlatList<LiveChatMessage>>(null);
   const currentUser = useAuthStore((state) => state.currentUser);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const {
@@ -427,8 +429,10 @@ export default function MeydanRoomScreen() {
   const [liveKitInfo, setLiveKitInfo] = useState<LiveKitJoinInfo | null>(null);
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [isParticipantsSheetOpen, setIsParticipantsSheetOpen] = useState(false);
   const livePulse = useRef(new Animated.Value(0)).current;
   const participants = room?.participants ?? [];
+  const participantPreview = participants.slice(0, 20);
   const speakers = participants.filter(
     (participant) => participant.stageStatus === "speaker",
   );
@@ -613,10 +617,10 @@ export default function MeydanRoomScreen() {
 
   // Yeni mesaj geldiğinde otomatik scroll yap
   useEffect(() => {
-    if (messages.length > 0 && chatScrollViewRef.current) {
+    if (messages.length > 0 && chatListRef.current) {
       // Bir sonraki frame'de scroll yap, içerik render olduktan sonra
       setTimeout(() => {
-        chatScrollViewRef.current?.scrollToEnd({ animated: true });
+        chatListRef.current?.scrollToEnd({ animated: true });
       }, 100);
     }
   }, [messages.length]);
@@ -879,6 +883,216 @@ export default function MeydanRoomScreen() {
     );
   };
 
+  const openParticipantProfile = (participantId: string) => {
+    router.push({
+      pathname: "/tabs/profile/[userId]",
+      params: { userId: participantId },
+    });
+  };
+
+  const renderParticipantCard = (
+    participant: LiveParticipant,
+    variant: "preview" | "sheet" = "preview",
+  ) => (
+    <Pressable
+      key={participant.id}
+      accessibilityRole="button"
+      style={({ pressed }) => [
+        styles.participantCard,
+        variant === "sheet" && styles.participantCardSheet,
+        pressed && styles.participantCardPressed,
+        participant.stageStatus === "speaker" && styles.participantCardSpeaker,
+      ]}
+      onPress={() => openParticipantProfile(participant.id)}
+    >
+      <View style={styles.participantCardAvatarWrap}>
+        <Avatar
+          name={participant.name}
+          uri={participant.photoUri}
+          size={variant === "sheet" ? 42 : 48}
+        />
+        {participant.stageStatus === "speaker" ? (
+          <View style={styles.speakerBadge}>
+            <Ionicons name="mic" size={12} color="#FFFFFF" />
+          </View>
+        ) : null}
+        {shouldShowVerifiedBadgeForParticipant(
+          participant.badges,
+          participant.isPremium,
+        ) ? (
+          <View style={styles.premiumBadge}>
+            <Ionicons name="checkmark-circle" size={14} color="#FFFFFF" />
+          </View>
+        ) : null}
+      </View>
+      <View style={variant === "sheet" && styles.participantCardCopy}>
+        <Text
+          numberOfLines={1}
+          style={[
+            styles.participantCardName,
+            variant === "sheet" && styles.participantCardNameSheet,
+          ]}
+        >
+          {participant.isCurrentUser ? "Sen" : participant.name}
+        </Text>
+        {variant === "sheet" ? (
+          <Text numberOfLines={1} style={styles.participantCardRole}>
+            {participant.stageStatus === "speaker" ? "Sahnede" : "Dinleyici"}
+            {participant.handRaisedAt ? " · el kaldırdı" : ""}
+          </Text>
+        ) : participant.handRaisedAt ? (
+          <View style={styles.handRaisedBadge}>
+            <Ionicons name="hand-left" size={10} color="#FFFFFF" />
+          </View>
+        ) : null}
+      </View>
+      {canManageRoom && !participant.isCurrentUser ? (
+        <View style={styles.participantCardAdminActions}>
+          {participant.stageStatus === "speaker" ? (
+            <Pressable
+              disabled={isManagingStage}
+              onPress={(event) => {
+                event.stopPropagation();
+                void handleSetMuted(participant, !participant.isMuted);
+              }}
+              style={styles.participantCardAdminButton}
+            >
+              <Ionicons
+                name={participant.isMuted ? "mic-off" : "mic"}
+                size={11}
+                color={theme.colors.text}
+              />
+            </Pressable>
+          ) : (
+            <Pressable
+              disabled={isManagingStage}
+              onPress={(event) => {
+                event.stopPropagation();
+                void handleSetParticipantStage(participant.id, "speaker");
+              }}
+              style={styles.participantCardAdminButton}
+            >
+              <Ionicons
+                name="arrow-up-circle-outline"
+                size={11}
+                color={theme.colors.text}
+              />
+            </Pressable>
+          )}
+          <Pressable
+            disabled={isManagingStage}
+            onPress={(event) => {
+              event.stopPropagation();
+              handleRemoveParticipant(participant);
+            }}
+            style={[
+              styles.participantCardAdminButton,
+              styles.participantCardAdminDanger,
+            ]}
+          >
+            <Ionicons name="close" size={11} color={theme.colors.danger} />
+          </Pressable>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+
+  const renderParticipantListItem: ListRenderItem<LiveParticipant> = ({
+    item,
+  }) => renderParticipantCard(item, "sheet");
+
+  const renderChatMessage: ListRenderItem<LiveChatMessage> = ({ item: message }) => (
+    <View
+      style={[
+        styles.messageRow,
+        message.isCurrentUser && styles.messageRowOwn,
+      ]}
+    >
+      <Pressable
+        onPress={() => openParticipantProfile(message.senderId)}
+      >
+        <Avatar
+          name={message.isCurrentUser ? "Sen" : message.senderName}
+          uri={
+            message.isCurrentUser
+              ? resolveProfilePhotoUri(currentUser?.photos[0]?.uri)
+              : message.senderPhotoUri
+          }
+          size={message.isCurrentUser ? 28 : 32}
+        />
+      </Pressable>
+
+      <View
+        style={[
+          styles.messageBubbleArea,
+          message.isCurrentUser && styles.messageBubbleAreaOwn,
+        ]}
+      >
+        <View
+          style={[
+            styles.messageBubble,
+            message.isCurrentUser
+              ? styles.messageBubbleOwn
+              : styles.messageBubbleOther,
+          ]}
+        >
+          {!message.isCurrentUser ? (
+            <Pressable
+              onPress={() => openParticipantProfile(message.senderId)}
+              style={styles.chatMessageMeta}
+            >
+              <Text style={styles.chatSender} numberOfLines={1}>
+                {message.senderName}
+              </Text>
+              {message.senderIsPremium ? (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={13}
+                  color={theme.colors.primary}
+                />
+              ) : null}
+            </Pressable>
+          ) : null}
+          <Text style={styles.chatBody}>{message.body}</Text>
+        </View>
+        <View
+          style={[
+            styles.messageFooter,
+            message.isCurrentUser && styles.messageFooterOwn,
+          ]}
+        >
+          <Text
+            style={[
+              styles.messageTime,
+              message.isCurrentUser && styles.messageTimeOwn,
+            ]}
+          >
+            {formatMessageTime(message.createdAt)}
+          </Text>
+          {!message.isCurrentUser ? (
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Mesajı bildir"
+              disabled={isReportingMessage}
+              onPress={() => confirmReportMessage(message)}
+              style={({ pressed }) => [
+                styles.messageReportButton,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name="flag-outline"
+                size={12}
+                color={theme.colors.muted}
+              />
+              <Text style={styles.messageReportText}>Bildir</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      </View>
+    </View>
+  );
+
   if (isLoading) {
     return <Loading label="Meydan yükleniyor" />;
   }
@@ -962,7 +1176,11 @@ export default function MeydanRoomScreen() {
                 ]}
               />
               <View style={styles.spaceIcon}>
-                <Ionicons name="mic" size={22} color="#FFFFFF" />
+                <Ionicons
+                  name="mic"
+                  size={22}
+                  color={theme.colors.onPrimary}
+                />
               </View>
               <View style={styles.spaceHeaderText}>
                 <View style={styles.spaceTitleRow}>
@@ -1351,112 +1569,51 @@ export default function MeydanRoomScreen() {
       <View style={styles.participantsSection}>
         <View style={styles.participantsHeader}>
           <Text style={styles.participantsTitle}>Katılanlar</Text>
-          <Text style={styles.participantsCount}>{participantCount} kişi</Text>
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => setIsParticipantsSheetOpen(true)}
+            style={({ pressed }) => [
+              styles.participantsCountButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Text style={styles.participantsCount}>{participantCount} kişi</Text>
+            <Ionicons
+              name="chevron-forward"
+              size={15}
+              color={theme.colors.muted}
+            />
+          </Pressable>
         </View>
-        <ScrollView 
-          horizontal 
+        <FlatList
+          horizontal
+          data={participantPreview}
+          keyExtractor={(participant) => participant.id}
+          renderItem={({ item }) => renderParticipantCard(item)}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.participantsHorizontalList}
-        >
-          {participants.map((participant) => (
-            <Pressable
-              key={participant.id}
-              style={({ pressed }) => [
-                styles.participantCard,
-                pressed && styles.participantCardPressed,
-                participant.stageStatus === "speaker" && styles.participantCardSpeaker,
-              ]}
-              onPress={() => {
-                router.push({
-                  pathname: "/tabs/profile/[userId]",
-                  params: { userId: participant.id },
-                });
-              }}
-            >
-              <View style={styles.participantCardAvatarWrap}>
-                <Avatar
-                  name={participant.name}
-                  uri={participant.photoUri}
-                  size={48}
-                />
-                {participant.stageStatus === "speaker" && (
-                  <View style={styles.speakerBadge}>
-                    <Ionicons name="mic" size={12} color="#FFFFFF" />
-                  </View>
-                )}
-                {shouldShowVerifiedBadgeForParticipant(participant.badges, participant.isPremium) ? (
-                  <View style={styles.premiumBadge}>
-                    <Ionicons
-                      name="checkmark-circle"
-                      size={14}
-                      color="#FFFFFF"
-                    />
-                  </View>
-                ) : null}
-              </View>
-              <Text numberOfLines={1} style={styles.participantCardName}>
-                {participant.isCurrentUser ? "Sen" : participant.name}
-              </Text>
-              {participant.handRaisedAt ? (
-                <View style={styles.handRaisedBadge}>
-                  <Ionicons name="hand-left" size={10} color="#FFFFFF" />
-                </View>
-              ) : null}
-              {canManageRoom && !participant.isCurrentUser ? (
-                <View style={styles.participantCardAdminActions}>
-                  {participant.stageStatus === "speaker" ? (
-                    <Pressable
-                      disabled={isManagingStage}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        void handleSetMuted(participant, !participant.isMuted)
-                      }}
-                      style={styles.participantCardAdminButton}
-                    >
-                      <Ionicons
-                        name={participant.isMuted ? "mic-off" : "mic"}
-                        size={11}
-                        color={theme.colors.text}
-                      />
-                    </Pressable>
-                  ) : (
-                    <Pressable
-                      disabled={isManagingStage}
-                      onPress={(event) => {
-                        event.stopPropagation();
-                        void handleSetParticipantStage(participant.id, "speaker")
-                      }}
-                      style={styles.participantCardAdminButton}
-                    >
-                      <Ionicons
-                        name="arrow-up-circle-outline"
-                        size={11}
-                        color={theme.colors.text}
-                      />
-                    </Pressable>
-                  )}
-                  <Pressable
-                    disabled={isManagingStage}
-                    onPress={(event) => {
-                      event.stopPropagation();
-                      handleRemoveParticipant(participant);
-                    }}
-                    style={[
-                      styles.participantCardAdminButton,
-                      styles.participantCardAdminDanger,
-                    ]}
-                  >
-                    <Ionicons
-                      name="close"
-                      size={11}
-                      color={theme.colors.danger}
-                    />
-                  </Pressable>
-                </View>
-              ) : null}
-            </Pressable>
-          ))}
-        </ScrollView>
+          initialNumToRender={8}
+          maxToRenderPerBatch={8}
+          windowSize={5}
+          removeClippedSubviews
+          ListFooterComponent={
+            participantCount > participantPreview.length ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={() => setIsParticipantsSheetOpen(true)}
+                style={({ pressed }) => [
+                  styles.moreParticipantsCard,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Text style={styles.moreParticipantsText}>
+                  +{participantCount - participantPreview.length}
+                </Text>
+                <Text style={styles.moreParticipantsLabel}>Tümü</Text>
+              </Pressable>
+            ) : null
+          }
+        />
       </View>
 
       <View style={styles.roomActionDock}>
@@ -1476,7 +1633,7 @@ export default function MeydanRoomScreen() {
           <Ionicons
             name={isJoined ? "exit-outline" : "enter-outline"}
             size={22}
-            color="#FFFFFF"
+            color={theme.colors.onPrimary}
           />
           <Text style={styles.roomActionLabel}>
             {isJoined ? "Ayrıl" : "Katıl"}
@@ -1569,6 +1726,43 @@ export default function MeydanRoomScreen() {
           </Pressable>
         ) : null}
       </View>
+
+      <BottomSheet
+        visible={isParticipantsSheetOpen}
+        onClose={() => setIsParticipantsSheetOpen(false)}
+      >
+        <View style={styles.participantsSheet}>
+          <View style={styles.participantsSheetHeader}>
+            <View>
+              <Text style={styles.participantsSheetTitle}>Katılımcılar</Text>
+              <Text style={styles.participantsSheetSubtitle}>
+                {participantCount} kişi · {speakers.length} sahnede ·{" "}
+                {raisedListeners.length} el kaldırdı
+              </Text>
+            </View>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Katılımcı listesini kapat"
+              onPress={() => setIsParticipantsSheetOpen(false)}
+              style={styles.sheetCloseButton}
+            >
+              <Ionicons name="close" size={20} color={theme.colors.text} />
+            </Pressable>
+          </View>
+          <FlatList
+            data={participants}
+            keyExtractor={(participant) => participant.id}
+            renderItem={renderParticipantListItem}
+            contentContainerStyle={styles.participantsSheetList}
+            showsVerticalScrollIndicator={false}
+            initialNumToRender={16}
+            maxToRenderPerBatch={16}
+            updateCellsBatchingPeriod={50}
+            windowSize={8}
+            removeClippedSubviews
+          />
+        </View>
+      </BottomSheet>
 
       {isError ? (
         <View style={styles.errorBox}>
@@ -1760,14 +1954,20 @@ export default function MeydanRoomScreen() {
             <Text style={styles.chatCountText}>{messages.length}</Text>
           </View>
         </View>
-        <ScrollView
-          ref={chatScrollViewRef}
+        <FlatList
+          ref={chatListRef}
+          data={messages}
+          keyExtractor={(message) => message.id}
+          renderItem={renderChatMessage}
           nestedScrollEnabled
           showsVerticalScrollIndicator={false}
           contentContainerStyle={styles.chatList}
           style={styles.chatViewport}
-        >
-          {messages.length === 0 ? (
+          initialNumToRender={16}
+          maxToRenderPerBatch={16}
+          windowSize={7}
+          removeClippedSubviews
+          ListEmptyComponent={
             <View style={styles.emptyChat}>
               <View style={styles.emptyChatIcon}>
                 <Ionicons
@@ -1781,113 +1981,8 @@ export default function MeydanRoomScreen() {
                 Odaya katıl ve ilk selamı sen ver.
               </Text>
             </View>
-          ) : (
-            messages.map((message) => (
-              <View
-                key={message.id}
-                style={[
-                  styles.messageRow,
-                  message.isCurrentUser && styles.messageRowOwn,
-                ]}
-              >
-                {/* Avatar — flex row reverse ile sag/sol otomatik */}
-                <Pressable
-                  onPress={() =>
-                    router.push({
-                      pathname: "/tabs/profile/[userId]",
-                      params: { userId: message.senderId },
-                    })
-                  }
-                >
-                  <Avatar
-                    name={message.isCurrentUser ? "Sen" : message.senderName}
-                    uri={
-                      message.isCurrentUser
-                        ? resolveProfilePhotoUri(currentUser?.photos[0]?.uri)
-                        : message.senderPhotoUri
-                    }
-                    size={message.isCurrentUser ? 28 : 32}
-                  />
-                </Pressable>
-
-                {/* Balon alani — flex:1 ile genisler, icerik hizalanir */}
-                <View
-                  style={[
-                    styles.messageBubbleArea,
-                    message.isCurrentUser && styles.messageBubbleAreaOwn,
-                  ]}
-                >
-                  <View
-                    style={[
-                      styles.messageBubble,
-                      message.isCurrentUser
-                        ? styles.messageBubbleOwn
-                        : styles.messageBubbleOther,
-                    ]}
-                  >
-                    {!message.isCurrentUser ? (
-                      <Pressable
-                        onPress={() =>
-                          router.push({
-                            pathname: "/tabs/profile/[userId]",
-                            params: { userId: message.senderId },
-                          })
-                        }
-                        style={styles.chatMessageMeta}
-                      >
-                        <Text style={styles.chatSender} numberOfLines={1}>
-                          {message.senderName}
-                        </Text>
-                        {message.senderIsPremium ? (
-                          <Ionicons
-                            name="checkmark-circle"
-                            size={13}
-                            color={theme.colors.primary}
-                          />
-                        ) : null}
-                      </Pressable>
-                    ) : null}
-                    <Text style={styles.chatBody}>{message.body}</Text>
-                  </View>
-                  <View
-                    style={[
-                      styles.messageFooter,
-                      message.isCurrentUser && styles.messageFooterOwn,
-                    ]}
-                  >
-                    <Text
-                      style={[
-                        styles.messageTime,
-                        message.isCurrentUser && styles.messageTimeOwn,
-                      ]}
-                    >
-                      {formatMessageTime(message.createdAt)}
-                    </Text>
-                    {!message.isCurrentUser ? (
-                      <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel="Mesajı bildir"
-                        disabled={isReportingMessage}
-                        onPress={() => confirmReportMessage(message)}
-                        style={({ pressed }) => [
-                          styles.messageReportButton,
-                          pressed && styles.pressed,
-                        ]}
-                      >
-                        <Ionicons
-                          name="flag-outline"
-                          size={12}
-                          color={theme.colors.muted}
-                        />
-                        <Text style={styles.messageReportText}>Bildir</Text>
-                      </Pressable>
-                    ) : null}
-                  </View>
-                </View>
-              </View>
-            ))
-          )}
-        </ScrollView>
+          }
+        />
         <View style={styles.chatComposer}>
           <View style={styles.chatInputFrame}>
             <Ionicons
@@ -1934,10 +2029,10 @@ export default function MeydanRoomScreen() {
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
     screen: {
-      gap: theme.spacing.md,
-      paddingHorizontal: theme.spacing.md,
+      gap: theme.spacing.lg,
+      paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.sm,
-      paddingBottom: 104,
+      paddingBottom: 132,
     },
     header: {
       gap: theme.spacing.xs,
@@ -2012,8 +2107,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.primary,
     },
     stage: {
-      minHeight: 188,
-      borderRadius: 28,
+      minHeight: 0,
+      borderRadius: 30,
       overflow: "hidden",
       justifyContent: "space-between",
       backgroundColor: theme.isDark ? "#10131B" : "#171923",
@@ -2049,27 +2144,28 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       padding: theme.spacing.md,
     },
     spaceStage: {
-      gap: theme.spacing.sm,
-      padding: theme.spacing.md,
+      gap: theme.spacing.md,
+      padding: theme.spacing.lg,
       backgroundColor: theme.isDark ? "#10131B" : "#11131B",
     },
     spaceHeader: {
       position: "relative",
       flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
+      alignItems: "flex-start",
+      gap: theme.spacing.md,
     },
     spacePulseRing: {
       position: "absolute",
       left: -5,
-      width: 56,
-      height: 56,
-      borderRadius: 28,
+      top: -5,
+      width: 68,
+      height: 68,
+      borderRadius: 34,
       backgroundColor: theme.colors.primary,
     },
     spaceIcon: {
-      width: 48,
-      height: 48,
+      width: 58,
+      height: 58,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
@@ -2085,9 +2181,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
+      minWidth: 0,
     },
     waveBars: {
-      width: 34,
+      width: 38,
       height: 18,
       borderRadius: 9,
       flexDirection: "row",
@@ -2114,9 +2211,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.xs,
+      paddingLeft: 0,
     },
     spaceStatPill: {
-      minHeight: 30,
+      minHeight: 34,
       borderRadius: theme.radius.pill,
       flexDirection: "row",
       alignItems: "center",
@@ -2127,8 +2225,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: "rgba(255, 255, 255, 0.09)",
     },
     spaceStatText: {
-      fontSize: 11,
-      lineHeight: 14,
+      fontSize: 12,
+      lineHeight: 15,
       fontWeight: "800",
       color: "rgba(255, 255, 255, 0.82)",
     },
@@ -2194,20 +2292,20 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     speakerStrip: {
       flexDirection: "row",
-      flexWrap: "wrap",
+      flexWrap: "nowrap",
       gap: theme.spacing.xs,
     },
     speakerCard: {
-      width: "31.6%",
-      minHeight: 104,
-      borderRadius: 20,
+      width: 126,
+      minHeight: 128,
+      borderRadius: 24,
       alignItems: "center",
       justifyContent: "center",
       gap: theme.spacing.xxs,
       padding: theme.spacing.sm,
       backgroundColor: "rgba(255, 255, 255, 0.08)",
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.10)",
+      borderColor: "rgba(255, 255, 255, 0.14)",
     },
     speakerAvatarWrap: {
       position: "relative",
@@ -2229,6 +2327,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: "#FFFFFF",
       textAlign: "center",
+      maxWidth: 102,
     },
     speakerRole: {
       fontSize: 11,
@@ -2353,31 +2452,31 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       flexWrap: "wrap",
       gap: theme.spacing.xs,
-      paddingHorizontal: theme.spacing.md,
-      paddingBottom: theme.spacing.md,
+      paddingHorizontal: theme.spacing.lg,
+      paddingBottom: theme.spacing.lg,
     },
     stageMetaText: {
       ...theme.typography.caption,
       color: "#FFFFFF",
       borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
       paddingVertical: theme.spacing.xs,
       backgroundColor: "rgba(255, 255, 255, 0.14)",
     },
     roomActionDock: {
-      minHeight: 64,
-      borderRadius: 26,
-      padding: theme.spacing.xs,
+      minHeight: 58,
+      borderRadius: 24,
+      padding: 5,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
     roomActionButton: {
       flex: 1,
-      minHeight: 50,
+      minHeight: 46,
       borderRadius: theme.radius.pill,
       flexDirection: "row",
       alignItems: "center",
@@ -2389,8 +2488,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.colors.border,
     },
     roomActionButtonPrimary: {
-      backgroundColor: theme.colors.text,
-      borderColor: theme.colors.text,
+      backgroundColor: theme.colors.primary,
+      borderColor: theme.colors.primary,
     },
     roomActionButtonDanger: {
       backgroundColor: theme.colors.danger,
@@ -2426,7 +2525,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     roomActionLabel: {
       ...theme.typography.caption,
-      color: theme.colors.background,
+      color: theme.colors.onPrimary,
       fontWeight: "900",
     },
     roomActionLabelSecondary: {
@@ -2595,17 +2694,31 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.muted,
       fontWeight: "600",
     },
+    participantsCountButton: {
+      minHeight: 32,
+      borderRadius: theme.radius.pill,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: 2,
+      paddingLeft: theme.spacing.sm,
+      paddingRight: theme.spacing.xs,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
     participantsHorizontalList: {
       gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.xs,
+      paddingHorizontal: 0,
+      paddingRight: theme.spacing.lg,
     },
     participantCard: {
-      width: 80,
+      width: 104,
+      minHeight: 118,
       alignItems: "center",
       gap: theme.spacing.xxs,
       padding: theme.spacing.sm,
-      borderRadius: 16,
-      backgroundColor: theme.colors.surface,
+      borderRadius: 22,
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },
@@ -2650,7 +2763,87 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: theme.colors.text,
       textAlign: "center",
-      fontWeight: "600",
+      fontWeight: "800",
+      maxWidth: 84,
+    },
+    participantCardSheet: {
+      width: "100%",
+      minHeight: 72,
+      flexDirection: "row",
+      justifyContent: "flex-start",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+    },
+    participantCardCopy: {
+      flex: 1,
+      minWidth: 0,
+    },
+    participantCardNameSheet: {
+      maxWidth: "100%",
+      textAlign: "left",
+    },
+    participantCardRole: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "700",
+      marginTop: 2,
+    },
+    moreParticipantsCard: {
+      width: 104,
+      minHeight: 118,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.xxs,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    moreParticipantsText: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      fontVariant: ["tabular-nums"],
+    },
+    moreParticipantsLabel: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      fontWeight: "800",
+    },
+    participantsSheet: {
+      maxHeight: 560,
+      gap: theme.spacing.md,
+      padding: theme.spacing.md,
+      backgroundColor: theme.colors.surface,
+    },
+    participantsSheetHeader: {
+      flexDirection: "row",
+      alignItems: "flex-start",
+      justifyContent: "space-between",
+      gap: theme.spacing.md,
+    },
+    participantsSheetTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      fontSize: 22,
+    },
+    participantsSheetSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
+      marginTop: 2,
+    },
+    sheetCloseButton: {
+      width: 38,
+      height: 38,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    participantsSheetList: {
+      gap: theme.spacing.xs,
+      paddingBottom: theme.spacing.lg,
     },
     handRaisedBadge: {
       minHeight: 18,
@@ -2786,8 +2979,8 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     chatViewport: {
       maxHeight: 360,
-      minHeight: 150,
-      borderRadius: 24,
+      minHeight: 190,
+      borderRadius: 26,
       backgroundColor: theme.isDark ? "#0D0F14" : "#F8F9FB",
       borderWidth: 1,
       borderColor: theme.colors.border,
@@ -2915,10 +3108,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.xs,
-      borderRadius: 24,
+      borderRadius: 26,
       padding: theme.spacing.xxs,
       paddingLeft: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.elevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
     },

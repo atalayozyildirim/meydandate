@@ -54,7 +54,7 @@ const getErrorText = (error: unknown) => {
 
 const isMissingFeedImageColumnError = (error: unknown) =>
   /PGRST204|42703|schema cache|column/i.test(getErrorText(error)) &&
-  /image_path|image_url/i.test(getErrorText(error));
+  /image_path|image_url|image_paths|image_urls/i.test(getErrorText(error));
 
 const isMissingFeedEnrichmentColumnError = (error: unknown) =>
   /PGRST204|42703|schema cache|column/i.test(getErrorText(error)) &&
@@ -108,6 +108,8 @@ const postSelect = `
   author_id,
   body,
   image_url,
+  image_urls,
+  image_paths,
   quoted_post_id,
   quote_snapshot,
   link_preview,
@@ -118,6 +120,7 @@ const postSelect = `
   updated_at,
   author:users!feed_posts_author_id_fkey(${publicUserColumns}),
   likes:feed_post_likes(user_id),
+  comments:feed_comments(id),
   poll:feed_polls(
     id,
     post_id,
@@ -133,6 +136,8 @@ const legacyPostSelect = `
   author_id,
   body,
   image_url,
+  image_urls,
+  image_paths,
   tags,
   report_count,
   is_pinned,
@@ -140,6 +145,7 @@ const legacyPostSelect = `
   updated_at,
   author:users!feed_posts_author_id_fkey(${publicUserColumns}),
   likes:feed_post_likes(user_id),
+  comments:feed_comments(id),
   poll:feed_polls(
     id,
     post_id,
@@ -155,6 +161,8 @@ const commentSelect = `
   post_id,
   author_id,
   body,
+  image_urls,
+  image_paths,
   created_at,
   author:users!feed_comments_author_id_fkey(${publicUserColumns}),
   likes:feed_comment_likes(user_id),
@@ -163,6 +171,8 @@ const commentSelect = `
     comment_id,
     author_id,
     body,
+    image_urls,
+    image_paths,
     created_at,
     author:users!feed_replies_author_id_fkey(${publicUserColumns}),
     likes:feed_reply_likes(user_id)
@@ -190,6 +200,8 @@ type ReplyRow = {
   comment_id: string;
   author_id: string;
   body: string;
+  image_urls?: string[] | null;
+  image_paths?: string[] | null;
   created_at: string;
   author: User;
   likes?: LikeRow[];
@@ -200,6 +212,8 @@ type CommentRow = {
   post_id: string;
   author_id: string;
   body: string;
+  image_urls?: string[] | null;
+  image_paths?: string[] | null;
   created_at: string;
   author: User;
   likes?: LikeRow[];
@@ -232,6 +246,8 @@ type PostRow = {
   body: string;
   image_url: string | null;
   image_path?: string | null;
+  image_urls?: string[] | null;
+  image_paths?: string[] | null;
   quoted_post_id?: string | null;
   quote_snapshot?: unknown | null;
   link_preview?: unknown | null;
@@ -242,8 +258,18 @@ type PostRow = {
   updated_at: string;
   author: User;
   likes?: LikeRow[];
-  comments?: CommentRow[];
+  comments?: CommentRow[] | Array<{ id: string }>;
   poll?: PollRow | PollRow[] | null;
+};
+
+type FeedImageInput = {
+  uri: string;
+  base64?: string | null;
+};
+
+type UploadedFeedImage = {
+  url: string;
+  path: string | null;
 };
 
 type BotPostRow = {
@@ -340,6 +366,106 @@ const buildQuoteSnapshot = (post: FeedPost): FeedQuotedPost => ({
   createdAt: post.createdAt,
 });
 
+const normalizeImageUrls = (
+  imageUrls?: string[] | null,
+  legacyImageUrl?: string | null,
+) => {
+  const urls = Array.isArray(imageUrls)
+    ? imageUrls.filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+    : [];
+
+  if (urls.length > 0) {
+    return urls.slice(0, 4);
+  }
+
+  return legacyImageUrl ? [legacyImageUrl] : [];
+};
+
+const getImageSignature = (imageData: ArrayBuffer) => {
+  const header = new Uint8Array(imageData.slice(0, 12));
+  const headerStr = String.fromCharCode(...Array.from(header));
+
+  if (headerStr.startsWith("GIF87a") || headerStr.startsWith("GIF89a")) {
+    return { ext: "gif", contentType: "image/gif" };
+  }
+
+  if (header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e) {
+    return { ext: "png", contentType: "image/png" };
+  }
+
+  if (headerStr.startsWith("RIFF") && headerStr.includes("WEBP")) {
+    return { ext: "webp", contentType: "image/webp" };
+  }
+
+  return { ext: "jpg", contentType: "image/jpeg" };
+};
+
+const uploadFeedImage = async (
+  authorId: string,
+  image: FeedImageInput,
+): Promise<UploadedFeedImage> => {
+  if (image.uri && /^https?:\/\//i.test(image.uri)) {
+    return { url: image.uri, path: null };
+  }
+
+  if (!image.base64) {
+    throw new Error("Fotoğraf hazırlanamadı. Görseli tekrar seçin.");
+  }
+
+  const imageData = decodeBase64(image.base64);
+
+  if (imageData.byteLength > MAX_FEED_IMAGE_BYTES) {
+    throw new Error("Fotoğraf en fazla 6 MB olabilir.");
+  }
+
+  const signature = getImageSignature(imageData);
+  const imagePath = `${authorId}/${Date.now()}-${Math.random()
+    .toString(36)
+    .slice(2)}.${signature.ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from(FEED_IMAGE_BUCKET)
+    .upload(imagePath, imageData, {
+      cacheControl: "3600",
+      contentType: signature.contentType,
+      upsert: false,
+    });
+
+  if (uploadError) {
+    throw createSupabaseRepositoryError("Fotoğraf yüklenemedi.", uploadError);
+  }
+
+  return {
+    path: imagePath,
+    url: supabase.storage.from(FEED_IMAGE_BUCKET).getPublicUrl(imagePath).data.publicUrl,
+  };
+};
+
+const uploadFeedImages = async (authorId: string, images: FeedImageInput[]) => {
+  const limitedImages = images.slice(0, 4);
+  const uploaded: UploadedFeedImage[] = [];
+
+  try {
+    for (const image of limitedImages) {
+      uploaded.push(await uploadFeedImage(authorId, image));
+    }
+
+    return uploaded;
+  } catch (error) {
+    const uploadedPaths = uploaded
+      .map((image) => image.path)
+      .filter((path): path is string => Boolean(path));
+
+    if (uploadedPaths.length > 0) {
+      await supabase.storage
+        .from(FEED_IMAGE_BUCKET)
+        .remove(uploadedPaths)
+        .catch(() => undefined);
+    }
+
+    throw error;
+  }
+};
+
 const mapReply = (postId: string, row: ReplyRow): FeedReply => ({
   id: row.id,
   postId,
@@ -347,6 +473,7 @@ const mapReply = (postId: string, row: ReplyRow): FeedReply => ({
   authorId: row.author_id,
   author: mapSupabaseUser(row.author),
   body: sanitizePlainText(row.body, 1000),
+  imageUrls: normalizeImageUrls(row.image_urls),
   likedByUserIds: (row.likes ?? []).map((like) => like.user_id),
   createdAt: row.created_at,
 });
@@ -357,6 +484,7 @@ const mapComment = (row: CommentRow): FeedComment => ({
   authorId: row.author_id,
   author: mapSupabaseUser(row.author),
   body: sanitizePlainText(row.body, 1000),
+  imageUrls: normalizeImageUrls(row.image_urls),
   likedByUserIds: (row.likes ?? []).map((like) => like.user_id),
   replies: (row.replies ?? [])
     .map((reply) => mapReply(row.post_id, reply))
@@ -398,10 +526,14 @@ const mapPost = (row: PostRow, currentUserId = ""): FeedPost => ({
   authorId: row.author_id,
   author: mapSupabaseUser(row.author),
   body: sanitizePlainText(row.body, 2000),
-  ...(row.image_url ? { imageUrl: row.image_url } : {}),
+  imageUrls: normalizeImageUrls(row.image_urls, row.image_url),
+  ...(normalizeImageUrls(row.image_urls, row.image_url)[0]
+    ? { imageUrl: normalizeImageUrls(row.image_urls, row.image_url)[0] }
+    : {}),
   tags: normalizeFeedTags(row.tags),
   likedByUserIds: (row.likes ?? []).map((like) => like.user_id),
   comments: [],
+  commentCount: row.comments?.length ?? 0,
   reportCount: row.report_count,
   isPinned: row.is_pinned,
   poll: mapPoll(row.poll, currentUserId),
@@ -416,9 +548,11 @@ const mapBotPost = (row: BotPostRow): FeedPost => ({
   authorId: ehlibyteBotUser.id,
   author: ehlibyteBotUser,
   body: sanitizePlainText(row.body, 2000),
+  imageUrls: [],
   tags: normalizeFeedTags(row.tags),
   likedByUserIds: [],
   comments: [],
+  commentCount: 0,
   reportCount: 0,
   isPinned: true,
   isSponsored: true,
@@ -705,8 +839,7 @@ export class SupabaseFeedRepository implements FeedRepository {
   }
 
   async createPost(payload: CreateFeedPostPayload): Promise<FeedPost> {
-    let imagePath: string | null = null;
-    let imageUrl: string | null = null;
+    let uploadedImages: UploadedFeedImage[] = [];
     let quoteSnapshot: FeedQuotedPost | null = null;
 
     if (payload.quotedPostId) {
@@ -719,49 +852,21 @@ export class SupabaseFeedRepository implements FeedRepository {
       }
     }
 
-    if (payload.image) {
-      // Allow passing an external URL (e.g., picked GIF from Tenor/Giphy) directly
-      if (payload.image.uri && /^https?:\/\//i.test(payload.image.uri)) {
-        imageUrl = payload.image.uri;
-      } else {
-        if (!payload.image.base64) {
-          throw new Error("Fotoğraf hazırlanamadı. Görseli tekrar seçin.");
-        }
+    const imageInputs = [
+      ...(payload.images ?? []),
+      ...(payload.image ? [payload.image] : []),
+    ].slice(0, 4);
 
-        const imageData = decodeBase64(payload.image.base64);
-
-        if (imageData.byteLength > MAX_FEED_IMAGE_BYTES) {
-          throw new Error("Fotoğraf en fazla 6 MB olabilir.");
-        }
-
-        // Detect GIF by checking file signature (GIF87a / GIF89a) and upload with appropriate mime/extension
-        const header = new Uint8Array(imageData.slice(0, 6));
-        const headerStr = String.fromCharCode(...Array.from(header));
-        const isGif = headerStr.startsWith("GIF87a") || headerStr.startsWith("GIF89a");
-        const ext = isGif ? "gif" : "jpg";
-        const contentType = isGif ? "image/gif" : "image/jpeg";
-
-        imagePath = `${payload.authorId}/${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-        const { error: uploadError } = await supabase.storage
-          .from(FEED_IMAGE_BUCKET)
-          .upload(imagePath, imageData, {
-            cacheControl: "3600",
-            contentType,
-            upsert: false,
-          });
-
-        if (uploadError) {
-          throw createSupabaseRepositoryError(
-            "Fotoğraf yüklenemedi.",
-            uploadError,
-          );
-        }
-
-        imageUrl = supabase.storage
-          .from(FEED_IMAGE_BUCKET)
-          .getPublicUrl(imagePath).data.publicUrl;
-      }
+    if (imageInputs.length > 0) {
+      uploadedImages = await uploadFeedImages(payload.authorId, imageInputs);
     }
+
+    const imageUrls = uploadedImages.map((image) => image.url);
+    const imagePaths = uploadedImages
+      .map((image) => image.path)
+      .filter((path): path is string => Boolean(path));
+    const firstImageUrl = imageUrls[0] ?? null;
+    const firstImagePath = imagePaths[0] ?? null;
 
     const sanitizedBody = sanitizePlainText(payload.body, 2000).trim();
     const linkPreview = await fetchLinkPreview(sanitizedBody);
@@ -781,8 +886,14 @@ export class SupabaseFeedRepository implements FeedRepository {
       ...(linkPreview ? { link_preview: linkPreview } : {}),
     };
     const postPayloadWithImage =
-      imageUrl && imagePath
-        ? { ...postPayload, image_url: imageUrl, image_path: imagePath }
+      imageUrls.length > 0
+        ? {
+            ...postPayload,
+            image_urls: imageUrls,
+            image_paths: imagePaths,
+            ...(firstImageUrl ? { image_url: firstImageUrl } : {}),
+            ...(firstImagePath ? { image_path: firstImagePath } : {}),
+          }
         : postPayload;
 
     let { data, error } = await supabase
@@ -793,8 +904,8 @@ export class SupabaseFeedRepository implements FeedRepository {
 
     if (error && isMissingFeedEnrichmentColumnError(error)) {
       const legacyPostPayloadWithImage =
-        imageUrl && imagePath
-          ? { ...basePostPayload, image_url: imageUrl, image_path: imagePath }
+        firstImageUrl && firstImagePath
+          ? { ...basePostPayload, image_url: firstImageUrl, image_path: firstImagePath }
           : basePostPayload;
       const retryResult = await supabase
         .from("feed_posts")
@@ -808,24 +919,23 @@ export class SupabaseFeedRepository implements FeedRepository {
 
     if (
       error &&
-      imagePath &&
-      imageUrl &&
+      firstImagePath &&
+      firstImageUrl &&
       isMissingFeedImageColumnError(error)
     ) {
       const imageUrlOnlyResult = await supabase
         .from("feed_posts")
-        .insert({ ...postPayload, image_url: imageUrl })
+        .insert({ ...postPayload, image_url: firstImageUrl })
         .select("id")
         .single();
 
       if (!imageUrlOnlyResult.error) {
         data = imageUrlOnlyResult.data;
         error = null;
-        imagePath = null;
       } else {
         await supabase.storage
           .from(FEED_IMAGE_BUCKET)
-          .remove([imagePath])
+          .remove(imagePaths)
           .catch(() => undefined);
 
         const retryResult = await supabase
@@ -836,12 +946,11 @@ export class SupabaseFeedRepository implements FeedRepository {
 
         data = retryResult.data;
         error = retryResult.error;
-        imagePath = null;
       }
-    } else if (error && imagePath && isMissingFeedImageColumnError(error)) {
+    } else if (error && imagePaths.length > 0 && isMissingFeedImageColumnError(error)) {
       await supabase.storage
         .from(FEED_IMAGE_BUCKET)
-        .remove([imagePath])
+        .remove(imagePaths)
         .catch(() => undefined);
 
       const retryResult = await supabase
@@ -852,14 +961,13 @@ export class SupabaseFeedRepository implements FeedRepository {
 
       data = retryResult.data;
       error = retryResult.error;
-      imagePath = null;
     }
 
     if (error || !data) {
-      if (imagePath) {
+      if (imagePaths.length > 0) {
         await supabase.storage
           .from(FEED_IMAGE_BUCKET)
-          .remove([imagePath])
+          .remove(imagePaths)
           .catch(() => undefined);
       }
 
@@ -962,13 +1070,31 @@ export class SupabaseFeedRepository implements FeedRepository {
   }
 
   async addComment(payload: CreateFeedCommentPayload): Promise<FeedPost> {
+    const uploadedImages = await uploadFeedImages(
+      payload.authorId,
+      payload.images ?? [],
+    );
+    const imageUrls = uploadedImages.map((image) => image.url);
+    const imagePaths = uploadedImages
+      .map((image) => image.path)
+      .filter((path): path is string => Boolean(path));
     const { error } = await supabase.from("feed_comments").insert({
       post_id: payload.postId,
       author_id: payload.authorId,
       body: sanitizePlainText(payload.body, 1000).trim(),
+      ...(imageUrls.length > 0
+        ? { image_urls: imageUrls, image_paths: imagePaths }
+        : {}),
     });
 
     if (error) {
+      if (imagePaths.length > 0) {
+        await supabase.storage
+          .from(FEED_IMAGE_BUCKET)
+          .remove(imagePaths)
+          .catch(() => undefined);
+      }
+
       throw createSupabaseRepositoryError("Yorum gönderilemedi.", error);
     }
 
@@ -976,13 +1102,31 @@ export class SupabaseFeedRepository implements FeedRepository {
   }
 
   async addReply(payload: CreateFeedReplyPayload): Promise<FeedPost> {
+    const uploadedImages = await uploadFeedImages(
+      payload.authorId,
+      payload.images ?? [],
+    );
+    const imageUrls = uploadedImages.map((image) => image.url);
+    const imagePaths = uploadedImages
+      .map((image) => image.path)
+      .filter((path): path is string => Boolean(path));
     const { error } = await supabase.from("feed_replies").insert({
       comment_id: payload.commentId,
       author_id: payload.authorId,
       body: sanitizePlainText(payload.body, 1000).trim(),
+      ...(imageUrls.length > 0
+        ? { image_urls: imageUrls, image_paths: imagePaths }
+        : {}),
     });
 
     if (error) {
+      if (imagePaths.length > 0) {
+        await supabase.storage
+          .from(FEED_IMAGE_BUCKET)
+          .remove(imagePaths)
+          .catch(() => undefined);
+      }
+
       throw createSupabaseRepositoryError("Yanıt gönderilemedi.", error);
     }
 
@@ -1028,7 +1172,7 @@ export class SupabaseFeedRepository implements FeedRepository {
   async deletePost(postId: string, _requesterId: string): Promise<void> {
     const { data: existingPost } = await supabase
       .from("feed_posts")
-      .select("image_path")
+      .select("image_path,image_paths")
       .eq("id", postId)
       .maybeSingle();
     const { data, error } = await supabase
@@ -1045,10 +1189,15 @@ export class SupabaseFeedRepository implements FeedRepository {
       throw new Error("Bu postu silme yetkiniz yok.");
     }
 
-    if (existingPost?.image_path) {
+    const storagePaths = [
+      ...(Array.isArray(existingPost?.image_paths) ? existingPost.image_paths : []),
+      ...(existingPost?.image_path ? [existingPost.image_path] : []),
+    ].filter((path): path is string => typeof path === "string" && path.length > 0);
+
+    if (storagePaths.length > 0) {
       await supabase.storage
         .from(FEED_IMAGE_BUCKET)
-        .remove([existingPost.image_path])
+        .remove([...new Set(storagePaths)])
         .catch(() => undefined);
     }
   }

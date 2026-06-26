@@ -46,9 +46,11 @@ const createSeedPost = (
   authorId,
   author: getUser(authorId),
   body,
+  imageUrls: [],
   tags,
   likedByUserIds: ["user-current"],
   comments: [],
+  commentCount: 0,
   reportCount: 0,
   isPinned,
   createdAt: now,
@@ -86,9 +88,11 @@ const createBotPostFromPayload = (
   authorId: ehlibyteBotUser.id,
   author: ehlibyteBotUser,
   body: sanitizePlainText(payload.body, 2000),
+  imageUrls: [],
   tags: payload.tags,
   likedByUserIds: [],
   comments: [],
+  commentCount: 0,
   reportCount: 0,
   isPinned: true,
   isSponsored: true,
@@ -330,10 +334,14 @@ export class MockFeedRepository implements FeedRepository {
       authorId: payload.authorId,
       author: getUser(payload.authorId),
       body: sanitizePlainText(payload.body, 2000),
-      imageUrl: payload.image?.uri,
+      imageUrl: payload.images?.[0]?.uri ?? payload.image?.uri,
+      imageUrls: (payload.images ?? (payload.image ? [payload.image] : []))
+        .map((image) => image.uri)
+        .filter(Boolean),
       tags: payload.tags,
       likedByUserIds: [],
       comments: [],
+      commentCount: 0,
       reportCount: 0,
       poll,
       quotedPost: payload.quotedPostId
@@ -383,12 +391,14 @@ export class MockFeedRepository implements FeedRepository {
       authorId: payload.authorId,
       author: getUser(payload.authorId),
       body: sanitizePlainText(payload.body, 1000),
+      imageUrls: (payload.images ?? []).map((image) => image.uri).filter(Boolean),
       likedByUserIds: [],
       replies: [],
       createdAt: timestamp,
     };
 
     post.comments.push(comment);
+    post.commentCount = post.comments.length;
     post.updatedAt = timestamp;
     return post;
   }
@@ -411,11 +421,13 @@ export class MockFeedRepository implements FeedRepository {
       authorId: payload.authorId,
       author: getUser(payload.authorId),
       body: sanitizePlainText(payload.body, 1000),
+      imageUrls: (payload.images ?? []).map((image) => image.uri).filter(Boolean),
       likedByUserIds: [],
       createdAt: timestamp,
     };
 
     comment.replies.push(reply);
+    post.commentCount = post.comments.length;
     post.updatedAt = timestamp;
     return post;
   }

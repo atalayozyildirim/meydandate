@@ -160,6 +160,75 @@ const normalizeMusicSignal = (value?: string | null) =>
     .trim()
     .toLocaleLowerCase("tr-TR");
 
+const splitMusicSignal = (value?: string | null) => {
+  const signal = normalizeMusicSignal(value);
+  const [track = signal, artist = ""] = signal.split(" - ");
+
+  return {
+    signal,
+    track: track.trim(),
+    artist: artist.trim(),
+    tokens: new Set(
+      signal
+        .split(/[\s,.-]+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length > 2),
+    ),
+  };
+};
+
+const calculateSpotifyMatchRank = (
+  currentUser: User,
+  card: DiscoverCard,
+  currentSignal: string,
+) => {
+  const currentMusic = splitMusicSignal(currentSignal);
+  const candidateMusic = splitMusicSignal(card.user.favoriteSong);
+
+  if (!candidateMusic.signal) {
+    return -1;
+  }
+
+  let score = 0;
+
+  if (candidateMusic.signal === currentMusic.signal) {
+    score += 100;
+  }
+
+  if (candidateMusic.track && candidateMusic.track === currentMusic.track) {
+    score += 54;
+  }
+
+  if (
+    candidateMusic.artist &&
+    currentMusic.artist &&
+    (candidateMusic.artist.includes(currentMusic.artist) ||
+      currentMusic.artist.includes(candidateMusic.artist))
+  ) {
+    score += 42;
+  }
+
+  const sharedMusicTokens = [...currentMusic.tokens].filter((token) =>
+    candidateMusic.tokens.has(token),
+  );
+  score += Math.min(sharedMusicTokens.length * 8, 24);
+
+  const sharedInterests = currentUser.interests.filter((interest) =>
+    card.user.interests.includes(interest),
+  );
+  const hasMusicInterest = sharedInterests.some((interest) =>
+    /music|muzik|folk|deyis|baglama|turku|song/i.test(interest),
+  );
+  score += Math.min(sharedInterests.length * 3, 15);
+  score += hasMusicInterest ? 12 : 0;
+  score +=
+    card.compatibility.interests * 0.12 +
+    card.compatibility.cultural * 0.08 +
+    card.compatibility.lifestyle * 0.05;
+
+  return score;
+};
+
 const getCultureImportanceLabel = (value: User["cultureImportance"]) =>
   cultureImportanceOptions.find((option) => option.value === value)?.label ??
   value;
@@ -678,15 +747,23 @@ export default function DiscoverScreen() {
       return deck;
     }
 
-    if (!currentMusicSignal) {
+    if (!currentMusicSignal || !currentUser) {
       return [];
     }
 
-    return deck.filter(
-      (card) =>
-        normalizeMusicSignal(card.user.favoriteSong) === currentMusicSignal,
-    );
-  }, [currentMusicSignal, deck, discoverMode]);
+    return [...deck]
+      .map((card) => ({
+        card,
+        spotifyRank: calculateSpotifyMatchRank(
+          currentUser,
+          card,
+          currentMusicSignal,
+        ),
+      }))
+      .filter((item) => item.spotifyRank >= 16)
+      .sort((first, second) => second.spotifyRank - first.spotifyRank)
+      .map((item) => item.card);
+  }, [currentMusicSignal, currentUser, deck, discoverMode]);
   const activeCard = visibleDeck[0];
   const nextCard = visibleDeck[1];
   const activeModeLabel =
@@ -897,12 +974,20 @@ export default function DiscoverScreen() {
 
           // Wait a moment and check if playing
           setTimeout(() => {
-            console.log(
-              "[Discover Music] Playback check - playing:",
-              sound.playing,
-              "isLoaded:",
-              sound.isLoaded,
-            );
+            if (cancelled || soundRef.current !== sound) {
+              return;
+            }
+
+            try {
+              console.log(
+                "[Discover Music] Playback check - playing:",
+                sound.playing,
+                "isLoaded:",
+                sound.isLoaded,
+              );
+            } catch (error) {
+              console.info("[Discover Music] Playback check skipped:", error);
+            }
           }, 1000);
         } catch (error) {
           console.error("[Discover Music] Audio playback failed:", error);

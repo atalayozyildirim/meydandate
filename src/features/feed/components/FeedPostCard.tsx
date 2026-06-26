@@ -2,7 +2,6 @@
 import {
   ActivityIndicator,
   Alert,
-  Image,
   Pressable,
   Share,
   StyleSheet,
@@ -15,6 +14,7 @@ import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 import { PollCard } from "./PollCard";
 import { LinkPreviewCard } from "./LinkPreviewCard";
 import { QuotedPostCard } from "./QuotedPostCard";
+import { FeedMediaGrid } from "./FeedMediaGrid";
 import type { User } from "@/domain/entities/User";
 import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
@@ -86,6 +86,7 @@ export const FeedPostCard = ({
   const theme = useTheme();
   const styles = createStyles(theme);
   const liked = post.likedByUserIds.includes(currentUser.id);
+  const visibleCommentCount = post.commentCount ?? post.comments.length;
   const openProfile = (userId: string) => {
     router.push({ pathname: "/tabs/profile/[userId]", params: { userId } });
   };
@@ -286,7 +287,9 @@ export const FeedPostCard = ({
             )}
           </View>
 
-          <Text style={styles.body}>{sanitizePlainText(post.body, 2000)}</Text>
+          {post.body.trim() ? (
+            <Text style={styles.body}>{sanitizePlainText(post.body, 2000)}</Text>
+          ) : null}
 
           {post.quotedPost ? (
             <QuotedPostCard
@@ -304,14 +307,10 @@ export const FeedPostCard = ({
             />
           ) : null}
 
-          {post.imageUrl ? (
-            <Image
-              accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} post fotoğrafı`}
-              source={{ uri: post.imageUrl }}
-              resizeMode="cover"
-              style={styles.postImage}
-            />
-          ) : null}
+          <FeedMediaGrid
+            accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} post fotoğrafı`}
+            imageUrls={post.imageUrls}
+          />
 
           {post.linkPreview ? (
             <LinkPreviewCard preview={post.linkPreview} />
@@ -392,7 +391,7 @@ export const FeedPostCard = ({
                   color={theme.colors.muted}
                 />
                 <Text style={styles.actionText}>
-                  {compactCount(post.comments.length)}
+                  {compactCount(visibleCommentCount)}
                 </Text>
               </Pressable>
               <Pressable
@@ -558,12 +557,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.text,
       fontSize: 16,
       lineHeight: 23,
-    },
-    postImage: {
-      width: "100%",
-      aspectRatio: 4 / 3,
-      borderRadius: 18,
-      backgroundColor: theme.colors.elevated,
     },
     tagRow: {
       flexDirection: "row",

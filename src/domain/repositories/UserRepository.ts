@@ -40,6 +40,7 @@ export interface UserRepository {
     targetUserId: string,
     amount?: number,
   ): Promise<{ balance: number; targetFireScore: number }>;
+  listFireLeaderboard(limit?: number): Promise<User[]>;
   listDiscoverCandidates(userId: string): Promise<User[]>;
   reportUser(userId: string, payload: ReportPayload): Promise<void>;
   blockUser(userId: string, blockedUserId: string): Promise<void>;

@@ -10,6 +10,7 @@ export const queryKeys = {
   specialInvite: "specialInvite",
   subscription: "subscription",
   fireBalance: "fireBalance",
+  fireLeaderboard: "fireLeaderboard",
   liveRoom: "liveRoom",
   feed: "feed"
 } as const;

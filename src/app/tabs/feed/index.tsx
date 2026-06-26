@@ -40,6 +40,7 @@ const feedTagLabels: Record<FeedTag | "all", string> = {
 };
 
 const MAX_FEED_IMAGE_BYTES = 6 * 1024 * 1024;
+const MAX_FEED_IMAGES = 4;
 
 export default function FeedScreen() {
   const router = useRouter();
@@ -52,10 +53,10 @@ export default function FeedScreen() {
   const imagePicker = useImagePicker();
   const [selectedTag, setSelectedTag] = useState<FeedTag | "all">("all");
   const [body, setBody] = useState("");
-  const [selectedImage, setSelectedImage] = useState<{
+  const [selectedImages, setSelectedImages] = useState<Array<{
     uri: string;
     base64?: string | null;
-  } | null>(null);
+  }>>([]);
   const [selectedQuote, setSelectedQuote] = useState<FeedPost | null>(null);
   const [showPollComposer, setShowPollComposer] = useState(false);
   const [pollQuestion, setPollQuestion] = useState("");
@@ -161,7 +162,7 @@ export default function FeedScreen() {
     const hasValidPoll =
       trimmedPollQuestion.length > 0 && trimmedPollOptions.length >= 2;
 
-    if (!trimmedBody && !hasValidPoll) {
+    if (!trimmedBody && !hasValidPoll && selectedImages.length === 0) {
       return;
     }
 
@@ -169,7 +170,7 @@ export default function FeedScreen() {
       const payload: any = {
         body: trimmedBody || trimmedPollQuestion,
         tags: selectedPostTags,
-        ...(selectedImage ? { image: selectedImage } : {}),
+        ...(selectedImages.length > 0 ? { images: selectedImages } : {}),
         ...(selectedQuote ? { quotedPostId: selectedQuote.id } : {}),
       };
 
@@ -182,7 +183,7 @@ export default function FeedScreen() {
 
       await createPost(payload);
       setBody("");
-      setSelectedImage(null);
+      setSelectedImages([]);
       setSelectedQuote(null);
       setSelectedPostTags(["gundem"]);
       setPollQuestion("");
@@ -202,30 +203,46 @@ export default function FeedScreen() {
   };
 
   const selectPostImage = async () => {
-    const asset = await imagePicker.pickImageAsset({
-      allowsEditing: true,
-      aspect: [4, 3],
-      base64: true,
-      quality: 0.78,
-    });
+    const remainingSlots = MAX_FEED_IMAGES - selectedImages.length;
 
-    if (!asset) {
+    if (remainingSlots <= 0) {
+      Alert.alert("Fotoğraf sınırı", "Bir paylaşımda en fazla 4 fotoğraf olabilir.");
       return;
     }
 
-    const estimatedBytes = asset.base64
-      ? Math.ceil((asset.base64.length * 3) / 4)
-      : 0;
+    const assets = await imagePicker.pickImageAssets({
+      base64: true,
+      quality: 0.78,
+      selectionLimit: remainingSlots,
+    });
 
-    if (estimatedBytes > MAX_FEED_IMAGE_BYTES) {
+    if (assets.length === 0) {
+      return;
+    }
+
+    const nextImages = assets.slice(0, remainingSlots).map((asset) => ({
+      uri: asset.uri,
+      base64: asset.base64,
+    }));
+
+    const oversized = nextImages.some((asset) => {
+      const estimatedBytes = asset.base64
+        ? Math.ceil((asset.base64.length * 3) / 4)
+        : 0;
+      return estimatedBytes > MAX_FEED_IMAGE_BYTES;
+    });
+
+    if (oversized) {
       Alert.alert(
         "Fotoğraf çok büyük",
-        "Post fotoğrafı en fazla 6 MB olabilir.",
+        "Her fotoğraf en fazla 6 MB olabilir.",
       );
       return;
     }
 
-    setSelectedImage({ uri: asset.uri, base64: asset.base64 });
+    setSelectedImages((current) =>
+      [...current, ...nextImages].slice(0, MAX_FEED_IMAGES),
+    );
   };
 
   const handlePermanentBan = (error: unknown) => {
@@ -258,7 +275,7 @@ export default function FeedScreen() {
     pollQuestion.trim() &&
       pollOptions.filter((option) => option.trim()).length >= 2,
   );
-  const canShare = composerHasBody || composerHasPoll;
+  const canShare = composerHasBody || composerHasPoll || selectedImages.length > 0;
   const remainingCharacters = 2000 - body.length;
 
   const feedHeader = (
@@ -308,7 +325,11 @@ export default function FeedScreen() {
         </ScrollView>
       </View>
 
-      <View style={styles.quickLinks}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.quickLinks}
+      >
         <Pressable
           accessibilityRole="button"
           onPress={() => router.push("/tabs/feed/meydan")}
@@ -333,6 +354,18 @@ export default function FeedScreen() {
           />
           <Text style={styles.quickLinkText}>Muharrem</Text>
         </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push("/tabs/feed/leaderboard")}
+          style={({ pressed }) => [styles.quickLink, pressed && styles.pressed]}
+        >
+          <Ionicons
+            name="trophy-outline"
+            size={17}
+            color={theme.colors.text}
+          />
+          <Text style={styles.quickLinkText}>Liderler</Text>
+        </Pressable>
         {isAdmin ? (
           <Pressable
             accessibilityRole="button"
@@ -350,7 +383,7 @@ export default function FeedScreen() {
             <Text style={styles.quickLinkText}>Admin</Text>
           </Pressable>
         ) : null}
-      </View>
+      </ScrollView>
 
       <View style={styles.composer}>
         <View style={styles.composerTop}>
@@ -371,24 +404,33 @@ export default function FeedScreen() {
               style={styles.input}
               multiline
             />
-            {selectedImage ? (
-              <View style={styles.imagePreviewFrame}>
-                <Image
-                  source={{ uri: selectedImage.uri }}
-                  style={styles.imagePreview}
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Seçili fotoğrafı kaldır"
-                  onPress={() => setSelectedImage(null)}
-                  style={({ pressed }) => [
-                    styles.removeImageButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Ionicons name="close" size={18} color="#FFFFFF" />
-                </Pressable>
-              </View>
+            {selectedImages.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.imagePreviewList}
+              >
+                {selectedImages.map((image, index) => (
+                  <View key={`${image.uri}-${index}`} style={styles.imagePreviewFrame}>
+                    <Image source={{ uri: image.uri }} style={styles.imagePreview} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Seçili fotoğrafı kaldır"
+                      onPress={() =>
+                        setSelectedImages((current) =>
+                          current.filter((_, imageIndex) => imageIndex !== index),
+                        )
+                      }
+                      style={({ pressed }) => [
+                        styles.removeImageButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons name="close" size={18} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
             ) : null}
             {selectedQuote ? (
               <View style={styles.selectedQuoteFrame}>
@@ -651,6 +693,11 @@ export default function FeedScreen() {
           }
         }}
         showsVerticalScrollIndicator={false}
+        initialNumToRender={5}
+        maxToRenderPerBatch={5}
+        updateCellsBatchingPeriod={50}
+        windowSize={7}
+        removeClippedSubviews
       />
     </SafeAreaView>
   );
@@ -775,10 +822,14 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       color: theme.colors.warning,
       fontWeight: "800",
     },
+    imagePreviewList: {
+      gap: theme.spacing.xs,
+      paddingRight: theme.spacing.md,
+    },
     imagePreviewFrame: {
-      width: "100%",
-      aspectRatio: 4 / 3,
-      borderRadius: 20,
+      width: 118,
+      height: 118,
+      borderRadius: 18,
       overflow: "hidden",
       backgroundColor: theme.colors.elevated,
     },

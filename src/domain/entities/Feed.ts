@@ -46,6 +46,7 @@ export interface FeedReply {
   authorId: string;
   author: User;
   body: string;
+  imageUrls: string[];
   likedByUserIds: string[];
   createdAt: string;
 }
@@ -56,6 +57,7 @@ export interface FeedComment {
   authorId: string;
   author: User;
   body: string;
+  imageUrls: string[];
   likedByUserIds: string[];
   replies: FeedReply[];
   createdAt: string;
@@ -67,9 +69,11 @@ export interface FeedPost {
   author: User;
   body: string;
   imageUrl?: string;
+  imageUrls: string[];
   tags: FeedTag[];
   likedByUserIds: string[];
   comments: FeedComment[];
+  commentCount: number;
   reportCount: number;
   isPinned?: boolean;
   isSponsored?: boolean;

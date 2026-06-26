@@ -22,6 +22,7 @@ export const useFire = () => {
     await Promise.all([
       queryClient.invalidateQueries({ queryKey: [queryKeys.fireBalance] }),
       queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+      queryClient.invalidateQueries({ queryKey: [queryKeys.fireLeaderboard] }),
       queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
       queryClient.invalidateQueries({ queryKey: [queryKeys.publicProfile] }),
     ]);

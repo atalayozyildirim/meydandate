@@ -26,6 +26,10 @@ export interface CreateFeedPostPayload {
     uri: string;
     base64?: string | null;
   };
+  images?: Array<{
+    uri: string;
+    base64?: string | null;
+  }>;
   poll?: {
     question: string;
     options: string[]; // seçenek metinleri
@@ -38,6 +42,10 @@ export interface CreateFeedCommentPayload {
   postId: string;
   authorId: string;
   body: string;
+  images?: Array<{
+    uri: string;
+    base64?: string | null;
+  }>;
 }
 
 export interface CreateFeedReplyPayload extends CreateFeedCommentPayload {

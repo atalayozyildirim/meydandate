@@ -328,6 +328,30 @@ export class SupabaseUserRepository implements UserRepository {
     };
   }
 
+  async listFireLeaderboard(limit = 5): Promise<User[]> {
+    const { data, error } = await supabase
+      .from("users")
+      .select(publicUserColumns)
+      .eq("hasPassedEntryTest", true)
+      .eq("hasCompletedOnboarding", true)
+      .eq("isActive", true)
+      .eq("isDiscoverable", true)
+      .eq("profileKind", "member")
+      .gt("fireScore", 0)
+      .order("fireScore", { ascending: false })
+      .order("isPremium", { ascending: false })
+      .order("updatedAt", { ascending: false })
+      .limit(Math.max(1, Math.min(limit, 20)));
+
+    if (error) {
+      throw createSupabaseRepositoryError("Fire liderleri yüklenemedi", error);
+    }
+
+    return (data || []).map((row) =>
+      mapSupabaseUser(row as unknown as Partial<User>),
+    );
+  }
+
   private async listStarterMatchProfiles(
     userId: string,
     excludedUserIds: string[],

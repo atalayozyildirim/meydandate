@@ -1,5 +1,5 @@
 import { StyleSheet, View } from "react-native";
-import { Svg, Path } from "react-native-svg";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "@/shared/theme";
 
@@ -15,8 +15,6 @@ export const PremiumVerifiedBadge = ({
   const theme = useTheme();
   const styles = createStyles(theme, size, variant);
 
-  const checkmarkPath = "M4.5 12l3.5 3.5L15.5 8";
-
   if (variant === "blue") {
     return (
       <View
@@ -29,21 +27,7 @@ export const PremiumVerifiedBadge = ({
           end={{ x: 1, y: 1 }}
           style={styles.gradientBackground}
         >
-          <Svg
-            width={size * 0.6}
-            height={size * 0.6}
-            viewBox="0 0 20 20"
-            style={styles.icon}
-          >
-            <Path
-              d={checkmarkPath}
-              fill="none"
-              stroke="#FFFFFF"
-              strokeWidth={2.5}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            />
-          </Svg>
+          <Ionicons name="checkmark" size={size * 0.62} color="#FFFFFF" />
         </LinearGradient>
       </View>
     );
@@ -54,21 +38,11 @@ export const PremiumVerifiedBadge = ({
       accessibilityLabel="Premium onaylı"
       style={styles.badge}
     >
-      <Svg
-        width={size * 0.6}
-        height={size * 0.6}
-        viewBox="0 0 20 20"
-        style={styles.icon}
-      >
-        <Path
-          d={checkmarkPath}
-          fill="none"
-          stroke={theme.colors.background}
-          strokeWidth={2.5}
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-      </Svg>
+      <Ionicons
+        name="checkmark"
+        size={size * 0.62}
+        color={theme.colors.background}
+      />
     </View>
   );
 };
@@ -102,8 +76,5 @@ const createStyles = (
       borderRadius: (size - 3) / 2,
       alignItems: "center",
       justifyContent: "center",
-    },
-    icon: {
-      opacity: 0.95,
     },
   });

@@ -25,6 +25,10 @@ const EMPTY_FEED_PAGE: FeedPage = {
 };
 
 const moderateFeedText = async (authorId: string, body: string) => {
+  if (!body.trim()) {
+    return "";
+  }
+
   const moderation = await messageFilteringMiddleware("feed", authorId, body);
 
   if (moderation.isBlocked) {
@@ -75,6 +79,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
       body: string;
       tags: FeedTag[];
       image?: { uri: string; base64?: string | null };
+      images?: Array<{ uri: string; base64?: string | null }>;
       poll?: { question: string; options: string[]; endsAt?: string };
       quotedPostId?: string | null;
     }) => {
@@ -108,6 +113,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
         body: filteredBody,
         tags: payload.tags,
         image: payload.image,
+        images: payload.images,
         ...(filteredPoll ? { poll: filteredPoll } : {}),
         ...(payload.quotedPostId ? { quotedPostId: payload.quotedPostId } : {}),
       });
@@ -127,7 +133,15 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
   });
 
   const commentMutation = useMutation({
-    mutationFn: async ({ postId, body }: { postId: string; body: string }) => {
+    mutationFn: async ({
+      postId,
+      body,
+      images,
+    }: {
+      postId: string;
+      body: string;
+      images?: Array<{ uri: string; base64?: string | null }>;
+    }) => {
       if (!currentUser) {
         throw new Error("Yorum yazmak için oturum gerekli.");
       }
@@ -137,6 +151,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
         postId,
         authorId: currentUser.id,
         body: filteredBody,
+        images,
       });
     },
     onSuccess: invalidateFeed,
@@ -147,10 +162,12 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
       postId,
       commentId,
       body,
+      images,
     }: {
       postId: string;
       commentId: string;
       body: string;
+      images?: Array<{ uri: string; base64?: string | null }>;
     }) => {
       if (!currentUser) {
         throw new Error("Yanıt yazmak için oturum gerekli.");
@@ -162,6 +179,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
         commentId,
         authorId: currentUser.id,
         body: filteredBody,
+        images,
       });
     },
     onSuccess: invalidateFeed,
@@ -294,16 +312,20 @@ export const useFeedPost = (postId: string) => {
   });
 
   const commentMutation = useMutation({
-    mutationFn: async (body: string) => {
+    mutationFn: async (payload: {
+      body: string;
+      images?: Array<{ uri: string; base64?: string | null }>;
+    }) => {
       if (!currentUser) {
         throw new Error("Yorum yazmak için oturum gerekli.");
       }
 
-      const filteredBody = await moderateFeedText(currentUser.id, body);
+      const filteredBody = await moderateFeedText(currentUser.id, payload.body);
       return container.feedRepository.addComment({
         postId,
         authorId: currentUser.id,
         body: filteredBody,
+        images: payload.images,
       });
     },
     onSuccess: invalidatePost,
@@ -313,9 +335,11 @@ export const useFeedPost = (postId: string) => {
     mutationFn: async ({
       commentId,
       body,
+      images,
     }: {
       commentId: string;
       body: string;
+      images?: Array<{ uri: string; base64?: string | null }>;
     }) => {
       if (!currentUser) {
         throw new Error("Yanıt yazmak için oturum gerekli.");
@@ -327,6 +351,7 @@ export const useFeedPost = (postId: string) => {
         commentId,
         authorId: currentUser.id,
         body: filteredBody,
+        images,
       });
     },
     onSuccess: invalidatePost,

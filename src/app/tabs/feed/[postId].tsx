@@ -1,9 +1,11 @@
 // Post detay ekranı: postu, yorum composer'ını ve yanıt akışını gösterir.
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   Image,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -14,6 +16,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { LinkPreviewCard } from "@/features/feed/components/LinkPreviewCard";
+import { FeedMediaGrid } from "@/features/feed/components/FeedMediaGrid";
 import { PollCard } from "@/features/feed/components/PollCard";
 import { QuotedPostCard } from "@/features/feed/components/QuotedPostCard";
 import { useFeedComments, useFeedPost } from "@/features/feed/hooks/useFeed";
@@ -26,6 +29,7 @@ import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
 import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { Screen } from "@/shared/components/Screen";
+import { useImagePicker } from "@/shared/hooks/useImagePicker";
 import { formatDateTime } from "@/shared/utils/date";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 import { useTheme } from "@/shared/theme";
@@ -37,15 +41,28 @@ const feedTagDisplayLabels: Record<FeedTag, string> = {
   gundem: "Gündem",
 };
 
+const MAX_COMMENT_IMAGES = 4;
+const MAX_COMMENT_IMAGE_BYTES = 6 * 1024 * 1024;
+
 export default function FeedPostDetailScreen() {
   const params = useLocalSearchParams<{ postId: string }>();
   const postId = params.postId ?? "";
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
+  const imagePicker = useImagePicker();
+  const commentsFetchGuardRef = useRef(false);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const [commentText, setCommentText] = useState("");
+  const [commentImages, setCommentImages] = useState<Array<{
+    uri: string;
+    base64?: string | null;
+  }>>([]);
   const [replyInputs, setReplyInputs] = useState<Record<string, string>>({});
+  const [replyImages, setReplyImages] = useState<Record<string, Array<{
+    uri: string;
+    base64?: string | null;
+  }>>>({});
   const {
     post,
     currentUser,
@@ -72,6 +89,85 @@ export default function FeedPostDetailScreen() {
   const liked = post?.likedByUserIds.includes(currentUser?.id ?? "") ?? false;
   const canDelete = Boolean(post && (isAdmin || post.authorId === currentUser.id));
 
+  const fetchMoreCommentsAutomatically = () => {
+    if (
+      commentsFetchGuardRef.current ||
+      !hasMoreComments ||
+      isFetchingMoreComments ||
+      isLoadingComments
+    ) {
+      return;
+    }
+
+    commentsFetchGuardRef.current = true;
+    void fetchMoreComments().finally(() => {
+      commentsFetchGuardRef.current = false;
+    });
+  };
+
+  const handleDetailScroll = (
+    event: NativeSyntheticEvent<NativeScrollEvent>,
+  ) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const distanceFromBottom =
+      contentSize.height - (contentOffset.y + layoutMeasurement.height);
+
+    if (distanceFromBottom < 420) {
+      fetchMoreCommentsAutomatically();
+    }
+  };
+
+  const pickCommentImages = async (commentId?: string) => {
+    const currentImages = commentId ? replyImages[commentId] ?? [] : commentImages;
+    const remainingSlots = MAX_COMMENT_IMAGES - currentImages.length;
+
+    if (remainingSlots <= 0) {
+      Alert.alert("Fotoğraf sınırı", "Bir yorumda en fazla 4 fotoğraf olabilir.");
+      return;
+    }
+
+    const assets = await imagePicker.pickImageAssets({
+      base64: true,
+      quality: 0.78,
+      selectionLimit: remainingSlots,
+    });
+
+    if (assets.length === 0) {
+      return;
+    }
+
+    const nextImages = assets.slice(0, remainingSlots).map((asset) => ({
+      uri: asset.uri,
+      base64: asset.base64,
+    }));
+    const oversized = nextImages.some((asset) => {
+      const estimatedBytes = asset.base64
+        ? Math.ceil((asset.base64.length * 3) / 4)
+        : 0;
+      return estimatedBytes > MAX_COMMENT_IMAGE_BYTES;
+    });
+
+    if (oversized) {
+      Alert.alert("Fotoğraf çok büyük", "Her fotoğraf en fazla 6 MB olabilir.");
+      return;
+    }
+
+    if (commentId) {
+      setReplyImages((current) => ({
+        ...current,
+        [commentId]: [...(current[commentId] ?? []), ...nextImages].slice(
+          0,
+          MAX_COMMENT_IMAGES,
+        ),
+      }));
+      return;
+    }
+
+    setCommentImages((current) =>
+      [...current, ...nextImages].slice(0, MAX_COMMENT_IMAGES),
+    );
+  };
+
   const handlePermanentBan = (error: unknown) => {
     Alert.alert(
       "Kalıcı ban",
@@ -92,11 +188,12 @@ export default function FeedPostDetailScreen() {
   const submitComment = async () => {
     const body = commentText.trim();
 
-    if (!body) return;
+    if (!body && commentImages.length === 0) return;
 
     try {
-      await addComment(body);
+      await addComment({ body, images: commentImages });
       setCommentText("");
+      setCommentImages([]);
     } catch (error) {
       if (isPermanentBanError(error)) {
         handlePermanentBan(error);
@@ -112,12 +209,14 @@ export default function FeedPostDetailScreen() {
 
   const submitReply = async (commentId: string) => {
     const body = replyInputs[commentId]?.trim();
+    const images = replyImages[commentId] ?? [];
 
-    if (!body) return;
+    if (!body && images.length === 0) return;
 
     try {
-      await addReply({ commentId, body });
+      await addReply({ commentId, body, images });
       setReplyInputs((current) => ({ ...current, [commentId]: "" }));
+      setReplyImages((current) => ({ ...current, [commentId]: [] }));
     } catch (error) {
       if (isPermanentBanError(error)) {
         handlePermanentBan(error);
@@ -260,6 +359,8 @@ export default function FeedPostDetailScreen() {
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.content}
         keyboardShouldPersistTaps="handled"
+        onScroll={handleDetailScroll}
+        scrollEventThrottle={250}
       >
         <View style={styles.post}>
           <Pressable
@@ -330,7 +431,11 @@ export default function FeedPostDetailScreen() {
               </View>
             </View>
 
-            <Text style={styles.postText}>{sanitizePlainText(post.body, 2000)}</Text>
+            {post.body.trim() ? (
+              <Text style={styles.postText}>
+                {sanitizePlainText(post.body, 2000)}
+              </Text>
+            ) : null}
 
             {post.quotedPost ? (
               <QuotedPostCard
@@ -357,14 +462,10 @@ export default function FeedPostDetailScreen() {
               />
             ) : null}
 
-            {post.imageUrl ? (
-              <Image
-                accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} post fotoğrafı`}
-                source={{ uri: post.imageUrl }}
-                resizeMode="cover"
-                style={styles.postImage}
-              />
-            ) : null}
+            <FeedMediaGrid
+              accessibilityLabel={`${sanitizePlainText(post.author.name, 80)} post fotoğrafı`}
+              imageUrls={post.imageUrls}
+            />
 
             {post.linkPreview ? (
               <LinkPreviewCard preview={post.linkPreview} />
@@ -435,26 +536,80 @@ export default function FeedPostDetailScreen() {
             uri={currentUser.photos[0]?.uri}
             size={38}
           />
-          <TextInput
-            value={commentText}
-            onChangeText={setCommentText}
-            maxLength={1000}
-            placeholder="Yanıtını gönder"
-            placeholderTextColor={theme.colors.muted}
-            style={styles.commentInput}
-            multiline
-          />
-          <Pressable
-            disabled={isMutating || !commentText.trim()}
-            onPress={() => void submitComment()}
-            style={({ pressed }) => [
-              styles.sendButton,
-              (!commentText.trim() || isMutating) && styles.sendButtonDisabled,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Text style={styles.sendButtonText}>Gönder</Text>
-          </Pressable>
+          <View style={styles.composerContent}>
+            <TextInput
+              value={commentText}
+              onChangeText={setCommentText}
+              maxLength={1000}
+              placeholder="Yanıtını gönder"
+              placeholderTextColor={theme.colors.muted}
+              style={styles.commentInput}
+              multiline
+            />
+            {commentImages.length > 0 ? (
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.attachmentPreviewList}
+              >
+                {commentImages.map((image, index) => (
+                  <View key={`${image.uri}-${index}`} style={styles.attachmentPreview}>
+                    <Image source={{ uri: image.uri }} style={styles.attachmentImage} />
+                    <Pressable
+                      accessibilityRole="button"
+                      accessibilityLabel="Fotoğrafı kaldır"
+                      onPress={() =>
+                        setCommentImages((current) =>
+                          current.filter((_, imageIndex) => imageIndex !== index),
+                        )
+                      }
+                      style={styles.attachmentRemove}
+                    >
+                      <Ionicons name="close" size={14} color="#FFFFFF" />
+                    </Pressable>
+                  </View>
+                ))}
+              </ScrollView>
+            ) : null}
+            <View style={styles.composerActionRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Yoruma fotoğraf ekle"
+                disabled={imagePicker.isPicking || isMutating}
+                onPress={() => void pickCommentImages()}
+                style={({ pressed }) => [
+                  styles.attachButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="image-outline"
+                  size={19}
+                  color={theme.colors.text}
+                />
+              </Pressable>
+              <Pressable
+                disabled={
+                  isMutating || (!commentText.trim() && commentImages.length === 0)
+                }
+                onPress={() => void submitComment()}
+                style={({ pressed }) => [
+                  styles.sendButton,
+                  ((!commentText.trim() && commentImages.length === 0) ||
+                    isMutating) &&
+                    styles.sendButtonDisabled,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="send"
+                  size={16}
+                  color={theme.colors.onPrimary}
+                />
+                <Text style={styles.sendButtonText}>Gönder</Text>
+              </Pressable>
+            </View>
+          </View>
         </View>
 
         <View style={styles.thread}>
@@ -518,9 +673,16 @@ export default function FeedPostDetailScreen() {
                       {formatDateTime(comment.createdAt)}
                     </Text>
                   </View>
-                  <Text style={styles.commentText}>
-                    {sanitizePlainText(comment.body, 1000)}
-                  </Text>
+                  {comment.body.trim() ? (
+                    <Text style={styles.commentText}>
+                      {sanitizePlainText(comment.body, 1000)}
+                    </Text>
+                  ) : null}
+                  <FeedMediaGrid
+                    compact
+                    accessibilityLabel={`${sanitizePlainText(comment.author.name, 80)} yorum fotoğrafı`}
+                    imageUrls={comment.imageUrls}
+                  />
 
                   <View style={styles.commentActions}>
                     <Pressable
@@ -591,33 +753,98 @@ export default function FeedPostDetailScreen() {
                             {formatDateTime(reply.createdAt)}
                           </Text>
                         </View>
-                        <Text style={styles.replyText}>
-                          {sanitizePlainText(reply.body, 1000)}
-                        </Text>
+                        {reply.body.trim() ? (
+                          <Text style={styles.replyText}>
+                            {sanitizePlainText(reply.body, 1000)}
+                          </Text>
+                        ) : null}
+                        <FeedMediaGrid
+                          compact
+                          accessibilityLabel={`${sanitizePlainText(reply.author.name, 80)} yanıt fotoğrafı`}
+                          imageUrls={reply.imageUrls}
+                        />
                       </View>
                     </View>
                   ))}
 
                   <View style={styles.replyComposer}>
-                    <TextInput
-                      value={replyInputs[comment.id] ?? ""}
-                      onChangeText={(value) =>
-                        setReplyInputs((current) => ({
-                          ...current,
-                          [comment.id]: value,
-                        }))
-                      }
-                      maxLength={1000}
-                      placeholder="Yanıt yaz..."
-                      placeholderTextColor={theme.colors.muted}
-                      style={styles.replyInput}
-                    />
+                    <View style={styles.replyInputWrap}>
+                      <TextInput
+                        value={replyInputs[comment.id] ?? ""}
+                        onChangeText={(value) =>
+                          setReplyInputs((current) => ({
+                            ...current,
+                            [comment.id]: value,
+                          }))
+                        }
+                        maxLength={1000}
+                        placeholder="Yanıt yaz..."
+                        placeholderTextColor={theme.colors.muted}
+                        style={styles.replyInput}
+                      />
+                      {(replyImages[comment.id] ?? []).length > 0 ? (
+                        <ScrollView
+                          horizontal
+                          showsHorizontalScrollIndicator={false}
+                          contentContainerStyle={styles.attachmentPreviewList}
+                        >
+                          {(replyImages[comment.id] ?? []).map((image, index) => (
+                            <View
+                              key={`${image.uri}-${index}`}
+                              style={styles.replyAttachmentPreview}
+                            >
+                              <Image
+                                source={{ uri: image.uri }}
+                                style={styles.attachmentImage}
+                              />
+                              <Pressable
+                                accessibilityRole="button"
+                                accessibilityLabel="Fotoğrafı kaldır"
+                                onPress={() =>
+                                  setReplyImages((current) => ({
+                                    ...current,
+                                    [comment.id]: (current[comment.id] ?? []).filter(
+                                      (_, imageIndex) => imageIndex !== index,
+                                    ),
+                                  }))
+                                }
+                                style={styles.attachmentRemove}
+                              >
+                                <Ionicons name="close" size={14} color="#FFFFFF" />
+                              </Pressable>
+                            </View>
+                          ))}
+                        </ScrollView>
+                      ) : null}
+                    </View>
                     <Pressable
-                      disabled={isMutating || !replyInputs[comment.id]?.trim()}
+                      accessibilityRole="button"
+                      accessibilityLabel="Yanıta fotoğraf ekle"
+                      disabled={imagePicker.isPicking || isMutating}
+                      onPress={() => void pickCommentImages(comment.id)}
+                      style={({ pressed }) => [
+                        styles.replyAttachButton,
+                        pressed && styles.pressed,
+                      ]}
+                    >
+                      <Ionicons
+                        name="image-outline"
+                        size={17}
+                        color={theme.colors.text}
+                      />
+                    </Pressable>
+                    <Pressable
+                      disabled={
+                        isMutating ||
+                        (!replyInputs[comment.id]?.trim() &&
+                          (replyImages[comment.id] ?? []).length === 0)
+                      }
                       onPress={() => void submitReply(comment.id)}
                       style={({ pressed }) => [
                         styles.replyButton,
-                        (!replyInputs[comment.id]?.trim() || isMutating) &&
+                        ((!replyInputs[comment.id]?.trim() &&
+                          (replyImages[comment.id] ?? []).length === 0) ||
+                          isMutating) &&
                           styles.replyButtonDisabled,
                         pressed && styles.pressed,
                       ]}
@@ -634,21 +861,11 @@ export default function FeedPostDetailScreen() {
             );
           })}
 
-          {hasMoreComments ? (
-            <Pressable
-              disabled={isFetchingMoreComments}
-              onPress={() => void fetchMoreComments()}
-              style={({ pressed }) => [
-                styles.loadMoreButton,
-                pressed && styles.pressed,
-              ]}
-            >
-              {isFetchingMoreComments ? (
-                <ActivityIndicator color={theme.colors.primary} />
-              ) : (
-                <Text style={styles.loadMoreText}>Daha fazla yorum</Text>
-              )}
-            </Pressable>
+          {isFetchingMoreComments ? (
+            <View style={styles.loadMoreButton}>
+              <ActivityIndicator color={theme.colors.primary} />
+              <Text style={styles.loadMoreText}>Yorumlar yükleniyor</Text>
+            </View>
           ) : null}
         </View>
       </ScrollView>
@@ -811,7 +1028,7 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     composer: {
       flexDirection: "row",
-      alignItems: "center",
+      alignItems: "flex-start",
       gap: theme.spacing.sm,
       paddingHorizontal: theme.spacing.lg,
       paddingVertical: theme.spacing.md,
@@ -819,22 +1036,80 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderBottomColor: theme.colors.border,
       backgroundColor: theme.colors.background,
     },
-    commentInput: {
+    composerContent: {
       flex: 1,
+      minWidth: 0,
+      gap: theme.spacing.xs,
+    },
+    commentInput: {
       minHeight: 42,
-      maxHeight: 120,
-      borderRadius: theme.radius.pill,
+      maxHeight: 132,
+      borderRadius: 18,
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: 9,
+      paddingVertical: theme.spacing.sm,
+      textAlignVertical: "top",
       ...theme.typography.body,
+      lineHeight: 22,
       color: theme.colors.text,
       backgroundColor: theme.colors.elevated,
+    },
+    composerActionRow: {
+      minHeight: 42,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      gap: theme.spacing.sm,
+    },
+    attachButton: {
+      width: 42,
+      height: 42,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    attachmentPreviewList: {
+      gap: theme.spacing.xs,
+      paddingRight: theme.spacing.sm,
+    },
+    attachmentPreview: {
+      width: 72,
+      height: 72,
+      borderRadius: 14,
+      overflow: "hidden",
+      backgroundColor: theme.colors.elevated,
+    },
+    replyAttachmentPreview: {
+      width: 58,
+      height: 58,
+      borderRadius: 12,
+      overflow: "hidden",
+      backgroundColor: theme.colors.elevated,
+    },
+    attachmentImage: {
+      width: "100%",
+      height: "100%",
+    },
+    attachmentRemove: {
+      position: "absolute",
+      top: 4,
+      right: 4,
+      width: 22,
+      height: 22,
+      borderRadius: 11,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0, 0, 0, 0.72)",
     },
     sendButton: {
       minHeight: 38,
       borderRadius: theme.radius.pill,
+      flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
+      gap: theme.spacing.xxs,
       paddingHorizontal: theme.spacing.md,
       backgroundColor: theme.colors.primary,
     },
@@ -978,6 +1253,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.xs,
       marginTop: theme.spacing.sm,
     },
+    replyInputWrap: {
+      flex: 1,
+      gap: theme.spacing.xs,
+    },
     replyInput: {
       flex: 1,
       minHeight: 38,
@@ -988,6 +1267,16 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: "transparent",
       ...theme.typography.caption,
       color: theme.colors.text,
+    },
+    replyAttachButton: {
+      width: 38,
+      height: 38,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
     },
     replyButton: {
       width: 38,

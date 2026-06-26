@@ -238,6 +238,35 @@ export class MockUserRepository implements UserRepository {
     };
   }
 
+  async listFireLeaderboard(limit = 5): Promise<User[]> {
+    return [...mockDatabase.users]
+      .filter(
+        (user) =>
+          (user.profileKind ?? "member") === "member" &&
+          user.hasPassedEntryTest &&
+          user.hasCompletedOnboarding &&
+          (user.isDiscoverable ?? true) &&
+          (user.fireScore ?? 0) > 0,
+      )
+      .sort((first, second) => {
+        const fireDelta = (second.fireScore ?? 0) - (first.fireScore ?? 0);
+
+        if (fireDelta !== 0) {
+          return fireDelta;
+        }
+
+        if (first.isPremium !== second.isPremium) {
+          return first.isPremium ? -1 : 1;
+        }
+
+        return (
+          new Date(second.updatedAt).getTime() -
+          new Date(first.updatedAt).getTime()
+        );
+      })
+      .slice(0, Math.max(1, Math.min(limit, 20)));
+  }
+
   async listDiscoverCandidates(userId: string): Promise<User[]> {
     const currentUser = findUser(userId);
     const blockedIds = new Set(
