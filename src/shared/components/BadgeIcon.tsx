@@ -129,12 +129,12 @@ const imageBadgeConfig: Partial<
   ilk_eslesme: {
     bgColor: "rgba(96,165,250,0.24)",
     borderColor: "rgba(147,197,253,0.68)",
-    imageScale: 1.48,
+    imageScale: 1.08,
   },
   populer_profil: {
     bgColor: "rgba(245,158,11,0.25)",
     borderColor: "rgba(252,211,77,0.68)",
-    imageScale: 1.48,
+    imageScale: 1.08,
   },
   zulfiqar_sword: {
     bgColor: "rgba(128, 128, 128,0.26)",
@@ -211,7 +211,7 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
             width: size * imageConfig.imageScale,
             height: size * imageConfig.imageScale,
           }}
-          resizeMode="cover"
+          resizeMode="contain"
         />
       </View>
     );

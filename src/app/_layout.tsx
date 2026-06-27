@@ -163,7 +163,7 @@ const RootNavigator = () => {
         <Stack.Screen
           name="feed-compose"
           options={{
-            presentation: "modal",
+            presentation: "fullScreenModal",
             contentStyle: { backgroundColor: theme.colors.surface },
           }}
         />

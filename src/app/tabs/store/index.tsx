@@ -820,11 +820,12 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       gap: theme.spacing.sm,
     },
     productCard: {
-      minHeight: 108,
+      minHeight: 116,
       flexDirection: "row",
       alignItems: "center",
       gap: theme.spacing.sm,
       borderColor: theme.colors.border,
+      paddingVertical: theme.spacing.md,
     },
     featuredCard: {
       borderColor: theme.colors.border,
@@ -873,22 +874,23 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       overflow: "hidden",
     },
     actionButton: {
-      minWidth: 104,
-      minHeight: 46,
+      minWidth: 92,
+      minHeight: 44,
       flexShrink: 0,
-      paddingHorizontal: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.xs,
     },
     restoreButton: {
       minHeight: 50,
       marginTop: theme.spacing.xs,
     },
     badgeIcon: {
-      width: 58,
-      height: 58,
+      width: 64,
+      height: 64,
       borderRadius: theme.radius.pill,
       alignItems: "center",
       justifyContent: "center",
       backgroundColor: "transparent",
+      flexShrink: 0,
     },
     fireProductIcon: {
       width: 50,

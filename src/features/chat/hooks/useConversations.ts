@@ -38,7 +38,31 @@ export const useConversation = (conversationId: string) => {
 
   const query = useQuery({
     queryKey: [queryKeys.conversation, conversationId],
-    queryFn: () => container.chatRepository.getConversation(conversationId),
+    enabled: Boolean(conversationId),
+    queryFn: async () => {
+      try {
+        return await container.chatRepository.getConversation(conversationId);
+      } catch (error) {
+        if (
+          error instanceof Error &&
+          /Konuşma bulunamadı|Sohbet bulunamadı/i.test(error.message)
+        ) {
+          return null;
+        }
+
+        throw error;
+      }
+    },
+    retry: (failureCount, error) => {
+      if (
+        error instanceof Error &&
+        /Konuşma bulunamadı|Sohbet bulunamadı/i.test(error.message)
+      ) {
+        return false;
+      }
+
+      return failureCount < 2;
+    },
     refetchInterval: 1500,
   });
 
@@ -46,6 +70,10 @@ export const useConversation = (conversationId: string) => {
     mutationFn: async (body: string) => {
       if (!currentUser) {
         throw new Error("Mesaj gondermek icin oturum gerekli.");
+      }
+
+      if (!query.data) {
+        throw new Error("Konuşma bulunamadı.");
       }
 
       const moderation = await messageFilteringMiddleware(

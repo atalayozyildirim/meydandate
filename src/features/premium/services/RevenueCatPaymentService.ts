@@ -110,6 +110,21 @@ const resolvePurchasesApi = (module: unknown): RevenueCatApi | null => {
   );
 };
 
+const loadPurchasesModule = (): unknown => {
+  try {
+    // Metro bundles static require calls more reliably than dynamic import in
+    // release/Hermes builds, while still letting Expo Go fail gracefully here.
+    // eslint-disable-next-line @typescript-eslint/no-require-imports, global-require
+    return require("react-native-purchases");
+  } catch (error) {
+    if (__DEV__) {
+      console.warn("RevenueCat native modülü yüklenemedi:", error);
+    }
+
+    return null;
+  }
+};
+
 export class RevenueCatPaymentService implements PaymentService {
   private isConfigured = false;
   private Purchases: RevenueCatApi | null = null;
@@ -123,9 +138,7 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     if (!this.Purchases) {
-      const purchasesModule = await import("react-native-purchases").catch(
-        () => null,
-      );
+      const purchasesModule = loadPurchasesModule();
       this.Purchases = purchasesModule
         ? resolvePurchasesApi(purchasesModule)
         : null;

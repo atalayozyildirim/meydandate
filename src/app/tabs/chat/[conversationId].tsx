@@ -132,8 +132,37 @@ export default function ConversationScreen() {
     }
   }, [conversation?.id]);
 
-  if (isLoading || !conversation || !currentUser) {
+  if (isLoading || !currentUser) {
     return <Loading label="Sohbet aciliyor" />;
+  }
+
+  if (!conversation) {
+    return (
+      <Screen scroll={false} style={styles.screen}>
+        <View style={styles.missingState}>
+          <View style={styles.missingIcon}>
+            <Ionicons
+              name="chatbubble-ellipses-outline"
+              size={34}
+              color={theme.colors.muted}
+            />
+          </View>
+          <Text style={styles.missingTitle}>Konuşma bulunamadı</Text>
+          <Text style={styles.missingDescription}>
+            Bu sohbet silinmiş veya artık erişimin yok.
+          </Text>
+          <Pressable
+            onPress={() => router.replace("/tabs/chat")}
+            style={({ pressed }) => [
+              styles.missingButton,
+              pressed && styles.buttonPressed,
+            ]}
+          >
+            <Text style={styles.missingButtonText}>Sohbetlere dön</Text>
+          </Pressable>
+        </View>
+      </Screen>
+    );
   }
 
   const partner =
@@ -555,6 +584,46 @@ const createStyles = (theme: ReturnType<typeof useTheme>, bottomInset: number) =
     },
     buttonPressed: {
       opacity: 0.82,
+    },
+    missingState: {
+      flex: 1,
+      alignItems: "center",
+      justifyContent: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+    },
+    missingIcon: {
+      width: 72,
+      height: 72,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    missingTitle: {
+      ...theme.typography.heading,
+      color: theme.colors.text,
+      textAlign: "center",
+    },
+    missingDescription: {
+      ...theme.typography.body,
+      color: theme.colors.muted,
+      textAlign: "center",
+    },
+    missingButton: {
+      minHeight: 48,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      paddingHorizontal: theme.spacing.lg,
+      marginTop: theme.spacing.xs,
+      backgroundColor: theme.colors.primary,
+    },
+    missingButtonText: {
+      ...theme.typography.subheading,
+      color: theme.colors.onPrimary,
     },
     heartLayer: {
       ...StyleSheet.absoluteFillObject,
