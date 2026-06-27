@@ -81,6 +81,7 @@ export default function MuharremTrackerScreen() {
   const currentMuharremDay =
     !isUpcoming && !isFinished ? Math.min(daysSinceStart + 1, fastingDayCount) : null;
   const activeDay = currentMuharremDay ?? (isUpcoming ? 1 : fastingDayCount);
+  const timelineDay = currentMuharremDay ?? (isUpcoming ? 0 : fastingDayCount);
   const progress = completedDays.length;
   const progressPercent = useMemo(
     () => Math.round((progress / fastingDayCount) * 100),
@@ -96,7 +97,9 @@ export default function MuharremTrackerScreen() {
     null;
   const reminderStatusText = nextReminderDay
     ? `${formatDate(nextReminderDay.gregorianDate)} 07:30`
-    : "2026 takvimi tamamlandı";
+    : isFinished
+      ? "2026 takvimi tamamlandı"
+      : "Bugünkü 07:30 uyarı saati geçti";
 
   const awardMuharrem2026Badge = async () => {
     if (
@@ -214,7 +217,11 @@ export default function MuharremTrackerScreen() {
     <Screen style={styles.screen}>
       <View style={styles.header}>
         <View style={styles.headerIcon}>
-          <Ionicons name="calendar-outline" size={28} color="#FFFFFF" />
+          <Ionicons
+            name="calendar-outline"
+            size={28}
+            color={theme.colors.onPrimary}
+          />
         </View>
         <Text style={styles.kicker}>Muharrem {muharremYear}</Text>
         <Text style={styles.title}>Oruç takvimi</Text>
@@ -230,7 +237,9 @@ export default function MuharremTrackerScreen() {
             <View style={styles.streakMeta}>
               <Text style={styles.streakLabel}>Gerçek tarih durumu</Text>
               <View style={styles.targetPill}>
-                <Text style={styles.targetText}>{progress}/12</Text>
+                <Text style={styles.targetText}>
+                  {timelineDay}/{fastingDayCount}
+                </Text>
               </View>
             </View>
             <Text style={styles.streakValue}>{statusText}</Text>
@@ -243,7 +252,7 @@ export default function MuharremTrackerScreen() {
           <Ionicons
             name={reminderEnabled ? "notifications" : "notifications-outline"}
             size={24}
-            color="#FFFFFF"
+            color={theme.colors.onPrimary}
           />
         </View>
         <View style={styles.reminderText}>

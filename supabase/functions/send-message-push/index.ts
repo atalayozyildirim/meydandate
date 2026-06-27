@@ -105,11 +105,16 @@ export default {
         ? conversation.participant2Id
         : conversation.participant1Id;
 
-    const [{ data: sender }, { data: tokens }] = await Promise.all([
+    const [{ data: sender }, { data: recipient }, { data: tokens }] = await Promise.all([
       supabaseAdmin
         .from("users")
         .select("name")
         .eq("id", requesterId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("users")
+        .select("blockedUsers,mutedUsers")
+        .eq("id", recipientId)
         .maybeSingle(),
       supabaseAdmin
         .from("push_tokens")
@@ -122,11 +127,22 @@ export default {
       typeof message.body === "string" && message.body.trim() === "❤️"
         ? "Kalp gönderdi"
         : String(message.body ?? "").slice(0, 120);
+    const blockedUsers = Array.isArray(recipient?.blockedUsers)
+      ? recipient.blockedUsers
+      : [];
+    const mutedUsers = Array.isArray(recipient?.mutedUsers)
+      ? recipient.mutedUsers
+      : [];
+
+    if (blockedUsers.includes(requesterId) || mutedUsers.includes(requesterId)) {
+      return json(200, { ok: true, delivered: 0 });
+    }
 
     await sendExpoPush(
       (tokens ?? []).map((row: { token: string }) => ({
         to: row.token,
         sound: "default",
+        channelId: "messages",
         title: sender?.name ? `${sender.name} mesaj gönderdi` : "Yeni mesaj",
         body: preview,
         data: { type: "message", conversationId, messageId },

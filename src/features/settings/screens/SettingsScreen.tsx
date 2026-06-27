@@ -15,6 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "@/features/auth/hooks/useSession";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { setPushNotificationsEnabled } from "@/features/notifications/services/pushNotifications";
 import { container } from "@/infrastructure/config/Container";
 import { Button } from "@/shared/components/Button";
 import { Card } from "@/shared/components/Card";
@@ -127,7 +128,23 @@ export default function SettingsScreen() {
   const handleNotificationsChange = (enabled: boolean) => {
     setNotificationsEnabled(enabled);
     hasUnsavedChanges.current = true;
-    void SecureStore.setItemAsync("settings_notifications", String(enabled));
+
+    if (!currentUser) {
+      void SecureStore.setItemAsync("settings_notifications", String(enabled));
+      return;
+    }
+
+    void setPushNotificationsEnabled(currentUser.id, enabled).catch(() => {
+      setNotificationsEnabled(!enabled);
+      void SecureStore.setItemAsync(
+        "settings_notifications",
+        String(!enabled),
+      );
+      Alert.alert(
+        "Bildirim ayarı değiştirilemedi",
+        "Bağlantını kontrol edip tekrar dene.",
+      );
+    });
   };
 
   const handlePrivacyStrictChange = (strict: boolean) => {
@@ -416,7 +433,7 @@ export default function SettingsScreen() {
           <View style={styles.rowBody}>
             <Text style={styles.rowTitle}>Bildirimler</Text>
             <Text style={styles.rowSubtitle}>
-              Eşleşme ve mesaj bildirimleri.
+              Beğeni, yorum, eşleşme ve mesaj bildirimleri.
             </Text>
           </View>
           <Switch

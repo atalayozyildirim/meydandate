@@ -581,6 +581,20 @@ const botPayloadToRow = (
 });
 
 export class SupabaseFeedRepository implements FeedRepository {
+  private async notifyFeedEvent(payload: {
+    type: "like" | "comment";
+    postId: string;
+    commentId?: string;
+  }): Promise<void> {
+    const { error } = await supabase.functions.invoke("send-feed-event-push", {
+      body: payload,
+    });
+
+    if (error && __DEV__) {
+      console.info("Feed bildirimi gönderilemedi", error.message);
+    }
+  }
+
   async getPost(postId: string, currentUserId = ""): Promise<FeedPost> {
     let { data, error } = await supabase
       .from("feed_posts")
@@ -1027,6 +1041,10 @@ export class SupabaseFeedRepository implements FeedRepository {
       throw createSupabaseRepositoryError("Beğeni güncellenemedi.", error);
     }
 
+    if (!existingLike) {
+      void this.notifyFeedEvent({ type: "like", postId });
+    }
+
     return this.getPost(postId);
   }
 
@@ -1078,16 +1096,20 @@ export class SupabaseFeedRepository implements FeedRepository {
     const imagePaths = uploadedImages
       .map((image) => image.path)
       .filter((path): path is string => Boolean(path));
-    const { error } = await supabase.from("feed_comments").insert({
-      post_id: payload.postId,
-      author_id: payload.authorId,
-      body: sanitizePlainText(payload.body, 1000).trim(),
-      ...(imageUrls.length > 0
-        ? { image_urls: imageUrls, image_paths: imagePaths }
-        : {}),
-    });
+    const { data: comment, error } = await supabase
+      .from("feed_comments")
+      .insert({
+        post_id: payload.postId,
+        author_id: payload.authorId,
+        body: sanitizePlainText(payload.body, 1000).trim(),
+        ...(imageUrls.length > 0
+          ? { image_urls: imageUrls, image_paths: imagePaths }
+          : {}),
+      })
+      .select("id")
+      .single();
 
-    if (error) {
+    if (error || !comment) {
       if (imagePaths.length > 0) {
         await supabase.storage
           .from(FEED_IMAGE_BUCKET)
@@ -1097,6 +1119,12 @@ export class SupabaseFeedRepository implements FeedRepository {
 
       throw createSupabaseRepositoryError("Yorum gönderilemedi.", error);
     }
+
+    void this.notifyFeedEvent({
+      type: "comment",
+      postId: payload.postId,
+      commentId: comment.id,
+    });
 
     return this.getPost(payload.postId);
   }

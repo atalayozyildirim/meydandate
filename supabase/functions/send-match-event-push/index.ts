@@ -171,6 +171,7 @@ export default {
       (tokens ?? []).map((row: { token: string }) => ({
         to: row.token,
         sound: "default",
+        channelId: "matches",
         title,
         body,
         data: {

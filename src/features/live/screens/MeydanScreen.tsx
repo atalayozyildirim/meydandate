@@ -417,7 +417,6 @@ export default function MeydanRoomScreen() {
     isSendingMessage,
     isReportingMessage,
     isManagingRoom,
-    isConnectingLiveKit,
     isManagingStage,
   } = useLiveRoom(roomId);
   const [adminTitle, setAdminTitle] = useState("");
@@ -430,6 +429,8 @@ export default function MeydanRoomScreen() {
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isParticipantsSheetOpen, setIsParticipantsSheetOpen] = useState(false);
+  const previousMessageCountRef = useRef<number | null>(null);
+  const pendingChatAutoScrollRef = useRef(false);
   const livePulse = useRef(new Animated.Value(0)).current;
   const participants = room?.participants ?? [];
   const participantPreview = participants.slice(0, 20);
@@ -615,14 +616,15 @@ export default function MeydanRoomScreen() {
     setIsSpeaking(shouldShowSpeaking);
   }, [isCurrentSpeaker, currentParticipant?.isMuted, isLiveKitRoom]);
 
-  // Yeni mesaj geldiğinde otomatik scroll yap
   useEffect(() => {
-    if (messages.length > 0 && chatListRef.current) {
-      // Bir sonraki frame'de scroll yap, içerik render olduktan sonra
-      setTimeout(() => {
-        chatListRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+    const previousCount = previousMessageCountRef.current;
+    previousMessageCountRef.current = messages.length;
+
+    if (previousCount === null || messages.length <= previousCount) {
+      return;
     }
+
+    pendingChatAutoScrollRef.current = true;
   }, [messages.length]);
 
   useFocusEffect(
@@ -1098,7 +1100,43 @@ export default function MeydanRoomScreen() {
   }
 
   return (
-    <Screen style={styles.screen}>
+    <Screen scroll={false} style={styles.screenRoot}>
+      {isLiveKitRoom && liveKitInfo && LiveKitRoomComponent ? (
+        <LiveKitRoomComponent
+          serverUrl={liveKitInfo.serverUrl}
+          token={liveKitInfo.token}
+          connect
+          audio={canPublishToLiveKit && !currentParticipant?.isMuted}
+          video={false}
+          onError={(error) => setLiveKitError(error.message)}
+          onConnected={() => setLiveKitError(null)}
+        />
+      ) : null}
+      <FlatList
+        ref={chatListRef}
+        data={messages}
+        keyExtractor={(message) => message.id}
+        renderItem={renderChatMessage}
+        showsVerticalScrollIndicator={false}
+        contentInsetAdjustmentBehavior="automatic"
+        contentContainerStyle={styles.screen}
+        initialNumToRender={16}
+        maxToRenderPerBatch={16}
+        updateCellsBatchingPeriod={50}
+        windowSize={7}
+        removeClippedSubviews
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="interactive"
+        onContentSizeChange={() => {
+          if (!pendingChatAutoScrollRef.current) {
+            return;
+          }
+
+          pendingChatAutoScrollRef.current = false;
+          chatListRef.current?.scrollToEnd({ animated: true });
+        }}
+        ListHeaderComponent={
+          <View style={styles.pageSections}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View style={styles.headerStatusRow}>
@@ -1143,17 +1181,6 @@ export default function MeydanRoomScreen() {
       <View style={styles.stage}>
         {isLiveKitRoom ? (
           <View style={styles.spaceStage}>
-            {liveKitInfo && LiveKitRoomComponent ? (
-              <LiveKitRoomComponent
-                serverUrl={liveKitInfo.serverUrl}
-                token={liveKitInfo.token}
-                connect
-                audio={canPublishToLiveKit && !currentParticipant?.isMuted}
-                video={false}
-                onError={(error) => setLiveKitError(error.message)}
-                onConnected={() => setLiveKitError(null)}
-              />
-            ) : null}
             <View style={styles.spaceHeader}>
               <Animated.View
                 pointerEvents="none"
@@ -1546,23 +1573,124 @@ export default function MeydanRoomScreen() {
             <Text style={styles.stageDescription}>{stageDescription}</Text>
           </View>
         )}
-        <View style={styles.stageMeta}>
-          <Text style={styles.stageMetaText}>{participantCount} katılımcı</Text>
-          {isLiveKitRoom ? (
-            <Text style={styles.stageMetaText}>
-              {speakers.length} sahnede
-            </Text>
-          ) : null}
-          <Text style={styles.stageMetaText}>
-            {isJoined
-              ? liveKitInfo?.canPublish || canPublishToLiveKit
-                ? "Mikrofon yetkili"
-                : "Dinliyorsun"
-              : "Dışarıdasın"}
-          </Text>
-          {isConnectingLiveKit ? (
-            <Text style={styles.stageMetaText}>Bağlanıyor</Text>
-          ) : null}
+        <View style={styles.stageActionArea}>
+          <View style={styles.roomActionDock}>
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
+              disabled={isJoining}
+              onPress={() => void toggleRoom()}
+              style={({ pressed }) => [
+                styles.roomActionButton,
+                styles.roomActionButtonPrimary,
+                isJoined && styles.roomActionButtonDanger,
+                pressed && styles.pressed,
+              ]}
+            >
+              <Ionicons
+                name={isJoined ? "exit-outline" : "enter-outline"}
+                size={22}
+                color={theme.colors.onPrimary}
+              />
+              <Text style={styles.roomActionLabel}>
+                {isJoined ? "Ayrıl" : "Katıl"}
+              </Text>
+            </Pressable>
+
+            {isJoined && isCurrentSpeaker ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  currentParticipant?.isMuted ? "Mikrofonu aç" : "Mikrofonu kapat"
+                }
+                disabled={isManagingStage}
+                onPress={() =>
+                  currentParticipant
+                    ? void handleSetMuted(
+                        currentParticipant,
+                        !currentParticipant.isMuted,
+                      )
+                    : undefined
+                }
+                style={({ pressed }) => [
+                  styles.roomActionButton,
+                  currentParticipant?.isMuted && styles.roomActionButtonMuted,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.micButtonContainer}>
+                  <Ionicons
+                    name={currentParticipant?.isMuted ? "mic-off" : "mic"}
+                    size={22}
+                    color={currentParticipant?.isMuted ? "#FF3B30" : "#34C759"}
+                  />
+                  {!currentParticipant?.isMuted ? (
+                    <View
+                      style={[
+                        styles.speakingIndicator,
+                        isSpeaking && styles.speakingIndicatorActive,
+                      ]}
+                    />
+                  ) : null}
+                </View>
+                <Text
+                  style={[
+                    styles.roomActionLabelSecondary,
+                    currentParticipant?.isMuted && styles.roomActionLabelMuted,
+                  ]}
+                >
+                  {currentParticipant?.isMuted ? "Kapalı" : "Açık"}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {isJoined && !isCurrentSpeaker ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={hasRaisedHand ? "Eli indir" : "El kaldır"}
+                disabled={isManagingStage}
+                onPress={() => void handleToggleHandRaised()}
+                style={({ pressed }) => [
+                  styles.roomActionButton,
+                  hasRaisedHand && styles.roomActionButtonActive,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name={hasRaisedHand ? "hand-left" : "hand-left-outline"}
+                  size={22}
+                  color={hasRaisedHand ? "#FF9500" : theme.colors.text}
+                />
+                <Text
+                  style={[
+                    styles.roomActionLabelSecondary,
+                    hasRaisedHand && styles.roomActionLabelActive,
+                  ]}
+                >
+                  {hasRaisedHand ? "Sahne isteği" : "Sahne iste"}
+                </Text>
+              </Pressable>
+            ) : null}
+
+            {canManageRoom ? (
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel="Meydan yönetimi"
+                onPress={() => setIsAdminSettingsOpen(true)}
+                style={({ pressed }) => [
+                  styles.roomActionButton,
+                  pressed && styles.pressed,
+                ]}
+              >
+                <Ionicons
+                  name="settings-outline"
+                  size={22}
+                  color={theme.colors.text}
+                />
+                <Text style={styles.roomActionLabelSecondary}>Ayarlar</Text>
+              </Pressable>
+            ) : null}
+          </View>
         </View>
       </View>
 
@@ -1614,117 +1742,6 @@ export default function MeydanRoomScreen() {
             ) : null
           }
         />
-      </View>
-
-      <View style={styles.roomActionDock}>
-        {/* Ana Katıl/Ayrıl Butonu */}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={isJoined ? "Odadan ayrıl" : "Odaya katıl"}
-          disabled={isJoining}
-          onPress={() => void toggleRoom()}
-          style={({ pressed }) => [
-            styles.roomActionButton,
-            styles.roomActionButtonPrimary,
-            isJoined && styles.roomActionButtonDanger,
-            pressed && styles.pressed,
-          ]}
-        >
-          <Ionicons
-            name={isJoined ? "exit-outline" : "enter-outline"}
-            size={22}
-            color={theme.colors.onPrimary}
-          />
-          <Text style={styles.roomActionLabel}>
-            {isJoined ? "Ayrıl" : "Katıl"}
-          </Text>
-        </Pressable>
-
-        {/* Mikrofon Kontrolü - Sadece sahnedeyken */}
-        {isJoined && isCurrentSpeaker ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              currentParticipant?.isMuted ? "Mikrofonu aç" : "Mikrofonu kapat"
-            }
-            disabled={isManagingStage}
-            onPress={() =>
-              currentParticipant
-                ? void handleSetMuted(currentParticipant, !currentParticipant.isMuted)
-                : undefined
-            }
-            style={({ pressed }) => [
-              styles.roomActionButton,
-              currentParticipant?.isMuted && styles.roomActionButtonMuted,
-              pressed && styles.pressed,
-            ]}
-          >
-            <View style={styles.micButtonContainer}>
-              <Ionicons
-                name={currentParticipant?.isMuted ? "mic-off" : "mic"}
-                size={22}
-                color={currentParticipant?.isMuted ? "#FF3B30" : "#34C759"}
-              />
-              {!currentParticipant?.isMuted && (
-                <View style={[
-                  styles.speakingIndicator,
-                  isSpeaking && styles.speakingIndicatorActive
-                ]} />
-              )}
-            </View>
-            <Text style={[
-              styles.roomActionLabelSecondary,
-              currentParticipant?.isMuted && styles.roomActionLabelMuted
-            ]}>
-              {currentParticipant?.isMuted ? "Kapalı" : "Açık"}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {/* El Kaldır - Sadece dinleyiciyken */}
-        {isJoined && !isCurrentSpeaker ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={hasRaisedHand ? "Eli indir" : "El kaldır"}
-            disabled={isManagingStage}
-            onPress={() => void handleToggleHandRaised()}
-            style={({ pressed }) => [
-              styles.roomActionButton,
-              hasRaisedHand && styles.roomActionButtonActive,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons
-              name={hasRaisedHand ? "hand-left" : "hand-left-outline"}
-              size={22}
-              color={hasRaisedHand ? "#FF9500" : theme.colors.text}
-            />
-            <Text
-              style={[
-                styles.roomActionLabelSecondary,
-                hasRaisedHand && styles.roomActionLabelActive,
-              ]}
-            >
-              {hasRaisedHand ? "Sahne isteği" : "Sahne iste"}
-            </Text>
-          </Pressable>
-        ) : null}
-
-        {/* Yönetim - Sadece admin için */}
-        {canManageRoom ? (
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Meydan yönetimi"
-            onPress={() => setIsAdminSettingsOpen(true)}
-            style={({ pressed }) => [
-              styles.roomActionButton,
-              pressed && styles.pressed,
-            ]}
-          >
-            <Ionicons name="settings-outline" size={22} color={theme.colors.text} />
-            <Text style={styles.roomActionLabelSecondary}>Ayarlar</Text>
-          </Pressable>
-        ) : null}
       </View>
 
       <BottomSheet
@@ -1954,35 +1971,26 @@ export default function MeydanRoomScreen() {
             <Text style={styles.chatCountText}>{messages.length}</Text>
           </View>
         </View>
-        <FlatList
-          ref={chatListRef}
-          data={messages}
-          keyExtractor={(message) => message.id}
-          renderItem={renderChatMessage}
-          nestedScrollEnabled
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.chatList}
-          style={styles.chatViewport}
-          initialNumToRender={16}
-          maxToRenderPerBatch={16}
-          windowSize={7}
-          removeClippedSubviews
-          ListEmptyComponent={
-            <View style={styles.emptyChat}>
-              <View style={styles.emptyChatIcon}>
-                <Ionicons
-                  name="chatbubbles-outline"
-                  size={23}
-                  color={theme.colors.primary}
-                />
-              </View>
-              <Text style={styles.emptyChatTitle}>Sohbet henüz sessiz</Text>
-              <Text style={styles.emptyChatText}>
-                Odaya katıl ve ilk selamı sen ver.
-              </Text>
+      </View>
+          </View>
+        }
+        ListEmptyComponent={
+          <View style={styles.emptyChat}>
+            <View style={styles.emptyChatIcon}>
+              <Ionicons
+                name="chatbubbles-outline"
+                size={23}
+                color={theme.colors.primary}
+              />
             </View>
-          }
-        />
+            <Text style={styles.emptyChatTitle}>Sohbet henüz sessiz</Text>
+            <Text style={styles.emptyChatText}>
+              Odaya katıl ve ilk selamı sen ver.
+            </Text>
+          </View>
+        }
+        ListFooterComponent={
+          <View style={styles.chatFooter}>
         <View style={styles.chatComposer}>
           <View style={styles.chatInputFrame}>
             <Ionicons
@@ -2020,19 +2028,29 @@ export default function MeydanRoomScreen() {
             <Ionicons name="arrow-up" size={20} color="#FFFFFF" />
           </Pressable>
         </View>
-      </View>
-
+          </View>
+        }
+      />
     </Screen>
   );
 }
 
 const createStyles = (theme: ReturnType<typeof useTheme>) =>
   StyleSheet.create({
+    screenRoot: {
+      flex: 1,
+      padding: 0,
+      paddingBottom: 0,
+    },
     screen: {
-      gap: theme.spacing.lg,
+      flexGrow: 1,
       paddingHorizontal: theme.spacing.lg,
       paddingTop: theme.spacing.sm,
       paddingBottom: 132,
+    },
+    pageSections: {
+      gap: theme.spacing.lg,
+      paddingBottom: theme.spacing.lg,
     },
     header: {
       gap: theme.spacing.xs,
@@ -2448,20 +2466,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       ...theme.typography.caption,
       color: "rgba(255, 255, 255, 0.76)",
     },
-    stageMeta: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: theme.spacing.xs,
+    stageActionArea: {
       paddingHorizontal: theme.spacing.lg,
       paddingBottom: theme.spacing.lg,
-    },
-    stageMetaText: {
-      ...theme.typography.caption,
-      color: "#FFFFFF",
-      borderRadius: theme.radius.pill,
-      paddingHorizontal: theme.spacing.md,
-      paddingVertical: theme.spacing.xs,
-      backgroundColor: "rgba(255, 255, 255, 0.14)",
     },
     roomActionDock: {
       minHeight: 58,
@@ -3102,6 +3109,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       lineHeight: 13,
       fontWeight: "800",
       color: theme.colors.muted,
+    },
+    chatFooter: {
+      paddingTop: theme.spacing.sm,
     },
     chatComposer: {
       minHeight: 58,

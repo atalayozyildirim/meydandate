@@ -97,6 +97,7 @@ export default {
       (tokens ?? []).map((row: { token: string }) => ({
         to: row.token,
         sound: "default",
+        channelId: "social",
         title: safeTitle,
         body: safeBody,
         data: { type: "admin_event" },
