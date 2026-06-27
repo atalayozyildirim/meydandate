@@ -10,6 +10,7 @@ import { SupabaseUserRepository } from "@/infrastructure/supabase/SupabaseUserRe
 import { SupabaseModerationRepository } from "@/infrastructure/supabase/SupabaseModerationRepository";
 import { SupabaseFeedRepository } from "@/infrastructure/supabase/SupabaseFeedRepository";
 import { SupabaseLiveRoomRepository } from "@/infrastructure/supabase/SupabaseLiveRoomRepository";
+import { SupabaseActivityRepository } from "@/infrastructure/supabase/SupabaseActivityRepository";
 import { ContentModerationService } from "@/features/moderation/services/ContentModerationService";
 import { MockModerationRepository } from "@/features/moderation/services/MockModerationRepository";
 import { MockAuthRepository } from "@/features/auth/services/MockAuthRepository";
@@ -19,6 +20,7 @@ import { MockUserRepository } from "@/features/profile/services/MockUserReposito
 import { MockFeedRepository } from "@/features/feed/services/MockFeedRepository";
 import { ApiLiveRoomRepository } from "@/features/live/services/ApiLiveRoomRepository";
 import { MockLiveRoomRepository } from "@/features/live/services/MockLiveRoomRepository";
+import { MockActivityRepository } from "@/features/notifications/services/MockActivityRepository";
 
 validateRuntimeConfig();
 
@@ -48,6 +50,9 @@ const moderationRepository = env.useMockServices
 const feedRepository = env.useMockServices
   ? new MockFeedRepository()
   : new SupabaseFeedRepository();
+const activityRepository = env.useMockServices
+  ? new MockActivityRepository()
+  : new SupabaseActivityRepository();
 
 export const container = {
   apiClient,
@@ -60,5 +65,6 @@ export const container = {
   userRepository,
   moderationRepository,
   feedRepository,
+  activityRepository,
   contentModerationService: new ContentModerationService(),
 } as const;

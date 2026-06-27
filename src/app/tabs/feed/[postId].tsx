@@ -304,7 +304,7 @@ export default function FeedPostDetailScreen() {
     }
 
     router.push({
-      pathname: "/tabs/feed",
+      pathname: "/feed-compose",
       params: { quotePostId: post.id },
     });
   };

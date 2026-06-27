@@ -138,14 +138,46 @@ export default {
       return json(200, { ok: true, delivered: 0 });
     }
 
+    const title = sender?.name
+      ? `${sender.name} mesaj gönderdi`
+      : "Yeni mesaj";
+    const { data: activity, error: activityError } = await supabaseAdmin
+      .from("user_activities")
+      .insert({
+        source_key: `message:${message.id}`,
+        recipient_id: recipientId,
+        actor_id: requesterId,
+        activity_type: "message",
+        title,
+        body: preview || "Yeni bir mesajın var.",
+        conversation_id: conversationId,
+        message_id: messageId,
+      })
+      .select("id")
+      .single();
+
+    if (activityError?.code === "23505") {
+      return json(200, { ok: true, delivered: 0, reason: "duplicate" });
+    }
+
+    if (activityError || !activity) {
+      return json(500, { error: "Activity could not be recorded" });
+    }
+
     await sendExpoPush(
       (tokens ?? []).map((row: { token: string }) => ({
         to: row.token,
         sound: "default",
         channelId: "messages",
-        title: sender?.name ? `${sender.name} mesaj gönderdi` : "Yeni mesaj",
+        title,
         body: preview,
-        data: { type: "message", conversationId, messageId },
+        data: {
+          type: "message",
+          conversationId,
+          messageId,
+          actorId: requesterId,
+          activityId: activity.id,
+        },
       })),
     );
 

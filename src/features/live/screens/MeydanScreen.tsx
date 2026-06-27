@@ -87,15 +87,51 @@ const DirectVideoStage = ({
           <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
           <style>
             html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #05070d; overflow: hidden; }
-            video { width: 100%; height: 100%; object-fit: cover; background: #05070d; }
+            video {
+              width: 100%;
+              height: 100%;
+              object-fit: cover;
+              background: #05070d;
+              pointer-events: none;
+              user-select: none;
+              -webkit-user-select: none;
+            }
           </style>
         </head>
         <body>
           <video id="stage" ${isLive ? "autoplay" : ""} playsinline webkit-playsinline ${isLive ? "" : "muted"} src="${playbackUrl.replaceAll('"', "&quot;")}"></video>
           <script>
             const video = document.getElementById('stage');
-            video.currentTime = ${startAt};
-            ${isLive ? "video.play().catch(() => undefined);" : "video.pause();"}
+            const shouldPlay = ${isLive ? "true" : "false"};
+            const shouldSync = ${shouldSyncPlayback ? "true" : "false"};
+            const anchorSeconds = ${startAt};
+            const anchorTime = Date.now();
+
+            function expectedTime() {
+              return anchorSeconds + (shouldPlay ? (Date.now() - anchorTime) / 1000 : 0);
+            }
+
+            function enforceSharedPlayback() {
+              if (shouldSync) {
+                const target = expectedTime();
+                if (Math.abs(video.currentTime - target) > 1.5) {
+                  video.currentTime = target;
+                }
+              }
+
+              if (video.playbackRate !== 1) video.playbackRate = 1;
+              if (shouldPlay && video.paused) {
+                video.play().catch(() => undefined);
+              } else if (!shouldPlay && !video.paused) {
+                video.pause();
+              }
+            }
+
+            enforceSharedPlayback();
+            ['play', 'pause', 'seeking', 'ratechange'].forEach((eventName) => {
+              video.addEventListener(eventName, () => setTimeout(enforceSharedPlayback, 0));
+            });
+            setInterval(enforceSharedPlayback, 750);
           </script>
         </body>
       </html>
@@ -105,11 +141,14 @@ const DirectVideoStage = ({
 
   return (
     <WebView
+      pointerEvents="none"
       source={{ html: videoHtml }}
       style={style}
       allowsInlineMediaPlayback
       mediaPlaybackRequiresUserAction={false}
       allowsFullscreenVideo={false}
+      allowsPictureInPictureMediaPlayback={false}
+      allowsAirPlayForMediaPlayback={false}
       automaticallyAdjustContentInsets={false}
       scrollEnabled={false}
     />
@@ -159,6 +198,7 @@ const buildEmbedDocument = (iframeUrl: string) => `<!doctype html>
         height: 100%;
         border: 0;
         background: #000;
+        pointer-events: none;
       }
     </style>
   </head>
@@ -216,6 +256,7 @@ const buildYoutubeEmbedHtml = (
         width: 100%;
         height: 100%;
         border: 0;
+        pointer-events: none;
       }
     </style>
   </head>
@@ -1293,6 +1334,7 @@ export default function MeydanRoomScreen() {
                 {streamSource.kind === "youtube" || streamSource.kind === "kick" ? (
                   <WebView
                     ref={embedWebViewRef}
+                    pointerEvents="none"
                     key={`space-share-${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.kind}-${
                       streamSource.kind === "youtube"
                         ? streamSource.videoId
@@ -1315,6 +1357,8 @@ export default function MeydanRoomScreen() {
                     allowsInlineMediaPlayback
                     mediaPlaybackRequiresUserAction={false}
                     allowsFullscreenVideo={false}
+                    allowsPictureInPictureMediaPlayback={false}
+                    allowsAirPlayForMediaPlayback={false}
                     automaticallyAdjustContentInsets={false}
                   />
                 ) : (
@@ -1497,6 +1541,7 @@ export default function MeydanRoomScreen() {
             <View style={styles.embedStage}>
               <WebView
                 ref={embedWebViewRef}
+                pointerEvents="none"
                 key={`${room?.id}-${room?.startedAt ?? "idle"}-${streamSource.kind}-${
                   streamSource.kind === "youtube"
                     ? streamSource.videoId
@@ -1519,6 +1564,8 @@ export default function MeydanRoomScreen() {
                 allowsInlineMediaPlayback
                 mediaPlaybackRequiresUserAction={false}
                 allowsFullscreenVideo={false}
+                allowsPictureInPictureMediaPlayback={false}
+                allowsAirPlayForMediaPlayback={false}
                 automaticallyAdjustContentInsets={false}
               />
               <View pointerEvents="box-none" style={styles.videoOverlay}>

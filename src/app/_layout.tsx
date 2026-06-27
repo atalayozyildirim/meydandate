@@ -132,14 +132,18 @@ const RootNavigator = () => {
       if (data.type === "admin_event") {
         router.push("/tabs/feed");
       }
-    }).then((cleanup) => {
-      if (!isActive) {
-        cleanup();
-        return;
-      }
+    })
+      .then((cleanup) => {
+        if (!isActive) {
+          cleanup();
+          return;
+        }
 
-      unsubscribe = cleanup;
-    });
+        unsubscribe = cleanup;
+      })
+      .catch((error) => {
+        if (__DEV__) console.info("Push yönlendirmesi kurulamadı:", error);
+      });
 
     return () => {
       isActive = false;
@@ -155,7 +159,15 @@ const RootNavigator = () => {
           headerShown: false,
           contentStyle: { backgroundColor: theme.colors.background },
         }}
-      />
+      >
+        <Stack.Screen
+          name="feed-compose"
+          options={{
+            presentation: "modal",
+            contentStyle: { backgroundColor: theme.colors.surface },
+          }}
+        />
+      </Stack>
     </NavigationThemeProvider>
   );
 };

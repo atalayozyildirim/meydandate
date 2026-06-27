@@ -24,6 +24,15 @@ const EMPTY_FEED_PAGE: FeedPage = {
   hasMore: false,
 };
 
+export type CreateFeedPostPayload = {
+  body: string;
+  tags: FeedTag[];
+  image?: { uri: string; base64?: string | null };
+  images?: Array<{ uri: string; base64?: string | null }>;
+  poll?: { question: string; options: string[]; endsAt?: string };
+  quotedPostId?: string | null;
+};
+
 const moderateFeedText = async (authorId: string, body: string) => {
   if (!body.trim()) {
     return "";
@@ -44,9 +53,64 @@ const moderateFeedText = async (authorId: string, body: string) => {
   return moderation.filteredBody;
 };
 
+export const useCreateFeedPost = () => {
+  const queryClient = useQueryClient();
+  const currentUser = useAuthStore((state) => state.currentUser);
+
+  const mutation = useMutation({
+    mutationFn: async (payload: CreateFeedPostPayload) => {
+      if (!currentUser) {
+        throw new Error("Post paylaşmak için oturum gerekli.");
+      }
+
+      const filteredBody = await moderateFeedText(currentUser.id, payload.body);
+
+      let filteredPoll:
+        | { question: string; options: string[]; endsAt?: string }
+        | undefined;
+
+      if (payload.poll) {
+        const filteredQuestion = await moderateFeedText(
+          currentUser.id,
+          payload.poll.question,
+        );
+        const filteredOptions = await Promise.all(
+          (payload.poll.options ?? []).map((option) =>
+            moderateFeedText(currentUser.id, option),
+          ),
+        );
+        filteredPoll = {
+          question: filteredQuestion,
+          options: filteredOptions,
+          endsAt: payload.poll.endsAt,
+        };
+      }
+
+      return container.feedRepository.createPost({
+        authorId: currentUser.id,
+        body: filteredBody,
+        tags: payload.tags,
+        image: payload.image,
+        images: payload.images,
+        ...(filteredPoll ? { poll: filteredPoll } : {}),
+        ...(payload.quotedPostId ? { quotedPostId: payload.quotedPostId } : {}),
+      });
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: [queryKeys.feed] });
+    },
+  });
+
+  return {
+    createPost: mutation.mutateAsync,
+    isCreatingPost: mutation.isPending,
+  };
+};
+
 export const useFeed = (tag: FeedTag | "all" = "all") => {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.currentUser);
+  const { createPost, isCreatingPost } = useCreateFeedPost();
 
   const query = useInfiniteQuery<FeedPage, Error>({
     queryKey: [queryKeys.feed, tag, currentUser?.id],
@@ -73,53 +137,6 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
   const invalidateFeed = async () => {
     await queryClient.invalidateQueries({ queryKey: [queryKeys.feed] });
   };
-
-  const createPostMutation = useMutation({
-    mutationFn: async (payload: {
-      body: string;
-      tags: FeedTag[];
-      image?: { uri: string; base64?: string | null };
-      images?: Array<{ uri: string; base64?: string | null }>;
-      poll?: { question: string; options: string[]; endsAt?: string };
-      quotedPostId?: string | null;
-    }) => {
-      if (!currentUser) {
-        throw new Error("Post paylaşmak için oturum gerekli.");
-      }
-
-      const filteredBody = await moderateFeedText(currentUser.id, payload.body);
-
-      let filteredPoll: { question: string; options: string[]; endsAt?: string } | undefined;
-
-      if (payload.poll) {
-        const filteredQuestion = await moderateFeedText(
-          currentUser.id,
-          payload.poll.question,
-        );
-        const filteredOptions = await Promise.all(
-          (payload.poll.options ?? []).map((opt) =>
-            moderateFeedText(currentUser.id, opt),
-          ),
-        );
-        filteredPoll = {
-          question: filteredQuestion,
-          options: filteredOptions,
-          endsAt: payload.poll.endsAt,
-        };
-      }
-
-      return container.feedRepository.createPost({
-        authorId: currentUser.id,
-        body: filteredBody,
-        tags: payload.tags,
-        image: payload.image,
-        images: payload.images,
-        ...(filteredPoll ? { poll: filteredPoll } : {}),
-        ...(payload.quotedPostId ? { quotedPostId: payload.quotedPostId } : {}),
-      });
-    },
-    onSuccess: invalidateFeed,
-  });
 
   const likeMutation = useMutation({
     mutationFn: (postId: string) => {
@@ -237,8 +254,8 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
     fetchMorePosts: query.fetchNextPage,
     hasMorePosts: Boolean(query.hasNextPage),
     isFetchingMorePosts: query.isFetchingNextPage,
-    createPost: createPostMutation.mutateAsync,
-    isCreatingPost: createPostMutation.isPending,
+    createPost,
+    isCreatingPost,
     toggleLike: likeMutation.mutateAsync,
     addComment: commentMutation.mutateAsync,
     addReply: replyMutation.mutateAsync,
@@ -246,7 +263,7 @@ export const useFeed = (tag: FeedTag | "all" = "all") => {
     deletePost: deletePostMutation.mutateAsync,
     votePoll: votePollMutation.mutateAsync,
     isMutating:
-      createPostMutation.isPending ||
+      isCreatingPost ||
       likeMutation.isPending ||
       commentMutation.isPending ||
       replyMutation.isPending ||

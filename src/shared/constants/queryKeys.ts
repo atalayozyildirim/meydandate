@@ -12,5 +12,7 @@ export const queryKeys = {
   fireBalance: "fireBalance",
   fireLeaderboard: "fireLeaderboard",
   liveRoom: "liveRoom",
-  feed: "feed"
+  feed: "feed",
+  activities: "activities",
+  unreadActivities: "unreadActivities"
 } as const;

@@ -12,6 +12,7 @@ export type PushNotificationData = {
   commentId?: string;
   userId?: string;
   matchId?: string;
+  activityId?: string;
 };
 
 let notificationsModule: NotificationsModule | null = null;
@@ -159,9 +160,18 @@ export const subscribeToPushNotificationResponses = async (
     }
 
     lastHandledNotificationId = notificationId;
-    onResponse(
-      response.notification.request.content.data as PushNotificationData,
-    );
+    const data =
+      response.notification.request.content.data as PushNotificationData;
+
+    if (data.activityId) {
+      void supabase
+        .from("user_activities")
+        .update({ read_at: new Date().toISOString() })
+        .eq("id", data.activityId)
+        .is("read_at", null);
+    }
+
+    onResponse(data);
   };
 
   handleResponse(await Notifications.getLastNotificationResponseAsync());

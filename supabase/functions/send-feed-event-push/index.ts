@@ -228,6 +228,29 @@ export default {
         : preview
           ? `${actorName}: ${preview}`
           : `${actorName} paylaşımına fotoğraflı yorum yaptı.`;
+    const { data: activity, error: activityError } = await supabaseAdmin
+      .from("user_activities")
+      .insert({
+        source_key: eventKey,
+        recipient_id: recipientId,
+        actor_id: requesterId,
+        activity_type: type === "like" ? "feed_like" : "feed_comment",
+        title,
+        body,
+        post_id: postId,
+        comment_id: type === "comment" ? commentId : null,
+      })
+      .select("id")
+      .single();
+
+    if (activityError || !activity) {
+      await supabaseAdmin
+        .from("push_notification_events")
+        .delete()
+        .eq("event_key", eventKey);
+
+      return json(500, { error: "Activity could not be recorded" });
+    }
 
     try {
       const invalidTokens = await sendExpoPush(tokens ?? [], {
@@ -238,6 +261,7 @@ export default {
           postId,
           commentId: type === "comment" ? commentId : null,
           actorId: requesterId,
+          activityId: activity.id,
         },
       });
 
@@ -248,11 +272,6 @@ export default {
           .in("token", invalidTokens);
       }
     } catch (error) {
-      await supabaseAdmin
-        .from("push_notification_events")
-        .delete()
-        .eq("event_key", eventKey);
-
       return json(502, {
         error: error instanceof Error ? error.message : "Push delivery failed",
       });

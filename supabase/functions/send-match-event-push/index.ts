@@ -166,6 +166,35 @@ export default {
       : action === "super_like"
         ? "super_like"
         : "like";
+    const activityType = validMatchId
+      ? "match"
+      : action === "super_like"
+        ? "super_like"
+        : "profile_like";
+    const sourceKey = validMatchId
+      ? `match:${validMatchId}:${targetUserId}`
+      : `profile-${action}:${requesterId}:${targetUserId}`;
+    const { data: activity, error: activityError } = await supabaseAdmin
+      .from("user_activities")
+      .insert({
+        source_key: sourceKey,
+        recipient_id: targetUserId,
+        actor_id: requesterId,
+        activity_type: activityType,
+        title,
+        body,
+        match_id: validMatchId,
+      })
+      .select("id")
+      .single();
+
+    if (activityError?.code === "23505") {
+      return json(200, { ok: true, delivered: 0, reason: "duplicate" });
+    }
+
+    if (activityError || !activity) {
+      return json(500, { error: "Activity could not be recorded" });
+    }
 
     await sendExpoPush(
       (tokens ?? []).map((row: { token: string }) => ({
@@ -179,6 +208,7 @@ export default {
           userId: requesterId,
           targetUserId,
           matchId: validMatchId,
+          activityId: activity.id,
         },
       })),
     );

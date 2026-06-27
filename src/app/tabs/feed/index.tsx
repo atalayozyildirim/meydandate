@@ -1,19 +1,17 @@
 // Topluluk akışını, post oluşturmayı ve etiket filtrelerini gösterir.
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   FlatList,
-  Image,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
-  TextInput,
   View,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { SafeAreaView } from "react-native-safe-area-context";
 import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 import { feedTagValues } from "@/domain/entities/Feed";
@@ -21,15 +19,13 @@ import { Avatar } from "@/shared/components/Avatar";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
 import { FeedPostCard } from "@/features/feed/components/FeedPostCard";
-import { QuotedPostCard } from "@/features/feed/components/QuotedPostCard";
 import { FeedAdminPanel } from "@/features/feed/screens/FeedAdminPanel";
 import { useFeed } from "@/features/feed/hooks/useFeed";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useUserRole } from "@/features/moderation/hooks/useModerationService";
-import { useImagePicker } from "@/shared/hooks/useImagePicker";
-import { container } from "@/infrastructure/config/Container";
 import { useTheme } from "@/shared/theme";
+import { useUnreadActivityCount } from "@/features/notifications/hooks/useActivities";
 
 const feedTagLabels: Record<FeedTag | "all", string> = {
   all: "Sana özel",
@@ -39,31 +35,13 @@ const feedTagLabels: Record<FeedTag | "all", string> = {
   gundem: "Gündem",
 };
 
-const MAX_FEED_IMAGE_BYTES = 6 * 1024 * 1024;
-const MAX_FEED_IMAGES = 4;
-
 export default function FeedScreen() {
   const router = useRouter();
-  const params = useLocalSearchParams<{ quotePostId?: string }>();
   const theme = useTheme();
   const styles = createStyles(theme);
   const listRef = useRef<FlatList<FeedPost>>(null);
-  const ignoredQuotePostIdRef = useRef<string | null>(null);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
-  const imagePicker = useImagePicker();
   const [selectedTag, setSelectedTag] = useState<FeedTag | "all">("all");
-  const [body, setBody] = useState("");
-  const [selectedImages, setSelectedImages] = useState<Array<{
-    uri: string;
-    base64?: string | null;
-  }>>([]);
-  const [selectedQuote, setSelectedQuote] = useState<FeedPost | null>(null);
-  const [showPollComposer, setShowPollComposer] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState("");
-  const [pollOptions, setPollOptions] = useState<string[]>(["", ""]);
-  const [selectedPostTags, setSelectedPostTags] = useState<FeedTag[]>([
-    "gundem",
-  ]);
   const [showAdminPanel, setShowAdminPanel] = useState(false);
   const {
     posts,
@@ -74,8 +52,6 @@ export default function FeedScreen() {
     fetchMorePosts,
     hasMorePosts,
     isFetchingMorePosts,
-    createPost,
-    isCreatingPost,
     toggleLike,
     addComment,
     addReply,
@@ -85,164 +61,14 @@ export default function FeedScreen() {
     isMutating,
   } = useFeed(selectedTag);
   const { data: currentUserRole = "user" } = useUserRole(currentUser?.id ?? "");
+  const { unreadCount } = useUnreadActivityCount();
   const isAdmin = currentUserRole === "admin";
-  const quotedPostIdParam =
-    typeof params.quotePostId === "string" ? params.quotePostId : "";
-
-  useEffect(() => {
-    if (!quotedPostIdParam || !currentUser) {
-      ignoredQuotePostIdRef.current = null;
-      return;
-    }
-
-    if (ignoredQuotePostIdRef.current === quotedPostIdParam) {
-      return;
-    }
-
-    if (selectedQuote?.id === quotedPostIdParam) {
-      return;
-    }
-
-    const existingPost = posts.find((post) => post.id === quotedPostIdParam);
-
-    if (existingPost) {
-      setSelectedQuote(existingPost);
-      return;
-    }
-
-    let mounted = true;
-
-    void container.feedRepository
-      .getPost(quotedPostIdParam, currentUser.id)
-      .then((post) => {
-        if (mounted) {
-          setSelectedQuote(post);
-        }
-      })
-      .catch(() => undefined);
-
-    return () => {
-      mounted = false;
-    };
-  }, [currentUser, posts, quotedPostIdParam, selectedQuote?.id]);
-
-  const togglePostTag = (tag: FeedTag) => {
-    setSelectedPostTags((current) => {
-      if (current.includes(tag)) {
-        return current.length === 1
-          ? current
-          : current.filter((item) => item !== tag);
-      }
-
-      return [...current, tag];
-    });
-  };
 
   const quotePost = (post: FeedPost) => {
-    ignoredQuotePostIdRef.current = null;
-    setSelectedQuote(post);
-    listRef.current?.scrollToOffset({ offset: 0, animated: true });
-  };
-
-  const clearSelectedQuote = () => {
-    ignoredQuotePostIdRef.current = selectedQuote?.id ?? quotedPostIdParam;
-    setSelectedQuote(null);
-
-    if (quotedPostIdParam) {
-      router.setParams({ quotePostId: "" });
-    }
-  };
-
-  const submitPost = async () => {
-    const trimmedBody = body.trim();
-    const trimmedPollQuestion = pollQuestion.trim();
-    const trimmedPollOptions = pollOptions
-      .map((option) => option.trim())
-      .filter(Boolean);
-    const hasValidPoll =
-      trimmedPollQuestion.length > 0 && trimmedPollOptions.length >= 2;
-
-    if (!trimmedBody && !hasValidPoll && selectedImages.length === 0) {
-      return;
-    }
-
-    try {
-      const payload: any = {
-        body: trimmedBody || trimmedPollQuestion,
-        tags: selectedPostTags,
-        ...(selectedImages.length > 0 ? { images: selectedImages } : {}),
-        ...(selectedQuote ? { quotedPostId: selectedQuote.id } : {}),
-      };
-
-      if (hasValidPoll) {
-        payload.poll = {
-          question: trimmedPollQuestion,
-          options: trimmedPollOptions,
-        };
-      }
-
-      await createPost(payload);
-      setBody("");
-      setSelectedImages([]);
-      setSelectedQuote(null);
-      setSelectedPostTags(["gundem"]);
-      setPollQuestion("");
-      setPollOptions(["", ""]);
-      setShowPollComposer(false);
-    } catch (error) {
-      if (isPermanentBanError(error)) {
-        handlePermanentBan(error);
-        return;
-      }
-
-      Alert.alert(
-        "Post paylaşılamadı",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
-      );
-    }
-  };
-
-  const selectPostImage = async () => {
-    const remainingSlots = MAX_FEED_IMAGES - selectedImages.length;
-
-    if (remainingSlots <= 0) {
-      Alert.alert("Fotoğraf sınırı", "Bir paylaşımda en fazla 4 fotoğraf olabilir.");
-      return;
-    }
-
-    const assets = await imagePicker.pickImageAssets({
-      base64: true,
-      quality: 0.78,
-      selectionLimit: remainingSlots,
+    router.push({
+      pathname: "/feed-compose",
+      params: { quotePostId: post.id },
     });
-
-    if (assets.length === 0) {
-      return;
-    }
-
-    const nextImages = assets.slice(0, remainingSlots).map((asset) => ({
-      uri: asset.uri,
-      base64: asset.base64,
-    }));
-
-    const oversized = nextImages.some((asset) => {
-      const estimatedBytes = asset.base64
-        ? Math.ceil((asset.base64.length * 3) / 4)
-        : 0;
-      return estimatedBytes > MAX_FEED_IMAGE_BYTES;
-    });
-
-    if (oversized) {
-      Alert.alert(
-        "Fotoğraf çok büyük",
-        "Her fotoğraf en fazla 6 MB olabilir.",
-      );
-      return;
-    }
-
-    setSelectedImages((current) =>
-      [...current, ...nextImages].slice(0, MAX_FEED_IMAGES),
-    );
   };
 
   const handlePermanentBan = (error: unknown) => {
@@ -270,25 +96,45 @@ export default function FeedScreen() {
     return <FeedAdminPanel onClose={() => setShowAdminPanel(false)} />;
   }
 
-  const composerHasBody = Boolean(body.trim());
-  const composerHasPoll = Boolean(
-    pollQuestion.trim() &&
-      pollOptions.filter((option) => option.trim()).length >= 2,
-  );
-  const canShare = composerHasBody || composerHasPoll || selectedImages.length > 0;
-  const remainingCharacters = 2000 - body.length;
-
   const feedHeader = (
     <View style={styles.feedHeader}>
       <View style={styles.header}>
         <Text style={styles.title}>Akış</Text>
-        <View style={styles.liveBadge}>
-          <Ionicons
-            name="chatbubbles-outline"
-            size={15}
-            color={theme.colors.text}
-          />
-          <Text style={styles.liveBadgeText}>Sohbet akışı</Text>
+        <View style={styles.headerActions}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={
+              unreadCount > 0
+                ? `Hareketler, ${unreadCount} okunmamış`
+                : "Hareketler"
+            }
+            onPress={() => router.push("/tabs/feed/activity")}
+            style={({ pressed }) => [
+              styles.activityButton,
+              pressed && styles.pressed,
+            ]}
+          >
+            <Ionicons
+              name={unreadCount > 0 ? "notifications" : "notifications-outline"}
+              size={19}
+              color={theme.colors.text}
+            />
+            {unreadCount > 0 ? (
+              <View style={styles.activityBadge}>
+                <Text style={styles.activityBadgeText}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </Text>
+              </View>
+            ) : null}
+          </Pressable>
+          <View style={styles.liveBadge}>
+            <Ionicons
+              name="chatbubbles-outline"
+              size={15}
+              color={theme.colors.text}
+            />
+            <Text style={styles.liveBadgeText}>Sohbet akışı</Text>
+          </View>
         </View>
       </View>
 
@@ -385,254 +231,27 @@ export default function FeedScreen() {
         ) : null}
       </ScrollView>
 
-      <View style={styles.composer}>
-        <View style={styles.composerTop}>
-          <Avatar
-            name={currentUser.name}
-            uri={currentUser.photos[0]?.uri}
-            size={42}
-          />
-          <View style={styles.composerBody}>
-            <TextInput
-              value={body}
-              onChangeText={setBody}
-              maxLength={2000}
-              placeholder={
-                selectedQuote ? "Alıntına düşünceni ekle" : "Yeni sohbet başlat..."
-              }
-              placeholderTextColor={theme.colors.muted}
-              style={styles.input}
-              multiline
-            />
-            {selectedImages.length > 0 ? (
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.imagePreviewList}
-              >
-                {selectedImages.map((image, index) => (
-                  <View key={`${image.uri}-${index}`} style={styles.imagePreviewFrame}>
-                    <Image source={{ uri: image.uri }} style={styles.imagePreview} />
-                    <Pressable
-                      accessibilityRole="button"
-                      accessibilityLabel="Seçili fotoğrafı kaldır"
-                      onPress={() =>
-                        setSelectedImages((current) =>
-                          current.filter((_, imageIndex) => imageIndex !== index),
-                        )
-                      }
-                      style={({ pressed }) => [
-                        styles.removeImageButton,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Ionicons name="close" size={18} color="#FFFFFF" />
-                    </Pressable>
-                  </View>
-                ))}
-              </ScrollView>
-            ) : null}
-            {selectedQuote ? (
-              <View style={styles.selectedQuoteFrame}>
-                <QuotedPostCard
-                  quotedPost={{
-                    id: selectedQuote.id,
-                    authorId: selectedQuote.authorId,
-                    authorName: selectedQuote.author.name,
-                    authorPhotoUrl: selectedQuote.author.photos[0]?.uri ?? null,
-                    body: selectedQuote.body,
-                    imageUrl: selectedQuote.imageUrl ?? null,
-                    createdAt: selectedQuote.createdAt,
-                  }}
-                  compact
-                />
-                <Pressable
-                  accessibilityRole="button"
-                  accessibilityLabel="Alıntıyı kaldır"
-                  onPress={clearSelectedQuote}
-                  style={({ pressed }) => [
-                    styles.removeQuoteButton,
-                    pressed && styles.pressed,
-                  ]}
-                >
-                  <Ionicons name="close" size={16} color={theme.colors.text} />
-                </Pressable>
-              </View>
-            ) : null}
-            <View style={styles.composerActions}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Fotoğraf ekle"
-                disabled={imagePicker.isPicking || isCreatingPost}
-                onPress={() => void selectPostImage()}
-                style={({ pressed }) => [
-                  styles.photoButton,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="image-outline"
-                  size={19}
-                  color={theme.colors.text}
-                />
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Anket ekle"
-                disabled={isCreatingPost}
-                onPress={() => setShowPollComposer((v) => !v)}
-                style={({ pressed }) => [
-                  styles.photoButton,
-                  showPollComposer && styles.photoButtonActive,
-                  pressed && styles.pressed,
-                ]}
-              >
-                <Ionicons
-                  name="bar-chart-outline"
-                  size={19}
-                  color={showPollComposer ? theme.colors.onPrimary : theme.colors.text}
-                />
-              </Pressable>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                style={styles.tagScroller}
-                contentContainerStyle={styles.tagWrap}
-              >
-                {feedTagValues.map((tag) => {
-                  const selected = selectedPostTags.includes(tag);
-
-                  return (
-                    <Pressable
-                      key={tag}
-                      onPress={() => togglePostTag(tag)}
-                      style={({ pressed }) => [
-                        styles.postTag,
-                        selected && styles.postTagSelected,
-                        pressed && styles.pressed,
-                      ]}
-                    >
-                      <Text
-                        style={[
-                          styles.postTagText,
-                          selected && styles.postTagTextSelected,
-                        ]}
-                      >
-                        #{feedTagLabels[tag]}
-                      </Text>
-                    </Pressable>
-                  );
-                })}
-              </ScrollView>
-              <Pressable
-                accessibilityRole="button"
-                disabled={!canShare || isCreatingPost}
-                onPress={() => void submitPost()}
-                style={({ pressed }) => [
-                  styles.shareButton,
-                  (!canShare || isCreatingPost) && styles.shareButtonDisabled,
-                  pressed && styles.pressed,
-                ]}
-              >
-                {isCreatingPost ? (
-                  <ActivityIndicator color={theme.colors.onPrimary} size="small" />
-                ) : (
-                  <>
-                    <Ionicons name="send" size={14} color={theme.colors.onPrimary} />
-                    <Text style={styles.shareButtonText}>Paylaş</Text>
-                  </>
-                )}
-              </Pressable>
-            </View>
-            <View style={styles.composerMetaRow}>
-              <Text style={styles.replyScopeText}>Herkes yanıtlayabilir</Text>
-              <Text
-                style={[
-                  styles.characterCounter,
-                  remainingCharacters < 120 && styles.characterCounterLow,
-                ]}
-              >
-                {remainingCharacters}
-              </Text>
-            </View>
+      <View style={styles.composerPromptFrame}>
+        <Avatar
+          name={currentUser.name}
+          uri={currentUser.photos[0]?.uri}
+          size={40}
+        />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Yeni paylaşım oluştur"
+          onPress={() => router.push("/feed-compose")}
+          style={({ pressed }) => [
+            styles.composerPrompt,
+            pressed && styles.pressed,
+          ]}
+        >
+          <Text style={styles.composerPromptText}>Yeni sohbet başlat...</Text>
+          <View style={styles.composerPromptIcon}>
+            <Ionicons name="add" size={20} color={theme.colors.text} />
           </View>
-        </View>
+        </Pressable>
       </View>
-      {showPollComposer ? (
-        <View style={styles.pollComposerBox}>
-          <View style={styles.pollComposerHeader}>
-            <Ionicons
-              name="bar-chart-outline"
-              size={16}
-              color={theme.colors.text}
-            />
-            <Text style={styles.pollComposerTitle}>Anket Oluştur</Text>
-            <Pressable
-              onPress={() => {
-                setShowPollComposer(false);
-                setPollQuestion("");
-                setPollOptions(["", ""]);
-              }}
-              style={styles.pollComposerClose}
-            >
-              <Ionicons name="close" size={18} color={theme.colors.muted} />
-            </Pressable>
-          </View>
-          <TextInput
-            value={pollQuestion}
-            onChangeText={setPollQuestion}
-            placeholder="Anket sorusunu yaz..."
-            placeholderTextColor={theme.colors.muted}
-            style={styles.pollInput}
-          />
-          {pollOptions.map((opt, idx) => (
-            <View key={idx} style={styles.pollOptionRow}>
-              <View style={styles.pollOptionNumber}>
-                <Text style={styles.pollOptionNumberText}>{idx + 1}</Text>
-              </View>
-              <TextInput
-                value={opt}
-                onChangeText={(v) =>
-                  setPollOptions((cur) =>
-                    cur.map((c, i) => (i === idx ? v : c)),
-                  )
-                }
-                placeholder={`Seçenek ${idx + 1}`}
-                placeholderTextColor={theme.colors.muted}
-                style={styles.pollOptionInput}
-              />
-              {pollOptions.length > 2 ? (
-                <Pressable
-                  onPress={() =>
-                    setPollOptions((cur) => cur.filter((_, i) => i !== idx))
-                  }
-                  style={styles.pollRemoveButton}
-                >
-                  <Ionicons
-                    name="close-circle"
-                    size={20}
-                    color={theme.colors.muted}
-                  />
-                </Pressable>
-              ) : null}
-            </View>
-          ))}
-          {pollOptions.length < 5 ? (
-            <Pressable
-              onPress={() => setPollOptions((cur) => [...cur, ""])}
-              style={styles.pollAddOptionButton}
-            >
-              <Ionicons
-                name="add-circle-outline"
-                size={16}
-                color={theme.colors.text}
-              />
-              <Text style={styles.pollAddOptionText}>Seçenek Ekle</Text>
-            </Pressable>
-          ) : null}
-        </View>
-      ) : null}
     </View>
   );
 
@@ -733,6 +352,43 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       fontSize: 24,
       lineHeight: 30,
     },
+    headerActions: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.xs,
+    },
+    activityButton: {
+      position: "relative",
+      width: 36,
+      height: 36,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    activityBadge: {
+      position: "absolute",
+      top: -5,
+      right: -5,
+      minWidth: 18,
+      height: 18,
+      paddingHorizontal: 4,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.primary,
+      borderWidth: 2,
+      borderColor: theme.colors.surface,
+    },
+    activityBadgeText: {
+      fontSize: 9,
+      lineHeight: 11,
+      fontWeight: "900",
+      color: theme.colors.onPrimary,
+      fontVariant: ["tabular-nums"],
+    },
     liveBadge: {
       minHeight: 30,
       borderRadius: theme.radius.pill,
@@ -769,6 +425,42 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     quickLinkText: {
       ...theme.typography.caption,
       color: theme.colors.text,
+    },
+    composerPromptFrame: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.lg,
+      paddingVertical: theme.spacing.md,
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border,
+      backgroundColor: theme.colors.surface,
+    },
+    composerPrompt: {
+      minHeight: 46,
+      flex: 1,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingLeft: theme.spacing.md,
+      paddingRight: 6,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+      borderRadius: theme.radius.pill,
+      backgroundColor: theme.colors.elevated,
+    },
+    composerPromptText: {
+      flex: 1,
+      ...theme.typography.body,
+      color: theme.colors.muted,
+    },
+    composerPromptIcon: {
+      width: 34,
+      height: 34,
+      borderRadius: theme.radius.pill,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: theme.colors.surface,
     },
     composer: {
       paddingHorizontal: theme.spacing.lg,
