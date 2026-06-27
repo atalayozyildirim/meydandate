@@ -11,6 +11,7 @@ import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
 import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 import { supabase } from "./client";
+import { isMissingRpcError } from "./errors";
 import { mapSupabaseUser } from "./userMapper";
 
 WebBrowser.maybeCompleteAuthSession();
@@ -54,14 +55,27 @@ export class SupabaseAuthRepository implements AuthRepository {
     name?: string | null;
     photos?: Array<{ id: string; uri: string; isPrimary: boolean }>;
   }) {
+    const fallbackEmail = input.email ?? null;
+    const fallbackPhoneNumber = input.phoneNumber ?? null;
+    const fallbackName = input.name?.trim().slice(0, 80) || "Yeni Üye";
+    const fallbackPhotos = input.photos ?? [];
     const { data, error } = await supabase
       .rpc("ensure_my_profile", {
-        profile_email: input.email ?? null,
-        profile_name: input.name ?? null,
-        profile_phone_number: input.phoneNumber ?? null,
-        profile_photos: input.photos ?? [],
+        profile_email: fallbackEmail,
+        profile_name: fallbackName,
+        profile_phone_number: fallbackPhoneNumber,
+        profile_photos: fallbackPhotos,
       })
       .maybeSingle();
+
+    if (isMissingRpcError(error, "ensure_my_profile")) {
+      return this.ensureOwnProfileViaTable({
+        email: fallbackEmail,
+        phoneNumber: fallbackPhoneNumber,
+        name: fallbackName,
+        photos: fallbackPhotos,
+      });
+    }
 
     if (error || !data) {
       throw new Error(
@@ -72,6 +86,69 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
 
     return data;
+  }
+
+  private async ensureOwnProfileViaTable(input: {
+    email?: string | null;
+    phoneNumber?: string | null;
+    name: string;
+    photos: Array<{ id: string; uri: string; isPrimary: boolean }>;
+  }) {
+    const { data: authData, error: authError } = await supabase.auth.getUser();
+    const authUser = authData?.user;
+
+    if (authError || !authUser) {
+      return signOutAndThrow("Sosyal giriş oturumu okunamadı.");
+    }
+
+    const safeEmail =
+      input.email?.trim() || `${authUser.id}@oauth.ehlibyte.local`;
+    const row = {
+      id: authUser.id,
+      email: safeEmail,
+      phoneNumber: input.phoneNumber?.trim() || null,
+      name: input.name,
+      age: 18,
+      city: "",
+      bio: "",
+      culturalIdentity: "prefer_not_to_say",
+      cultureImportance: "somewhat_important",
+      interests: [],
+      photos: input.photos,
+    };
+
+    const { data, error } = await supabase
+      .from("users")
+      .upsert(row, { onConflict: "id" })
+      .select("*")
+      .single();
+
+    if (!error && data) {
+      return data;
+    }
+
+    const { data: retryData, error: retryError } = await supabase
+      .from("users")
+      .upsert(
+        {
+          ...row,
+          email: `${authUser.id}@oauth.ehlibyte.local`,
+          phoneNumber: null,
+        },
+        { onConflict: "id" },
+      )
+      .select("*")
+      .single();
+
+    if (retryError || !retryData) {
+      throw new Error(
+        retryError?.message
+          ? `Profil oluşturulamadı: ${retryError.message}`
+          : "Profil oluşturulamadı.",
+      );
+    }
+
+    return retryData;
   }
 
   private getSocialProfileName(user: SupabaseAuthUser, fallbackName?: string) {

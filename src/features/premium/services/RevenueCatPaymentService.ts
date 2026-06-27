@@ -22,7 +22,7 @@ const getRevenueCatApiKey = () => {
   }
 
   if (
-    __DEV__ &&
+    !env.isProduction &&
     env.useRevenueCatTestStore &&
     env.revenueCatTestApiKey.startsWith("test_")
   ) {
@@ -103,7 +103,7 @@ const resolvePurchasesApi = (module: unknown): RevenueCatApi | null => {
   return (
     (candidates.find(
       (candidate) =>
-        typeof candidate === "object" &&
+        (typeof candidate === "object" || typeof candidate === "function") &&
         candidate !== null &&
         typeof (candidate as RevenueCatApi).configure === "function",
     ) as RevenueCatApi | undefined) ?? null
