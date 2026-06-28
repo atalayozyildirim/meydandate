@@ -78,6 +78,34 @@ export class MockMatchRepository implements MatchRepository {
       return { action };
     }
 
+    const currentUser = findUser(userId);
+    const targetUser = findUser(targetUserId);
+    let conversation = mockDatabase.conversations.find((candidate) =>
+      candidate.participants.every(
+        (participant) => participant.id === userId || participant.id === targetUserId,
+      ),
+    );
+
+    if (!conversation) {
+      const conversationId = createId("conversation");
+      conversation = {
+        id: conversationId,
+        matchId: null,
+        initiatedById: userId,
+        participants: [currentUser, targetUser],
+        messages: [],
+        unreadCount: 0,
+        typingState: {
+          conversationId,
+          userId: targetUserId,
+          isTyping: false,
+          updatedAt: timestamp,
+        },
+        updatedAt: timestamp,
+      };
+      mockDatabase.conversations.push(conversation);
+    }
+
     const hasMutualLike = mockDatabase.likes.some(
       (candidateLike) =>
         candidateLike.fromUserId === targetUserId &&
@@ -86,11 +114,9 @@ export class MockMatchRepository implements MatchRepository {
     );
 
     if (!hasMutualLike || hasExistingMatch(userId, targetUserId)) {
-      return { action };
+      return { action, conversationId: conversation.id };
     }
 
-    const currentUser = findUser(userId);
-    const targetUser = findUser(targetUserId);
     const match: Match = {
       id: createId("match"),
       users: [currentUser, targetUser],
@@ -99,22 +125,9 @@ export class MockMatchRepository implements MatchRepository {
     };
 
     mockDatabase.matches.push(match);
-    const conversationId = createId("conversation");
-    mockDatabase.conversations.push({
-      id: conversationId,
-      participants: [currentUser, targetUser],
-      messages: [],
-      unreadCount: 0,
-      typingState: {
-        conversationId,
-        userId: targetUserId,
-        isTyping: false,
-        updatedAt: timestamp
-      },
-      updatedAt: timestamp
-    });
+    conversation.matchId = match.id;
 
-    return { action, match };
+    return { action, match, conversationId: conversation.id };
   }
 
   async undoLastSwipe(userId: string) {
@@ -260,6 +273,8 @@ export class MockMatchRepository implements MatchRepository {
     const conversationId = createId("conversation");
     mockDatabase.conversations.push({
       id: conversationId,
+      matchId: match.id,
+      initiatedById: invite.inviter.id,
       participants: [invite.inviter, currentUser],
       messages: [],
       unreadCount: 0,

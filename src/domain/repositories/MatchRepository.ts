@@ -11,6 +11,7 @@ import type { AdvancedMatchFilters } from "../services/BehavioralMatchScoring";
 export interface SwipeResult {
   action: LikeAction;
   match?: Match;
+  conversationId?: string;
 }
 
 export interface MatchRepository {

@@ -411,6 +411,11 @@ export const mockDatabase: MockDatabase = {
   conversations: [
     ...starterGuides.map((guide) => ({
       id: `conversation-${guide.id}`,
+      matchId:
+        starterGuideMatches.find((match) =>
+          match.users.some((user) => user.id === guide.id),
+        )?.id ?? null,
+      initiatedById: guide.id,
       participants: [currentUser, guide] as [User, User],
       messages: [
         {
@@ -438,6 +443,8 @@ export const mockDatabase: MockDatabase = {
     })),
     {
       id: "conversation-mert",
+      matchId: mertMatch.id,
+      initiatedById: "user-mert",
       participants: [currentUser, candidates[3] as User],
       messages: [
         {

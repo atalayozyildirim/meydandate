@@ -5,7 +5,7 @@ import { useAuthStore } from "@/features/auth/stores/authStore";
 import { container } from "@/infrastructure/config/Container";
 import { queryKeys } from "@/shared/constants/queryKeys";
 
-export const firePackageValues = [100, 500, 1500] as const;
+export const firePackageValues = [1500, 500, 100] as const;
 
 export const useFire = () => {
   const queryClient = useQueryClient();

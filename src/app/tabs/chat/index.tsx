@@ -58,7 +58,7 @@ export default function ChatListScreen() {
           <Text style={styles.kicker}>Mesajlar</Text>
           <Text style={styles.title}>Sohbetlerin</Text>
           <Text style={styles.subtitle}>
-            Eslesmelerinle tum konusmalarina tek yerden ulas.
+            Beğendiklerin ve eşleşmelerinle konuşmalarına tek yerden ulaş.
           </Text>
         </View>
         <View style={styles.summaryBadge}>
@@ -77,14 +77,14 @@ export default function ChatListScreen() {
           <Text style={styles.heroValue}>
             {Math.max(conversations.length - activeConversationCount, 0)}
           </Text>
-          <Text style={styles.heroLabel}>Yeni eslesme</Text>
+          <Text style={styles.heroLabel}>Yeni sohbet</Text>
         </View>
       </View>
 
       {conversations.length === 0 ? (
         <EmptyState
           title="Sohbet yok"
-          description="Bir match sonrası mesajlaşma burada başlayacak."
+          description="Birini beğendiğinde eşleşmeyi beklemeden mesaj gönderebilirsin."
         />
       ) : (
         <ScrollView
@@ -165,7 +165,11 @@ export default function ChatListScreen() {
                       <View style={styles.metaRow}>
                         <View style={styles.pill}>
                           <Text style={styles.pillText}>
-                            {lastMessage ? "Son mesaj var" : "Yeni eslesme"}
+                            {conversation.matchId
+                              ? "Eşleşme"
+                              : conversation.initiatedById === currentUser?.id
+                                ? "Beğendin"
+                                : "Seni beğendi"}
                           </Text>
                         </View>
                         {conversation.typingState?.isTyping ? (

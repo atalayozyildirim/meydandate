@@ -19,28 +19,6 @@ export interface EarnedBadgeProduct {
 
 export const paidBadgeProducts: PaidBadgeProduct[] = [
   {
-    badge: "muharrem_follower",
-    title: "Muharrem Takipcisi",
-    description: "Muharrem orucu takibini profilinde one cikar.",
-    priceLabel: "₺29,99",
-    revenueCatProductId: "ehlibyte.badge.muharrem_follower",
-  },
-  {
-    badge: "cem_room_supporter",
-    title: "Cem Odasi Destekcisi",
-    description: "Sanal Cem odasina destek rozeti ekle.",
-    priceLabel: "₺39,99",
-    revenueCatProductId: "ehlibyte.badge.meydan",
-    revenueCatProductAliases: ["ehlibyte.badge.cem_room_supporter"],
-  },
-  {
-    badge: "culture_guardian",
-    title: "Yol Erkani Destekcisi",
-    description: "Topluluk saygisi ve guvenligi icin ozel rozet.",
-    priceLabel: "₺49,99",
-    revenueCatProductId: "ehlibyte.badge.culture_guardian",
-  },
-  {
     badge: "zulfiqar_sword",
     title: "Zülfikar Kılıcı",
     description: "Hz. Ali'nin çift uçlu kılıcından ilham alan özel destek rozeti.",
@@ -57,6 +35,14 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     revenueCatProductAliases: ["ehlibyte.badge.haci_bektas_veli"],
   },
   {
+    badge: "night_badge",
+    title: "Night",
+    description: "Gece temasını ve özel ilgiyi profilinde taşı.",
+    priceLabel: "₺119,99",
+    revenueCatProductId: "ehlibyte.badge.nightlove",
+    revenueCatProductAliases: ["ehlibyte.badge.night_badge"],
+  },
+  {
     badge: "la_fetta_illa",
     title: "La Fetta İlla",
     description: "La feta illa Ali sözünden ilham alan özel destek rozeti.",
@@ -64,12 +50,26 @@ export const paidBadgeProducts: PaidBadgeProduct[] = [
     revenueCatProductId: "ehlibyte.badge.la_fetta_illa",
   },
   {
-    badge: "night_badge",
-    title: "Night",
-    description: "Gece temasını ve özel ilgiyi profilinde taşı.",
-    priceLabel: "₺119,99",
-    revenueCatProductId: "ehlibyte.badge.nightlove",
-    revenueCatProductAliases: ["ehlibyte.badge.night_badge"],
+    badge: "culture_guardian",
+    title: "Yol Erkani Destekcisi",
+    description: "Topluluk saygisi ve guvenligi icin ozel rozet.",
+    priceLabel: "₺49,99",
+    revenueCatProductId: "ehlibyte.badge.culture_guardian",
+  },
+  {
+    badge: "cem_room_supporter",
+    title: "Cem Odasi Destekcisi",
+    description: "Sanal Cem odasina destek rozeti ekle.",
+    priceLabel: "₺39,99",
+    revenueCatProductId: "ehlibyte.badge.meydan",
+    revenueCatProductAliases: ["ehlibyte.badge.cem_room_supporter"],
+  },
+  {
+    badge: "muharrem_follower",
+    title: "Muharrem Takipcisi",
+    description: "Muharrem orucu takibini profilinde one cikar.",
+    priceLabel: "₺29,99",
+    revenueCatProductId: "ehlibyte.badge.muharrem_follower",
   },
 ];
 

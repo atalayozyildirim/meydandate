@@ -42,6 +42,7 @@ type RecordSwipeRow = {
   action: LikeAction;
   match_id?: string | null;
   matched?: boolean | null;
+  conversation_id?: string | null;
 };
 
 type UndoSwipeRow = {
@@ -371,10 +372,14 @@ export class SupabaseMatchRepository implements MatchRepository {
       return {
         action: result.action,
         match: await this.getMatchById(result.match_id),
+        conversationId: result.conversation_id ?? undefined,
       };
     }
 
-    return { action: result.action };
+    return {
+      action: result.action,
+      conversationId: result.conversation_id ?? undefined,
+    };
   }
 
   async undoLastSwipe(_userId: string): Promise<UndoSwipeResult> {

@@ -336,7 +336,9 @@ export default function ConversationScreen() {
               <Text style={styles.status}>
                 {conversation.typingState?.isTyping
                   ? "Yaziyor..."
-                  : "Profile git"}
+                  : conversation.matchId
+                    ? "Eşleşme"
+                    : "Beğeni sonrası sohbet"}
               </Text>
             </View>
           </Pressable>

@@ -16,6 +16,7 @@ type ConversationRow = {
   id: string;
   participant1Id: string;
   participant2Id: string;
+  matchId: string | null;
   lastMessageAt: string | null;
   createdAt: string;
 };
@@ -116,6 +117,8 @@ export class SupabaseChatRepository implements ChatRepository {
 
     return {
       id: row.id,
+      matchId: row.matchId,
+      initiatedById: row.participant1Id,
       participants: [participant1, participant2],
       messages,
       unreadCount: 0,
@@ -126,9 +129,10 @@ export class SupabaseChatRepository implements ChatRepository {
   async listConversations(userId: string): Promise<Conversation[]> {
     const { data, error } = await supabase
       .from("conversations")
-      .select("id,participant1Id,participant2Id,lastMessageAt,createdAt")
+      .select("id,participant1Id,participant2Id,matchId,lastMessageAt,createdAt")
       .or(`participant1Id.eq.${userId},participant2Id.eq.${userId}`)
-      .order("lastMessageAt", { ascending: false });
+      .order("lastMessageAt", { ascending: false, nullsFirst: false })
+      .order("createdAt", { ascending: false });
 
     if (error) {
       throw new Error("Konuşmalar yüklenemedi");
@@ -144,7 +148,7 @@ export class SupabaseChatRepository implements ChatRepository {
   async getConversation(conversationId: string): Promise<Conversation> {
     const { data: conversation, error: convError } = await supabase
       .from("conversations")
-      .select("id,participant1Id,participant2Id,lastMessageAt,createdAt")
+      .select("id,participant1Id,participant2Id,matchId,lastMessageAt,createdAt")
       .eq("id", conversationId)
       .single();
 

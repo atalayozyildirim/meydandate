@@ -1,7 +1,7 @@
 // Discover kartlarini, swipe aksiyonlarini ve match sonucunu yonetir.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import type { LikeAction, Match } from "@/domain/entities/Match";
+import type { LikeAction } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
 import { useAuthStore } from "@/features/auth/stores/authStore";
@@ -187,10 +187,8 @@ export const useDiscoverDeck = () => {
     },
   });
 
-  const swipe = async (targetUserId: string, action: LikeAction): Promise<Match | null> => {
-    const result = await swipeMutation.mutateAsync({ targetUserId, action });
-    return result.match ?? null;
-  };
+  const swipe = (targetUserId: string, action: LikeAction) =>
+    swipeMutation.mutateAsync({ targetUserId, action });
 
   return {
     deck,

@@ -192,28 +192,15 @@ export const BadgeIcon = ({ badge, size = 48 }: BadgeIconProps) => {
   const imageConfig = imageBadgeConfig[badge];
   if (imageAsset && imageConfig) {
     return (
-      <View
+      <Image
+        source={imageAsset}
         style={{
           width: size,
           height: size,
-          borderRadius: size / 2,
-          alignItems: "center",
-          justifyContent: "center",
-          overflow: "hidden",
-          backgroundColor: imageConfig.bgColor,
-          borderWidth: Math.max(1, size * 0.035),
-          borderColor: imageConfig.borderColor,
+          transform: [{ scale: imageConfig.imageScale }],
         }}
-      >
-        <Image
-          source={imageAsset}
-          style={{
-            width: size * imageConfig.imageScale,
-            height: size * imageConfig.imageScale,
-          }}
-          resizeMode="contain"
-        />
-      </View>
+        resizeMode="contain"
+      />
     );
   }
 

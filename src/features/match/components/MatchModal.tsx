@@ -10,11 +10,17 @@ import { useTheme } from "@/shared/theme";
 
 interface MatchModalProps {
   match: Match | null;
+  conversationId?: string | null;
   visible: boolean;
   onClose: () => void;
 }
 
-export const MatchModal = ({ match, visible, onClose }: MatchModalProps) => {
+export const MatchModal = ({
+  match,
+  conversationId,
+  visible,
+  onClose,
+}: MatchModalProps) => {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
@@ -39,7 +45,14 @@ export const MatchModal = ({ match, visible, onClose }: MatchModalProps) => {
           label="Mesaj gonder"
           onPress={() => {
             onClose();
-            router.push("/tabs/chat");
+            router.push(
+              conversationId
+                ? {
+                    pathname: "/tabs/chat/[conversationId]",
+                    params: { conversationId },
+                  }
+                : "/tabs/chat",
+            );
           }}
         />
         <Button label="Devam et" variant="ghost" onPress={onClose} />

@@ -689,6 +689,9 @@ export default function DiscoverScreen() {
   const [compatibilityCard, setCompatibilityCard] =
     useState<DiscoverCard | null>(null);
   const [match, setMatch] = useState<Match | null>(null);
+  const [matchConversationId, setMatchConversationId] = useState<string | null>(
+    null,
+  );
   const [isMatchVisible, setIsMatchVisible] = useState(false);
   const [isLocationSheetVisible, setIsLocationSheetVisible] = useState(false);
   const [isDiscoverFocused, setIsDiscoverFocused] = useState(false);
@@ -1236,11 +1239,31 @@ export default function DiscoverScreen() {
     action: LikeAction,
   ) => {
     try {
-      const createdMatch = await swipe(targetUserId, action);
+      const result = await swipe(targetUserId, action);
 
-      if (createdMatch) {
-        setMatch(createdMatch);
+      if (result.match) {
+        setMatch(result.match);
+        setMatchConversationId(result.conversationId ?? null);
         setIsMatchVisible(true);
+        return;
+      }
+
+      if (action !== "pass" && result.conversationId) {
+        Alert.alert(
+          "Beğendin",
+          "Eşleşmeyi beklemeden bir mesaj gönderebilirsin. Karşılıklı beğeni olursa bu sohbet eşleşme olarak devam eder.",
+          [
+            { text: "Keşfetmeye devam", style: "cancel" },
+            {
+              text: "Mesaj gönder",
+              onPress: () =>
+                router.push({
+                  pathname: "/tabs/chat/[conversationId]",
+                  params: { conversationId: result.conversationId as string },
+                }),
+            },
+          ],
+        );
       }
     } catch (error) {
       failedSwipeIdsRef.current.add(targetUserId);
@@ -1309,6 +1332,7 @@ export default function DiscoverScreen() {
     try {
       const createdMatch = await acceptSpecialInvite(specialInvite.id);
       setMatch(createdMatch);
+      setMatchConversationId(null);
       setIsMatchVisible(true);
     } catch (error) {
       Alert.alert(
@@ -2126,8 +2150,12 @@ export default function DiscoverScreen() {
       </BottomSheet>
       <MatchModal
         match={match}
+        conversationId={matchConversationId}
         visible={isMatchVisible}
-        onClose={() => setIsMatchVisible(false)}
+        onClose={() => {
+          setIsMatchVisible(false);
+          setMatchConversationId(null);
+        }}
       />
     </Screen>
   );

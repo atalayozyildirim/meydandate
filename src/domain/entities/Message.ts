@@ -21,6 +21,8 @@ export interface TypingState {
 
 export interface Conversation {
   id: string;
+  matchId?: string | null;
+  initiatedById: string;
   participants: [User, User];
   messages: Message[];
   unreadCount: number;

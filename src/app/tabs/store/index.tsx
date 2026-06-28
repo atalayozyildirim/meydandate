@@ -35,9 +35,9 @@ import { useTheme } from "@/shared/theme";
 import { formatProfileBoostExpiry } from "@/shared/utils/profileBoost";
 
 const premiumPlans = [
-  { plan: "monthly", title: "Aylık", caption: "Esnek başlangıç" },
-  { plan: "yearly", title: "Yıllık", caption: "En avantajlı", featured: true },
   { plan: "lifetime", title: "Ömür boyu", caption: "Tek seferlik" },
+  { plan: "yearly", title: "Yıllık", caption: "En avantajlı", featured: true },
+  { plan: "monthly", title: "Aylık", caption: "Esnek başlangıç" },
 ] satisfies Array<{
   plan: SubscriptionPlan;
   title: string;
