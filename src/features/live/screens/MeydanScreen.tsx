@@ -15,7 +15,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter, useFocusEffect } from "expo-router";
 import { WebView } from "react-native-webview";
@@ -45,8 +45,18 @@ type LiveKitRoomProps = {
   connect: boolean;
   audio: boolean;
   video: boolean;
+  children?: ReactNode;
   onError?: (error: Error) => void;
   onConnected?: () => void;
+};
+
+type LiveKitAudioSignal = {
+  audioLevel: number;
+  isSpeaking: boolean;
+};
+
+type LiveKitAudioMonitorProps = {
+  onSignalChange: (signal: LiveKitAudioSignal) => void;
 };
 
 const resolveLiveKitRoomComponent = () => {
@@ -64,6 +74,73 @@ const resolveLiveKitRoomComponent = () => {
 };
 
 const LiveKitRoomComponent = resolveLiveKitRoomComponent();
+
+const resolveLiveKitAudioMonitorComponent = () => {
+  if (isExpoGo) {
+    return undefined;
+  }
+
+  try {
+    const { useLocalParticipant } = require("@livekit/react-native") as {
+      useLocalParticipant: () => {
+        localParticipant?: {
+          audioLevel?: number;
+          isSpeaking?: boolean;
+          on?: (eventName: string, listener: () => void) => void;
+          off?: (eventName: string, listener: () => void) => void;
+        };
+      };
+    };
+    const { ParticipantEvent } = require("livekit-client") as {
+      ParticipantEvent: { IsSpeakingChanged: string };
+    };
+
+    const LiveKitAudioMonitor = ({ onSignalChange }: LiveKitAudioMonitorProps) => {
+      const { localParticipant } = useLocalParticipant();
+
+      useEffect(() => {
+        if (!localParticipant) {
+          onSignalChange({ audioLevel: 0, isSpeaking: false });
+          return undefined;
+        }
+
+        let lastLevel = -1;
+        let lastSpeaking = false;
+        const emitSignal = () => {
+          const audioLevel = Math.max(0, Math.min(1, localParticipant.audioLevel ?? 0));
+          const isSpeaking = Boolean(localParticipant.isSpeaking);
+          const roundedLevel = Math.round(audioLevel * 100) / 100;
+
+          if (roundedLevel === lastLevel && isSpeaking === lastSpeaking) {
+            return;
+          }
+
+          lastLevel = roundedLevel;
+          lastSpeaking = isSpeaking;
+          onSignalChange({ audioLevel: roundedLevel, isSpeaking });
+        };
+
+        emitSignal();
+        const intervalId = setInterval(emitSignal, 250);
+        localParticipant.on?.(ParticipantEvent.IsSpeakingChanged, emitSignal);
+
+        return () => {
+          clearInterval(intervalId);
+          localParticipant.off?.(ParticipantEvent.IsSpeakingChanged, emitSignal);
+          onSignalChange({ audioLevel: 0, isSpeaking: false });
+        };
+      }, [localParticipant, onSignalChange]);
+
+      return null;
+    };
+
+    return LiveKitAudioMonitor as ComponentType<LiveKitAudioMonitorProps>;
+  } catch {
+    return undefined;
+  }
+};
+
+const LiveKitAudioMonitorComponent = resolveLiveKitAudioMonitorComponent();
 
 const DirectVideoStage = ({
   isLive,
@@ -468,7 +545,10 @@ export default function MeydanRoomScreen() {
   const [isAdminSettingsOpen, setIsAdminSettingsOpen] = useState(false);
   const [liveKitInfo, setLiveKitInfo] = useState<LiveKitJoinInfo | null>(null);
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
-  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [localAudioSignal, setLocalAudioSignal] = useState<LiveKitAudioSignal>({
+    audioLevel: 0,
+    isSpeaking: false,
+  });
   const [isParticipantsSheetOpen, setIsParticipantsSheetOpen] = useState(false);
   const previousMessageCountRef = useRef<number | null>(null);
   const pendingChatAutoScrollRef = useRef(false);
@@ -502,6 +582,26 @@ export default function MeydanRoomScreen() {
       canManageRoom ||
       currentParticipant?.stageStatus === "speaker",
   );
+  const isMicReady = Boolean(
+    isJoined &&
+      isLive &&
+      isLiveKitRoom &&
+      liveKitInfo &&
+      LiveKitRoomComponent &&
+      isCurrentSpeaker &&
+      !currentParticipant?.isMuted,
+  );
+  const isSpeaking = isMicReady && (localAudioSignal.isSpeaking || localAudioSignal.audioLevel > 0.03);
+  const micSignalLabel = currentParticipant?.isMuted
+    ? "Kapalı"
+    : isMicReady
+      ? isSpeaking
+        ? "Ses gidiyor"
+        : "Konuş"
+      : liveKitError
+        ? "Bağlantı yok"
+        : "Hazırlanıyor";
+  const micSignalLevel = isMicReady ? localAudioSignal.audioLevel : 0;
   const roomStatusLabel = isLive
     ? "Canlı"
     : room?.status === "offline"
@@ -651,11 +751,6 @@ export default function MeydanRoomScreen() {
     streamSource?.kind === "youtube" ? streamSource.videoId : undefined,
     streamSource?.kind === "kick" ? streamSource.channel : undefined,
   ]);
-
-  useEffect(() => {
-    const shouldShowSpeaking = isCurrentSpeaker && !currentParticipant?.isMuted && isLiveKitRoom;
-    setIsSpeaking(shouldShowSpeaking);
-  }, [isCurrentSpeaker, currentParticipant?.isMuted, isLiveKitRoom]);
 
   useEffect(() => {
     const previousCount = previousMessageCountRef.current;
@@ -1151,7 +1246,11 @@ export default function MeydanRoomScreen() {
           video={false}
           onError={(error) => setLiveKitError(error.message)}
           onConnected={() => setLiveKitError(null)}
-        />
+        >
+          {LiveKitAudioMonitorComponent ? (
+            <LiveKitAudioMonitorComponent onSignalChange={setLocalAudioSignal} />
+          ) : null}
+        </LiveKitRoomComponent>
       ) : null}
       <FlatList
         ref={chatListRef}
@@ -1672,21 +1771,36 @@ export default function MeydanRoomScreen() {
                     color={currentParticipant?.isMuted ? "#FF3B30" : "#34C759"}
                   />
                   {!currentParticipant?.isMuted ? (
-                    <View
-                      style={[
-                        styles.speakingIndicator,
-                        isSpeaking && styles.speakingIndicatorActive,
-                      ]}
-                    />
+                    <>
+                      <View
+                        style={[
+                          styles.speakingIndicator,
+                          isSpeaking && styles.speakingIndicatorActive,
+                        ]}
+                      />
+                      <View style={styles.micLevelBars} pointerEvents="none">
+                        {[0.12, 0.32, 0.56].map((threshold, index) => (
+                          <View
+                            key={threshold}
+                            style={[
+                              styles.micLevelBar,
+                              { height: 5 + index * 3 },
+                              micSignalLevel >= threshold && styles.micLevelBarActive,
+                            ]}
+                          />
+                        ))}
+                      </View>
+                    </>
                   ) : null}
                 </View>
                 <Text
                   style={[
                     styles.roomActionLabelSecondary,
                     currentParticipant?.isMuted && styles.roomActionLabelMuted,
+                    isSpeaking && styles.roomActionLabelSpeaking,
                   ]}
                 >
-                  {currentParticipant?.isMuted ? "Kapalı" : "Açık"}
+                  {micSignalLabel}
                 </Text>
               </Pressable>
             ) : null}
@@ -2577,15 +2691,37 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     speakingIndicatorActive: {
       backgroundColor: "#4CAF50",
     },
+    micLevelBars: {
+      position: "absolute",
+      left: 25,
+      bottom: 1,
+      width: 14,
+      height: 14,
+      flexDirection: "row",
+      alignItems: "flex-end",
+      gap: 2,
+    },
+    micLevelBar: {
+      width: 3,
+      borderRadius: 2,
+      backgroundColor: "rgba(128, 128, 128, 0.45)",
+    },
+    micLevelBarActive: {
+      backgroundColor: "#34C759",
+    },
     roomActionLabel: {
       ...theme.typography.caption,
       color: theme.colors.onPrimary,
       fontWeight: "900",
     },
     roomActionLabelSecondary: {
+      flexShrink: 1,
       ...theme.typography.caption,
       color: theme.colors.text,
       fontWeight: "900",
+    },
+    roomActionLabelSpeaking: {
+      color: "#34C759",
     },
     roomActionLabelActive: {
       color: theme.colors.onPrimary,
