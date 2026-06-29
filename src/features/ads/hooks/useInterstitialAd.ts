@@ -27,6 +27,13 @@ export const useInterstitialAd = ({ enabled = true }: UseInterstitialAdOptions =
 
     await initializeAdMob();
 
+    if (
+      !adsModule.InterstitialAd ||
+      typeof adsModule.InterstitialAd.createForAdRequest !== "function"
+    ) {
+      return;
+    }
+
     const interstitial = adsModule.InterstitialAd.createForAdRequest(
       getAdUnitId(adsModule, "interstitial"),
       {

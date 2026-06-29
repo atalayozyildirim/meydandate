@@ -6,12 +6,50 @@ import { isExpoGo } from "@/shared/utils/expoRuntime";
 type GoogleMobileAdsModule = typeof import("react-native-google-mobile-ads");
 export type AdMobPlacement = "banner" | "interstitial" | "rewarded";
 
+type MobileAdsController = {
+  initialize?: () => Promise<unknown>;
+  setRequestConfiguration?: (configuration: unknown) => Promise<unknown>;
+};
+
 let modulePromise: Promise<GoogleMobileAdsModule | null> | null = null;
 let initializePromise: Promise<boolean> | null = null;
 
 export const isAdMobPlatform = Platform.OS === "ios" || Platform.OS === "android";
 export const isAdMobNativeModuleAvailable =
-  isAdMobPlatform && !isExpoGo && Boolean(NativeModules.RNGoogleMobileAdsModule);
+  isAdMobPlatform &&
+  !isExpoGo &&
+  [
+    "RNGoogleMobileAdsModule",
+    "RNGoogleMobileAdsInterstitialModule",
+    "RNGoogleMobileAdsBannerView",
+  ].some((moduleName) => Boolean(NativeModules[moduleName]));
+
+const getMobileAdsController = (
+  adsModule: GoogleMobileAdsModule,
+): MobileAdsController | null => {
+  const defaultExport = adsModule.default as unknown;
+  const mobileAdsExport = (adsModule as { MobileAds?: unknown }).MobileAds;
+  const candidates = [defaultExport, mobileAdsExport];
+
+  for (const candidate of candidates) {
+    try {
+      const controller =
+        typeof candidate === "function" ? candidate() : candidate;
+
+      if (
+        controller &&
+        typeof controller === "object" &&
+        typeof (controller as MobileAdsController).initialize === "function"
+      ) {
+        return controller as MobileAdsController;
+      }
+    } catch {
+      // Try the next export shape.
+    }
+  }
+
+  return null;
+};
 
 export const loadGoogleMobileAds = async () => {
   if (!isAdMobNativeModuleAvailable) {
@@ -68,16 +106,18 @@ export const initializeAdMob = async () => {
       return false;
     }
 
-    if (typeof adsModule.default !== "function") {
+    const mobileAds = getMobileAdsController(adsModule);
+
+    if (!mobileAds?.initialize || !mobileAds.setRequestConfiguration) {
       return false;
     }
 
-    await adsModule.default().setRequestConfiguration({
+    await mobileAds.setRequestConfiguration({
       maxAdContentRating: adsModule.MaxAdContentRating.T,
       testDeviceIdentifiers: ["EMULATOR"],
     });
 
-    await adsModule.default().initialize();
+    await mobileAds.initialize();
 
     return true;
   })().catch((error) => {

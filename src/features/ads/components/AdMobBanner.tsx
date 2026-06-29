@@ -33,7 +33,12 @@ export const AdMobBanner = ({ style }: AdMobBannerProps) => {
     };
   }, []);
 
-  if (isPremium || !adsModule) {
+  if (
+    isPremium ||
+    !adsModule ||
+    !adsModule.BannerAd ||
+    !adsModule.BannerAdSize?.ANCHORED_ADAPTIVE_BANNER
+  ) {
     return null;
   }
 
