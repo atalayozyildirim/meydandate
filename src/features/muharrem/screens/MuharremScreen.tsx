@@ -78,6 +78,7 @@ export default function MuharremTrackerScreen() {
   const daysSinceStart = diffDays(today, muharremStart);
   const isUpcoming = today < startOfDay(muharremStart);
   const isFinished = today > startOfDay(muharremEnd);
+  const isTrackingDisabled = isFinished;
   const currentMuharremDay =
     !isUpcoming && !isFinished ? Math.min(daysSinceStart + 1, fastingDayCount) : null;
   const activeDay = currentMuharremDay ?? (isUpcoming ? 1 : fastingDayCount);
@@ -87,6 +88,10 @@ export default function MuharremTrackerScreen() {
     () => Math.round((progress / fastingDayCount) * 100),
     [progress],
   );
+  const progressLabel = isTrackingDisabled
+    ? "Takip dönemi kapandı"
+    : "16-27 Haziran 2026";
+  const progressValueLabel = isTrackingDisabled ? "Kapalı" : `%${progressPercent}`;
   const statusText = isUpcoming
     ? `Başlamasına ${daysUntilStart} gün var`
     : isFinished
@@ -131,6 +136,10 @@ export default function MuharremTrackerScreen() {
   };
 
   const toggleDay = (day: number) => {
+    if (isTrackingDisabled) {
+      return;
+    }
+
     setCompletedDays((current) => {
       const nextDays = current.includes(day)
         ? current.filter((completedDay) => completedDay !== day)
@@ -263,16 +272,17 @@ export default function MuharremTrackerScreen() {
         </View>
         <Switch
           value={reminderEnabled}
+          disabled={isTrackingDisabled}
           onValueChange={(value) => void toggleReminder(value)}
           trackColor={{ false: theme.colors.border, true: "#B7F7C1" }}
           thumbColor={reminderEnabled ? theme.colors.success : "#FFFFFF"}
         />
       </View>
 
-      <View style={styles.progressPanel}>
+      <View style={[styles.progressPanel, isTrackingDisabled && styles.disabledPanel]}>
         <View style={styles.progressTop}>
-          <Text style={styles.progressLabel}>16-27 Haziran 2026</Text>
-          <Text style={styles.progressPercent}>%{progressPercent}</Text>
+          <Text style={styles.progressLabel}>{progressLabel}</Text>
+          <Text style={styles.progressPercent}>{progressValueLabel}</Text>
         </View>
         <View style={styles.progressTrack}>
           <View style={[styles.progressFill, { width: `${progressPercent}%` }]} />
@@ -295,7 +305,11 @@ export default function MuharremTrackerScreen() {
               <Pressable
                 key={item.day}
                 accessibilityRole="checkbox"
-                accessibilityState={{ checked: completed }}
+                accessibilityState={{
+                  checked: completed,
+                  disabled: isTrackingDisabled,
+                }}
+                disabled={isTrackingDisabled}
                 onPress={() => toggleDay(item.day)}
                 style={({ pressed }) => [
                   styles.dayCell,
@@ -303,6 +317,7 @@ export default function MuharremTrackerScreen() {
                   past && styles.dayCellPast,
                   isAshura && styles.dayCellAshura,
                   completed && styles.dayCellCompleted,
+                  isTrackingDisabled && styles.dayCellDisabled,
                   pressed && styles.pressed,
                 ]}
               >
@@ -340,9 +355,10 @@ export default function MuharremTrackerScreen() {
           value={note}
           onChangeText={setNote}
           multiline
+          editable={!isTrackingDisabled}
           placeholder="Niyet, duygu veya hatırlamak istediğin kısa bir not..."
           placeholderTextColor={theme.colors.muted}
-          style={styles.noteInput}
+          style={[styles.noteInput, isTrackingDisabled && styles.noteInputDisabled]}
         />
       </View>
     </Screen>
@@ -440,6 +456,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     progressPanel: {
       gap: theme.spacing.sm,
     },
+    disabledPanel: {
+      opacity: 0.64,
+    },
     progressTop: {
       flexDirection: "row",
       alignItems: "center",
@@ -513,6 +532,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       borderColor: theme.colors.success,
       backgroundColor: theme.isDark ? "rgba(74, 222, 128, 0.12)" : "#ECFDF3",
       opacity: 1,
+    },
+    dayCellDisabled: {
+      opacity: 0.46,
     },
     pressed: {
       opacity: 0.82,
@@ -614,5 +636,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       textAlignVertical: "top",
       ...theme.typography.body,
       color: theme.colors.text,
+    },
+    noteInputDisabled: {
+      opacity: 0.58,
+      backgroundColor: theme.colors.elevated,
     },
   });
