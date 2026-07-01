@@ -6,6 +6,7 @@ import type {
   VerifyOtpPayload,
 } from "@/domain/repositories/AuthRepository";
 import { appAuthRedirectUrl } from "@/features/auth/utils/oauthRedirect";
+import { installCryptoPolyfill } from "@/shared/utils/installCryptoPolyfill";
 import { testAccount } from "@/shared/constants/testAccount";
 import type { Session, User as SupabaseAuthUser } from "@supabase/supabase-js";
 import * as WebBrowser from "expo-web-browser";
@@ -14,7 +15,11 @@ import { supabase } from "./client";
 import { isMissingRpcError } from "./errors";
 import { mapSupabaseUser } from "./userMapper";
 
-WebBrowser.maybeCompleteAuthSession();
+installCryptoPolyfill();
+
+if (typeof WebBrowser.maybeCompleteAuthSession === "function") {
+  WebBrowser.maybeCompleteAuthSession();
+}
 
 const signOutAndThrow = async (message: string): Promise<never> => {
   await supabase.auth.signOut();
@@ -199,12 +204,16 @@ export class SupabaseAuthRepository implements AuthRepository {
     // Optimize Google profile image URL for higher resolution
     let optimizedUrl = avatarUrl;
     if (avatarUrl.includes("googleusercontent.com") || avatarUrl.includes("google.com")) {
-      // Remove existing size parameters and add high resolution
-      const url = new URL(avatarUrl);
-      url.searchParams.delete('sz');
-      url.searchParams.delete('s');
-      url.searchParams.set('sz', '500'); // Request 500px image
-      optimizedUrl = url.toString();
+      try {
+        // Remove existing size parameters and add high resolution.
+        const url = new URL(avatarUrl);
+        url.searchParams.delete("sz");
+        url.searchParams.delete("s");
+        url.searchParams.set("sz", "500");
+        optimizedUrl = url.toString();
+      } catch {
+        optimizedUrl = avatarUrl;
+      }
     }
 
     return [{ id: "oauth-avatar", uri: optimizedUrl, isPrimary: true }];
@@ -450,6 +459,12 @@ export class SupabaseAuthRepository implements AuthRepository {
     }
 
     try {
+      if (typeof WebBrowser.openAuthSessionAsync !== "function") {
+        throw new Error(
+          "Sosyal giriş modülü bu build içinde hazır değil. Yeni production build alın.",
+        );
+      }
+
       const result = await WebBrowser.openAuthSessionAsync(data.url, appAuthRedirectUrl);
 
       if (result.type !== "success" || !("url" in result)) {

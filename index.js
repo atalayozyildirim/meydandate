@@ -1,4 +1,5 @@
 import "react-native-url-polyfill/auto";
+import "./src/shared/utils/installCryptoPolyfill";
 import { isExpoGo } from "./src/shared/utils/expoRuntime";
 
 if (!isExpoGo) {
