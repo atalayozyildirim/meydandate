@@ -44,34 +44,19 @@ const getRevenueCatApiKey = () => {
 };
 
 const STORE_PRICE_LABEL = "Mağaza fiyatı";
-const premiumProductByPlan: Record<SubscriptionPlan, string> = {
+const premiumProductByPlan: Record<Exclude<SubscriptionPlan, "lifetime">, string> = {
   monthly: "ehlibyte.premium.monthly",
-  yearly: "ehlibyte.premium.yearly",
-  lifetime: "ehlibyte.premium.lifetime",
+  yearly: "ehlibyte.premium.year",
 };
 const fireProductByAmount: Record<FirePackageAmount, string> = {
   100: "ehlibyte.fire.100",
   500: "ehlibyte.fire.500",
   1500: "ehlibyte.fire.1500",
 };
-const REVENUECAT_CONFIGURATION_ERROR =
-  "RevenueCat ürünleri mağazadan alınamadı. RevenueCat product identifier değerleri App Store Connect veya StoreKit Configuration ürünleriyle birebir aynı olmalı ve current offering içinde yalnızca mağazada mevcut ürünler bulunmalı.";
-
-interface RevenueCatPackage {
-  packageType?: string;
-  product?: { identifier?: string; priceString?: string };
-}
 
 interface RevenueCatStoreProduct {
   identifier?: string;
   priceString?: string;
-}
-
-interface RevenueCatOffering {
-  monthly?: RevenueCatPackage;
-  annual?: RevenueCatPackage;
-  lifetime?: RevenueCatPackage;
-  availablePackages?: RevenueCatPackage[];
 }
 
 interface RevenueCatEntitlement {
@@ -90,16 +75,11 @@ interface RevenueCatCustomerInfo {
 }
 
 interface RevenueCatApi {
-  configure(config: { apiKey: string }): void;
+  configure(config: { apiKey: string; appUserID?: string }): void;
   logIn(userId: string): Promise<{ customerInfo: RevenueCatCustomerInfo }>;
   getCustomerInfo(): Promise<RevenueCatCustomerInfo>;
-  getOfferings(): Promise<{ current?: RevenueCatOffering | null }>;
   getProducts?: (productIdentifiers: string[]) => Promise<RevenueCatStoreProduct[]>;
   restorePurchases(): Promise<RevenueCatCustomerInfo>;
-  purchasePackage(pkg: RevenueCatPackage): Promise<{
-    customerInfo: RevenueCatCustomerInfo;
-    productIdentifier: string;
-  }>;
   purchaseStoreProduct?: (product: RevenueCatStoreProduct) => Promise<{
     customerInfo: RevenueCatCustomerInfo;
     productIdentifier: string;
@@ -164,8 +144,12 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     if (!this.isConfigured && this.Purchases) {
-      await this.Purchases.configure({ apiKey });
+      await this.Purchases.configure({
+        apiKey,
+        ...(userId ? { appUserID: userId } : {}),
+      });
       this.isConfigured = true;
+      this.currentUserId = userId ?? null;
     }
 
     if (userId && this.currentUserId !== userId && this.Purchases) {
@@ -183,14 +167,6 @@ export class RevenueCatPaymentService implements PaymentService {
     };
   }
 
-  private createStoreConfigurationError(error?: unknown) {
-    if (__DEV__ && error instanceof Error) {
-      return new Error(`${REVENUECAT_CONFIGURATION_ERROR} (${error.message})`);
-    }
-
-    return new Error(REVENUECAT_CONFIGURATION_ERROR);
-  }
-
   private getFallbackPlanPrices(): Record<SubscriptionPlan, string> {
     return __DEV__
       ? { monthly: "₺79,99", yearly: "₺599,99", lifetime: "₺899,99" }
@@ -199,59 +175,6 @@ export class RevenueCatPaymentService implements PaymentService {
           yearly: STORE_PRICE_LABEL,
           lifetime: STORE_PRICE_LABEL,
         };
-  }
-
-  private async getCurrentOffering(options?: {
-    required?: boolean;
-  }): Promise<RevenueCatOffering | null> {
-    if (!this.Purchases) {
-      throw new Error("RevenueCat modulu yuklenemedi.");
-    }
-
-    try {
-      const offerings = await this.Purchases.getOfferings();
-      return offerings?.current ?? null;
-    } catch (error) {
-      if (options?.required) {
-        throw this.createStoreConfigurationError(error);
-      }
-
-      if (__DEV__) {
-        console.warn(REVENUECAT_CONFIGURATION_ERROR, error);
-      }
-
-      return null;
-    }
-  }
-
-  private pickPackageFromOffering(
-    offering: RevenueCatOffering | null,
-    plan: SubscriptionPlan,
-  ): RevenueCatPackage | undefined {
-    const availablePackages = offering?.availablePackages ?? [];
-    const packageForPlan =
-      plan === "monthly"
-        ? offering?.monthly
-        : plan === "yearly"
-          ? offering?.annual
-          : offering?.lifetime;
-
-    return (
-      packageForPlan ||
-      availablePackages.find((pkg) => {
-        const type = String(pkg?.packageType ?? "").toLowerCase();
-        const productId = String(pkg?.product?.identifier ?? "").toLowerCase();
-
-        return plan === "monthly"
-          ? type.includes("monthly") || productId.includes("monthly")
-          : plan === "yearly"
-            ? type.includes("annual") ||
-              type.includes("yearly") ||
-              productId.includes("annual") ||
-              productId.includes("yearly")
-            : type.includes("lifetime") || productId.includes("lifetime");
-      })
-    );
   }
 
   private mapCustomerInfoToSubscription(
@@ -281,29 +204,6 @@ export class RevenueCatPaymentService implements PaymentService {
       startedAt: entitlement.latestPurchaseDate,
       renewsAt: entitlement.expirationDate,
     };
-  }
-
-  private async selectPackage(
-    plan: SubscriptionPlan,
-  ): Promise<RevenueCatPackage | undefined> {
-    const current = await this.getCurrentOffering();
-    return this.pickPackageFromOffering(current, plan);
-  }
-
-  private async selectProductPackage(
-    productIds: string | string[],
-  ): Promise<RevenueCatPackage | undefined> {
-    const current = await this.getCurrentOffering();
-    const availablePackages = current?.availablePackages ?? [];
-    const acceptedProductIds = Array.isArray(productIds)
-      ? productIds
-      : [productIds];
-
-    return availablePackages.find(
-      (pkg) =>
-        Boolean(pkg?.product?.identifier) &&
-        acceptedProductIds.includes(pkg?.product?.identifier ?? ""),
-    );
   }
 
   private async selectStoreProduct(
@@ -368,29 +268,19 @@ export class RevenueCatPaymentService implements PaymentService {
         : this.getFallbackPlanPrices();
     }
 
-    const current = await this.getCurrentOffering();
-    const monthly = this.pickPackageFromOffering(current, "monthly");
-    const yearly = this.pickPackageFromOffering(current, "yearly");
-    const lifetime = this.pickPackageFromOffering(current, "lifetime");
-    const [monthlyProduct, yearlyProduct, lifetimeProduct] = await Promise.all([
-      monthly ? undefined : this.selectStoreProduct(premiumProductByPlan.monthly),
-      yearly ? undefined : this.selectStoreProduct(premiumProductByPlan.yearly),
-      lifetime ? undefined : this.selectStoreProduct(premiumProductByPlan.lifetime),
+    const [monthlyProduct, yearlyProduct] = await Promise.all([
+      this.selectStoreProduct(premiumProductByPlan.monthly),
+      this.selectStoreProduct(premiumProductByPlan.yearly),
     ]);
 
     return {
       monthly:
-        monthly?.product?.priceString ??
         monthlyProduct?.priceString ??
         STORE_PRICE_LABEL,
       yearly:
-        yearly?.product?.priceString ??
         yearlyProduct?.priceString ??
         STORE_PRICE_LABEL,
-      lifetime:
-        lifetime?.product?.priceString ??
-        lifetimeProduct?.priceString ??
-        STORE_PRICE_LABEL,
+      lifetime: STORE_PRICE_LABEL,
     };
   }
 
@@ -398,6 +288,10 @@ export class RevenueCatPaymentService implements PaymentService {
     userId: string,
     plan: SubscriptionPlan,
   ): Promise<PaymentResult> {
+    if (plan === "lifetime") {
+      throw new Error("Ömür boyu Premium şu anda satışta değil.");
+    }
+
     if (!getRevenueCatApiKey() || Platform.OS === "web") {
       if (__DEV__) {
         return new MockPaymentService().purchase(userId, plan);
@@ -416,22 +310,17 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Satın alma modülü yüklenemedi.");
     }
 
-    const packageItem = await this.selectPackage(plan);
-    const productItem = packageItem
-      ? undefined
-      : await this.selectStoreProduct(premiumProductByPlan[plan]);
+    const productItem = await this.selectStoreProduct(premiumProductByPlan[plan]);
 
-    if (!packageItem && (!productItem || !this.Purchases.purchaseStoreProduct)) {
+    if (!productItem || !this.Purchases.purchaseStoreProduct) {
       throw new Error(
         "RevenueCat Premium ürünü bulunamadı. Product ID değerini App Store Connect ve RevenueCat içinde kontrol edin.",
       );
     }
 
-    const { customerInfo } = packageItem
-      ? await this.Purchases.purchasePackage(packageItem)
-      : await this.Purchases.purchaseStoreProduct!(
-          productItem as RevenueCatStoreProduct,
-        );
+    const { customerInfo } = await this.Purchases.purchaseStoreProduct(
+      productItem as RevenueCatStoreProduct,
+    );
     const subscription = this.mapCustomerInfoToSubscription(
       customerInfo,
       userId,
@@ -502,28 +391,19 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Rozet urunu bulunamadi.");
     }
 
-    const packageItem = await this.selectProductPackage([
+    const productItem = await this.selectStoreProduct(
       product.revenueCatProductId,
-      ...(product.revenueCatProductAliases ?? []),
-    ]);
-    const productItem = packageItem
-      ? undefined
-      : await this.selectStoreProduct([
-          product.revenueCatProductId,
-          ...(product.revenueCatProductAliases ?? []),
-        ]);
+    );
 
-    if (!packageItem && (!productItem || !this.Purchases.purchaseStoreProduct)) {
+    if (!productItem || !this.Purchases.purchaseStoreProduct) {
       throw new Error(
         "RevenueCat rozet ürünü bulunamadı. Product ID değerini App Store Connect ve RevenueCat içinde kontrol edin.",
       );
     }
 
-    const { customerInfo } = packageItem
-      ? await this.Purchases.purchasePackage(packageItem)
-      : await this.Purchases.purchaseStoreProduct!(
-          productItem as RevenueCatStoreProduct,
-        );
+    const { customerInfo } = await this.Purchases.purchaseStoreProduct(
+      productItem as RevenueCatStoreProduct,
+    );
     const receiptId =
       customerInfo?.originalAppUserId ?? createId("badge_receipt");
 
@@ -552,24 +432,17 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Satın alma modülü yüklenemedi.");
     }
 
-    const packageItem = await this.selectProductPackage(
-      fireProductByAmount[amount],
-    );
-    const productItem = packageItem
-      ? undefined
-      : await this.selectStoreProduct(fireProductByAmount[amount]);
+    const productItem = await this.selectStoreProduct(fireProductByAmount[amount]);
 
-    if (!packageItem && (!productItem || !this.Purchases.purchaseStoreProduct)) {
+    if (!productItem || !this.Purchases.purchaseStoreProduct) {
       throw new Error(
         "RevenueCat Fire ürünü bulunamadı. Product ID değerini App Store Connect ve RevenueCat içinde kontrol edin.",
       );
     }
 
-    const { customerInfo } = packageItem
-      ? await this.Purchases.purchasePackage(packageItem)
-      : await this.Purchases.purchaseStoreProduct!(
-          productItem as RevenueCatStoreProduct,
-        );
+    const { customerInfo } = await this.Purchases.purchaseStoreProduct(
+      productItem as RevenueCatStoreProduct,
+    );
 
     return {
       amount,

@@ -36,6 +36,17 @@ const dismissAuthSession = () => {
   }
 };
 
+const isSmsProviderInvalidParameter = (error: unknown) => {
+  const message =
+    error instanceof Error
+      ? error.message
+      : typeof error === "object" && error !== null && "message" in error
+        ? String((error as { message?: unknown }).message ?? "")
+        : String(error ?? "");
+
+  return /60200|invalid parameter|error sending confirmation otp/i.test(message);
+};
+
 type AppleFullName = {
   givenName?: string | null;
   middleName?: string | null;
@@ -345,6 +356,10 @@ export class SupabaseAuthRepository implements AuthRepository {
       challenge.purpose === "login" &&
       challenge.phoneNumber === testAccount.phoneNumber;
 
+    if (isTestAccountLogin) {
+      return;
+    }
+
     const { error } = await supabase.auth.signInWithOtp({
       phone: challenge.phoneNumber,
       options: {
@@ -354,6 +369,15 @@ export class SupabaseAuthRepository implements AuthRepository {
     });
 
     if (error) {
+      if (
+        challenge.phoneNumber === testAccount.phoneNumber &&
+        isSmsProviderInvalidParameter(error)
+      ) {
+        throw new Error(
+          "Test hesabı için Supabase Phone test OTP ayarı eksik. Dashboard > Authentication > Providers > Phone altında +905551112233 numarasına 123456 kodunu tanımla.",
+        );
+      }
+
       throw new Error(error.message);
     }
   }
@@ -366,6 +390,12 @@ export class SupabaseAuthRepository implements AuthRepository {
     });
 
     if (error || !data.session || !data.user) {
+      if (payload.phoneNumber === testAccount.phoneNumber) {
+        throw new Error(
+          "Test hesabı kodu Supabase tarafından kabul edilmedi. Phone Test OTP kaydında numara 905551112233, kod 123456 ve geçerlilik tarihi gelecekte olmalı. Twilio Verify provider kullanılıyorsa Supabase hosted test OTP bypass'ı çalışmayabilir.",
+        );
+      }
+
       throw new Error(error?.message ?? "Telefon doğrulanamadı.");
     }
 

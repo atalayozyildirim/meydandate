@@ -28,7 +28,6 @@ RevenueCat tarafinda bu urunleri `premium` entitlement'ina bagla.
 | --------------------------- | --------------------------- | ------------------ | -------------------------- | --------------- | -------------------------------------------------------------- |
 | `ehlibyte.premium.monthly`  | Auto-Renewable Subscription | Monthly            | Ehlibyte Premium Aylik     | `₺79,99 / ay`   | Esnek baslangic, dusuk bariyer.                                |
 | `ehlibyte.premium.year`     | Auto-Renewable Subscription | Annual             | Ehlibyte Premium Yillik    | `₺599,99 / yil` | En avantajli paket; aylik yaklasik `₺49,99`.                   |
-| `ehlibyte.premium.lifetime` | Non-Consumable              | Lifetime           | Ehlibyte Premium Omur Boyu | `₺899,99`       | Tek seferlik destek. Istersen ilk surumde kapali tutabilirsin. |
 
 App Store Connect abonelik grubu adi:
 
@@ -38,9 +37,8 @@ App Store aciklama metni:
 
 `Reklamsiz deneyim, Super Like, 24 saat profil boost, oncelikli gorunurluk ve Premium uye rozeti.`
 
-Not: Omur boyu Premium auto-renewable subscription degil, non-consumable olarak
-acilmali. RevenueCat'te bu urunu `premium` entitlement'ina lifetime duration ile
-bagla.
+Not: Ilk surumde omur boyu Premium satilmiyor. App Store Connect ve RevenueCat
+current offering icinde lifetime urunu olusturma/baglama.
 
 ## 2. Fire Paketleri
 
@@ -124,7 +122,6 @@ Premium packages:
 
 - Monthly -> `ehlibyte.premium.monthly`
 - Annual -> `ehlibyte.premium.year`
-- Lifetime -> `ehlibyte.premium.lifetime`
 
 Custom/extra products:
 

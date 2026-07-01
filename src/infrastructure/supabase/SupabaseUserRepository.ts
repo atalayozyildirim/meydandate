@@ -11,6 +11,7 @@ import { getProfileBoostRank } from "@/shared/utils/profileBoost";
 import { clampMatchRadiusKm } from "@/shared/utils/location";
 import { createSupabaseRepositoryError, isMissingRpcError } from "./errors";
 import { calculateCulturalMatchScore } from "@/domain/services/CulturalMatchScoring";
+import { env } from "@/infrastructure/config/env";
 
 type PrivateProfile = Partial<User> & {
   blockedUsers?: string[];
@@ -387,6 +388,10 @@ export class SupabaseUserRepository implements UserRepository {
   }
 
   private async ensureAiStarterProfiles(userId: string): Promise<void> {
+    if (!env.enableAiStarterProfiles) {
+      return;
+    }
+
     const { error } = await supabase.functions.invoke(
       "generate-starter-profiles",
       {

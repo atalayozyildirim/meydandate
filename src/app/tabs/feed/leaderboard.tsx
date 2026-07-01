@@ -102,22 +102,36 @@ export default function FireLeaderboardScreen() {
               </View>
             </Pressable>
 
-            <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>İlk 5</Text>
-              <Text style={styles.sectionMeta}>Anlık sıralama</Text>
-            </View>
+            {restLeaders.length > 0 ? (
+              <>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>İlk 5</Text>
+                  <Text style={styles.sectionMeta}>Anlık sıralama</Text>
+                </View>
 
-            <View style={styles.listCard}>
-              {restLeaders.map((leader, index) => (
-                <LeaderboardRow
-                  key={leader.id}
-                  leader={leader}
-                  rank={index + 2}
-                  onPress={() => openProfile(leader)}
-                  isLast={index === restLeaders.length - 1}
-                />
-              ))}
-            </View>
+                <View style={styles.listCard}>
+                  {restLeaders.map((leader, index) => (
+                    <LeaderboardRow
+                      key={leader.id}
+                      leader={leader}
+                      rank={index + 2}
+                      onPress={() => openProfile(leader)}
+                      isLast={index === restLeaders.length - 1}
+                    />
+                  ))}
+                </View>
+              </>
+            ) : (
+              <View style={styles.nextLeadersCard}>
+                <Ionicons name="flame-outline" size={22} color={theme.colors.muted} />
+                <View style={styles.nextLeadersCopy}>
+                  <Text style={styles.nextLeadersTitle}>Sıralama yeni başlıyor</Text>
+                  <Text style={styles.nextLeadersText}>
+                    Daha fazla Fire geldikçe diğer profiller burada görünecek.
+                  </Text>
+                </View>
+              </View>
+            )}
           </>
         ) : (
           <View style={styles.emptyFrame}>
@@ -330,6 +344,33 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       backgroundColor: theme.colors.elevated,
       borderWidth: 1,
       borderColor: theme.colors.border,
+    },
+    nextLeadersCard: {
+      minHeight: 92,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      borderRadius: 26,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.md,
+      backgroundColor: theme.colors.elevated,
+      borderWidth: 1,
+      borderColor: theme.colors.border,
+    },
+    nextLeadersCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 2,
+    },
+    nextLeadersTitle: {
+      ...theme.typography.subheading,
+      color: theme.colors.text,
+      fontSize: 17,
+      lineHeight: 22,
+    },
+    nextLeadersText: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
     },
     row: {
       minHeight: 84,

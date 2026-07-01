@@ -75,6 +75,10 @@ if (
   errors.push("EXPO_PUBLIC_REVENUECAT_IOS_API_KEY appl_ public key olmalı.");
 }
 
+if (isPlaceholder(value("EXPO_PUBLIC_SPOTIFY_CLIENT_ID"))) {
+  errors.push("EXPO_PUBLIC_SPOTIFY_CLIENT_ID eksik. Spotify dashboard'daki iOS/public client id EAS production env'e eklenmeli.");
+}
+
 if (value("EXPO_PUBLIC_USE_REVENUECAT") !== "true") {
   errors.push("Production için EXPO_PUBLIC_USE_REVENUECAT=true olmalı.");
 }

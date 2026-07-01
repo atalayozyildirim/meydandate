@@ -9,10 +9,9 @@ ile başlayan secret anahtarları `EXPO_PUBLIC_*` değişkenlerine koyma.
 2. Geliştirme için Test Store ekle.
 3. `premium` lookup key'i ile entitlement oluştur.
 4. App Store Connect'te `com.ehlibyte.app` için aylık ve yıllık abonelik ürünleri oluştur.
-   Ömür boyu Premium'u da satacaksan bunu abonelik değil, non-consumable ürün olarak aç.
 5. RevenueCat'e Apple App Store uygulamasını ekle, ürünleri içe aktar ve `premium`
    entitlement'ına bağla.
-6. Current offering içinde monthly, annual ve varsa lifetime paketlerini bu içe aktarılan ürünlere bağla.
+6. Current offering içinde monthly ve annual paketlerini bu içe aktarılan ürünlere bağla.
 7. Android yayınlanacaksa aynı işlemi Google Play uygulaması için yap.
 8. Rozet ürünlerini App Store Connect/Google Play tarafında consumable veya
    non-consumable olarak oluşturup current offering içine ekle.
@@ -25,7 +24,6 @@ Premium product id listesi:
 
 - `ehlibyte.premium.monthly` - ₺79,99 / ay
 - `ehlibyte.premium.year` - ₺599,99 / yıl
-- `ehlibyte.premium.lifetime` - ₺899,99
 
 Fire product id listesi:
 
@@ -96,7 +94,9 @@ sorgusu bu id'leri bulamamıştır. Bu kodla çözülen bir durum değildir; das
 konfigürasyonu hizalanmalıdır.
 
 - RevenueCat ürün identifier'ı App Store Connect Product ID ile birebir aynı olmalı.
-  App şu anda `monthly`, `yearly` ve `lifetime` planlarını satın alma UI'ında sunar.
+  App UI içinde `monthly` ve `yearly` plan anahtarlarını kullanır; bunların mağaza
+  Product ID karşılıkları sırasıyla `ehlibyte.premium.monthly` ve
+  `ehlibyte.premium.year` olmalıdır.
 - Current offering içinde App Store Connect'te oluşturulmamış ürün varsa mağazada
   gerçekten oluşturulana kadar offering'den çıkar.
 - `test_` ile başlayan RevenueCat Test Store key, StoreKit/App Store Connect ürünlerini
@@ -111,7 +111,7 @@ konfigürasyonu hizalanmalıdır.
 - Vergi ve banka bilgileri tamamlanmış
 - iOS In-App Purchase capability açık
 - RevenueCat offering current durumda
-- Aylık, yıllık ve varsa ömür boyu paketler `premium` entitlement'ına bağlı
+- Aylık ve yıllık paketler `premium` entitlement'ına bağlı
 - Rozet product id'leri current offering içinde ve mağaza ürünleriyle birebir aynı
 - Offering'deki product id listesi App Store Connect ve Google Play ile birebir aynı
 - RevenueCat webhook Supabase Edge Function'a bağlı ve Authorization header doğrulanıyor

@@ -36,9 +36,7 @@ export interface CreateBotProfilePayload {
 
 const BOT_QUERY_KEY = ["admin", "bot-profiles"];
 
-// isActive kolonu authenticated role'u icin SELECT grant'i olmadigi icin
-// publicUserColumns kullanilir; aktiflik durumu set_user_active RPC ile yonetilir.
-const botColumns = publicUserColumns;
+const botColumns = `${publicUserColumns},isActive`;
 
 export const useBotProfiles = () => {
   const queryClient = useQueryClient();
@@ -56,9 +54,7 @@ export const useBotProfiles = () => {
 
       return (data ?? []).map((row: any) => ({
         ...mapSupabaseUser(row),
-        // isActive kolonu SELECT grant'i olmadigi icin satirda gelmiyor;
-        // bot profillerinin varsayilan olarak aktif oldugu kabul edilir.
-        isActive: true,
+        isActive: row.isActive === true,
       }));
     },
   });

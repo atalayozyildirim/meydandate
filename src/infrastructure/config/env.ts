@@ -24,6 +24,8 @@ const spotifyClientId =
 const spotifyRedirectUri =
   readEnv(process.env.EXPO_PUBLIC_SPOTIFY_REDIRECT_URI) ||
   "ehlibyte://spotify/callback";
+const enableAiStarterProfiles =
+  readEnv(process.env.EXPO_PUBLIC_ENABLE_AI_STARTER_PROFILES) === "true";
 
 const isPlaceholder = (value: string, fragments: string[]) =>
   !value || fragments.some((fragment) => value.includes(fragment));
@@ -73,6 +75,7 @@ export const env = {
   adMobRewardedUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID),
   spotifyClientId,
   spotifyRedirectUri,
+  enableAiStarterProfiles,
 } as const;
 
 export const getRuntimeConfigIssues = () => {
@@ -133,7 +136,7 @@ export const getRuntimeConfigIssues = () => {
     }
 
     if (!env.spotifyClientId) {
-      warnings.push("Spotify anlık şarkı eşleşmesi için EXPO_PUBLIC_SPOTIFY_CLIENT_ID eklenmeli. Client secret sadece backend tarafında SPOTIFY_CLIENT_SECRET olarak tutulmalı.");
+      errors.push("Spotify anlık şarkı eşleşmesi için EXPO_PUBLIC_SPOTIFY_CLIENT_ID EAS production env'e eklenmeli.");
     }
   }
 

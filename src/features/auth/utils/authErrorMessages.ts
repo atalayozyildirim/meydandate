@@ -70,6 +70,16 @@ export const formatAuthErrorMessage = (
     return `${providerLabel} OAuth client bilgileri hatalı görünüyor. Supabase provider ekranına Web OAuth Client ID ve Client Secret girilmeli; Firebase Web SDK apiKey/appId değerleri burada kullanılmaz.`;
   }
 
+  if (
+    hasAny(message, [
+      "60200",
+      "error sending confirmation otp",
+      "invalid parameter",
+    ])
+  ) {
+    return "Telefon numarası SMS sağlayıcısı tarafından kabul edilmedi. Numarayı ülke koduyla ve eksiksiz gir: örn. +90 5XX XXX XX XX.";
+  }
+
   if (hasAny(message, ["callback kodu bulunamadı", "auth session missing", "code verifier"])) {
     return [
       `${providerLabel} dönüşü alındı ama oturum tamamlanamadı.`,

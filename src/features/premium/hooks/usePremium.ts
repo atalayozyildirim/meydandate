@@ -4,13 +4,19 @@ import type { Badge } from "@/domain/entities/User";
 import type { SubscriptionPlan } from "@/domain/entities/Subscription";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { container } from "@/infrastructure/config/Container";
+import { env } from "@/infrastructure/config/env";
 import { queryKeys } from "@/shared/constants/queryKeys";
-import { isProfileBoostActive } from "@/shared/utils/profileBoost";
+import { isExpoGo } from "@/shared/utils/expoRuntime";
+import {
+  getProfileBoostExpiry,
+  isProfileBoostActive,
+} from "@/shared/utils/profileBoost";
 
 export const usePremium = () => {
   const queryClient = useQueryClient();
   const currentUser = useAuthStore((state) => state.currentUser);
   const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
+  const isMockPaymentMode = !env.useRevenueCatPayments || isExpoGo;
 
   const query = useQuery({
     queryKey: [queryKeys.subscription, currentUser?.id],
@@ -94,7 +100,7 @@ export const usePremium = () => {
   });
 
   const activateBoostMutation = useMutation({
-    mutationFn: () => {
+    mutationFn: async () => {
       if (!currentUser) {
         throw new Error("Boost için oturum gerekli.");
       }
@@ -105,6 +111,15 @@ export const usePremium = () => {
 
       if (isBoostActive) {
         throw new Error("Boost zaten aktif.");
+      }
+
+      if (isMockPaymentMode) {
+        return {
+          ...currentUser,
+          isPremium: true,
+          badges: Array.from(new Set<Badge>([...currentUser.badges, "premium_member"])),
+          boostedUntil: getProfileBoostExpiry().toISOString(),
+        };
       }
 
       return container.userRepository.activatePremiumBoost(currentUser.id);

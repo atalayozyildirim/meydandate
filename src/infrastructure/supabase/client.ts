@@ -1,7 +1,9 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/infrastructure/config/env";
+import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 
 let client: SupabaseClient | null = null;
+const authStorage = new SecureStorageService();
 
 export const getSupabaseClient = () => {
   if (!env.supabaseUrl || !env.supabaseAnonKey) {
@@ -14,9 +16,14 @@ export const getSupabaseClient = () => {
     client = createClient(env.supabaseUrl, env.supabaseAnonKey, {
       auth: {
         autoRefreshToken: true,
-        persistSession: false,
+        persistSession: true,
         detectSessionInUrl: false,
         flowType: "pkce",
+        storage: {
+          getItem: (key) => authStorage.getItem(key),
+          setItem: (key, value) => authStorage.setItem(key, value),
+          removeItem: (key) => authStorage.deleteItem(key),
+        },
       },
     });
   }

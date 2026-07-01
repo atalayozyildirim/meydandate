@@ -10,6 +10,7 @@ import type {
 } from "@/domain/repositories/AuthRepository";
 import { container } from "@/infrastructure/config/Container";
 import { env } from "@/infrastructure/config/env";
+import { normalizePhoneNumber } from "@/shared/utils/phone";
 
 interface AuthState {
   accessToken: string | null;
@@ -146,7 +147,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await assertDeviceIsAllowed();
       const challenge: OtpChallenge = {
-        phoneNumber: credentials.phoneNumber,
+        phoneNumber: normalizePhoneNumber(credentials.phoneNumber),
         purpose: "login",
       };
       await container.authRepository.requestOtp(challenge);
@@ -161,7 +162,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     try {
       await assertDeviceIsAllowed();
       const challenge: OtpChallenge = {
-        phoneNumber: payload.phoneNumber,
+        phoneNumber: normalizePhoneNumber(payload.phoneNumber),
         purpose: "register",
         name: payload.name,
       };
