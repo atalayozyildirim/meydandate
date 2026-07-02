@@ -4,7 +4,9 @@ import { env } from "@/infrastructure/config/env";
 import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 
-WebBrowser.maybeCompleteAuthSession();
+if (typeof WebBrowser.maybeCompleteAuthSession === "function") {
+  WebBrowser.maybeCompleteAuthSession();
+}
 
 const spotifyAccessTokenKey = "ehlibyte-spotify-access-token";
 const spotifyRefreshTokenKey = "ehlibyte-spotify-refresh-token";
