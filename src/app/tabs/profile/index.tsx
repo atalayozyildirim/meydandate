@@ -92,7 +92,7 @@ export default function ProfileScreen() {
           <View style={styles.badgeGrid}>
             {profile.badges.map((badge) => (
               <View key={badge} style={styles.badgeItem}>
-                <BadgeIcon badge={badge} size={44} />
+                <BadgeIcon badge={badge} size={36} />
                 <Text style={styles.badgeLabel} numberOfLines={2}>
                   {badgeLabels[badge]}
                 </Text>
@@ -239,30 +239,31 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     badgeGrid: {
       flexDirection: "row",
       flexWrap: "wrap",
-      gap: theme.spacing.sm,
+      gap: theme.spacing.xs,
     },
     badgeItem: {
-      flexBasis: "47%",
+      flexBasis: "48%",
       flexGrow: 1,
-      minHeight: 66,
+      minWidth: 0,
+      minHeight: 56,
       flexDirection: "row",
       alignItems: "center",
-      gap: theme.spacing.sm,
-      borderRadius: theme.radius.pill,
+      gap: theme.spacing.xs,
+      borderRadius: theme.radius.md,
       borderWidth: 1,
       borderColor: "rgba(128, 128, 128, 0.28)",
-      paddingHorizontal: theme.spacing.xs,
+      paddingHorizontal: theme.spacing.sm,
       paddingVertical: theme.spacing.xs,
       backgroundColor: "rgba(128, 128, 128, 0.10)",
     },
     badgeLabel: {
-      ...theme.typography.body,
       color: theme.colors.text,
       flex: 1,
       minWidth: 0,
       flexShrink: 1,
-      fontWeight: "900",
-      lineHeight: 18,
+      fontSize: 14,
+      fontWeight: "700",
+      lineHeight: 17,
     },
     emptyBadgeText: {
       ...theme.typography.caption,

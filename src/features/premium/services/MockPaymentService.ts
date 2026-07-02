@@ -10,10 +10,12 @@ import type {
 } from "@/domain/entities/Subscription";
 import { createId } from "@/shared/utils/id";
 import { mockDatabase } from "@/infrastructure/mock/MockDatabase";
+import { paidBadgeProducts } from "@/shared/constants/badges";
 
 export interface PaymentService {
   getSubscription(userId: string): Promise<Subscription>;
   getPlanPrices(): Promise<Record<SubscriptionPlan, string>>;
+  getBadgePrices(): Promise<Partial<Record<Badge, string>>>;
   purchase(userId: string, plan: SubscriptionPlan): Promise<PaymentResult>;
   purchaseBadge(userId: string, badge: Badge): Promise<BadgePurchaseResult>;
   purchaseFirePackage(
@@ -45,6 +47,12 @@ export class MockPaymentService implements PaymentService {
         plan: "monthly",
         status: "inactive"
       }
+    );
+  }
+
+  async getBadgePrices(): Promise<Partial<Record<Badge, string>>> {
+    return Object.fromEntries(
+      paidBadgeProducts.map((product) => [product.badge, product.priceLabel]),
     );
   }
 

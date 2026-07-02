@@ -25,6 +25,7 @@ import {
 } from "@/shared/constants/badges";
 import { badgeLabels, premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
+import { isPurchaseCancelledError } from "@/features/premium/services/RevenueCatPaymentService";
 import { useBadges } from "@/features/profile/hooks/useBadges";
 import { firePackageValues, useFire } from "@/features/fire/hooks/useFire";
 import { useMatches } from "@/features/match/hooks/useMatches";
@@ -79,6 +80,7 @@ export default function StoreScreen() {
   const {
     subscription,
     planPrices,
+    badgePrices,
     isLoading: isSubscriptionLoading,
     purchase,
     isPurchasing,
@@ -123,6 +125,10 @@ export default function StoreScreen() {
           : "Mağaza satın alımı tamamlandı.",
       );
     } catch (error) {
+      if (isPurchaseCancelledError(error)) {
+        return;
+      }
+
       Alert.alert(
         "Satın alım tamamlanamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
@@ -138,6 +144,10 @@ export default function StoreScreen() {
         `${badgeLabels[result.badge]} profiline eklendi.`,
       );
     } catch (error) {
+      if (isPurchaseCancelledError(error)) {
+        return;
+      }
+
       Alert.alert(
         "Rozet alınamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
@@ -189,6 +199,10 @@ export default function StoreScreen() {
           : `${amount} Fire satın alımı tamamlandı. Bakiye kısa süre içinde güncellenecek.`,
       );
     } catch (error) {
+      if (isPurchaseCancelledError(error)) {
+        return;
+      }
+
       Alert.alert(
         "Fire alınamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",
@@ -520,7 +534,12 @@ export default function StoreScreen() {
                     {product.description}
                   </Text>
                   <Text style={styles.productPrice}>
-                    {owned ? "Profilinde aktif" : product.priceLabel}
+                    {owned
+                      ? "Profilinde aktif"
+                      : badgePrices?.[product.badge] ??
+                        (isMockPaymentMode
+                          ? product.priceLabel
+                          : "Mağaza fiyatı")}
                   </Text>
                 </View>
                 <Button

@@ -17,10 +17,6 @@ import { mapSupabaseUser } from "./userMapper";
 
 installCryptoPolyfill();
 
-if (typeof WebBrowser.maybeCompleteAuthSession === "function") {
-  WebBrowser.maybeCompleteAuthSession();
-}
-
 const signOutAndThrow = async (message: string): Promise<never> => {
   await supabase.auth.signOut();
   throw new Error(message);

@@ -62,6 +62,26 @@ kullanılır. RevenueCat Test Store ürünlerini test edeceksen ayrıca
 `EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=true` yap. App Store/TestFlight build'lerinde
 platforma özel public anahtarı kullanılmalı, Test Store key ile build gönderilmemeli.
 
+RevenueCat Test Store destekli React Native SDK sürümü için:
+
+```bash
+npm run ios:test-store
+```
+
+Bu komut Test Store anahtarını yalnızca Debug simülatör build'inde kullanır. RevenueCat,
+`test_` anahtarını Release build'de algılarsa uygulamayı bilinçli olarak sonlandırır.
+
+Test Store ürün ID'leri:
+
+- Premium: `monthly_premium`, `yearly`
+- Fire: `ehlibyte.fire.100`, `ehlibyte.fire.500`, `ehlibyte.fire.1500`
+- Rozetler: `ehlibyte.badge.zulfiqar_sword`,
+  `ehlibyte.badge.haci_bektas_veli`, `ehlibyte.badge.culture_guardian`,
+  `ehlibyte.badge.cem_room_supporter`, `ehlibyte.badge.muharrem_follower`
+
+Simulator testinde satılacak diğer rozetler de Test Store uygulamasında ayrıca
+oluşturulmalıdır. App Store uygulamasında bulunmaları Test Store için yeterli değildir.
+
 ## Supabase Webhook
 
 Satın alma sonrası app anında local Premium durumunu günceller, fakat Supabase'teki

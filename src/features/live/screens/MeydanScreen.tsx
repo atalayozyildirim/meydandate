@@ -59,29 +59,20 @@ type LiveKitAudioMonitorProps = {
   onSignalChange: (signal: LiveKitAudioSignal) => void;
 };
 
-const resolveLiveKitRoomComponent = () => {
-  if (isExpoGo) {
-    return undefined;
-  }
-
-  try {
-    return require("@livekit/react-native").LiveKitRoom as
-      | ComponentType<LiveKitRoomProps>
-      | undefined;
-  } catch {
-    return undefined;
-  }
+type LiveKitComponents = {
+  Room?: ComponentType<LiveKitRoomProps>;
+  AudioMonitor?: ComponentType<LiveKitAudioMonitorProps>;
 };
 
-const LiveKitRoomComponent = resolveLiveKitRoomComponent();
-
-const resolveLiveKitAudioMonitorComponent = () => {
+const resolveLiveKitComponents = (): LiveKitComponents => {
   if (isExpoGo) {
-    return undefined;
+    return {};
   }
 
   try {
-    const { useLocalParticipant } = require("@livekit/react-native") as {
+    const liveKitModule = require("@livekit/react-native") as {
+      LiveKitRoom?: ComponentType<LiveKitRoomProps>;
+      registerGlobals?: () => void;
       useLocalParticipant: () => {
         localParticipant?: {
           audioLevel?: number;
@@ -91,6 +82,8 @@ const resolveLiveKitAudioMonitorComponent = () => {
         };
       };
     };
+    liveKitModule.registerGlobals?.();
+    const { useLocalParticipant } = liveKitModule;
     const { ParticipantEvent } = require("livekit-client") as {
       ParticipantEvent: { IsSpeakingChanged: string };
     };
@@ -134,13 +127,14 @@ const resolveLiveKitAudioMonitorComponent = () => {
       return null;
     };
 
-    return LiveKitAudioMonitor as ComponentType<LiveKitAudioMonitorProps>;
+    return {
+      Room: liveKitModule.LiveKitRoom,
+      AudioMonitor: LiveKitAudioMonitor as ComponentType<LiveKitAudioMonitorProps>,
+    };
   } catch {
-    return undefined;
+    return {};
   }
 };
-
-const LiveKitAudioMonitorComponent = resolveLiveKitAudioMonitorComponent();
 
 const DirectVideoStage = ({
   isLive,
@@ -545,6 +539,8 @@ export default function MeydanRoomScreen() {
   const [isAdminSettingsOpen, setIsAdminSettingsOpen] = useState(false);
   const [liveKitInfo, setLiveKitInfo] = useState<LiveKitJoinInfo | null>(null);
   const [liveKitError, setLiveKitError] = useState<string | null>(null);
+  const [liveKitComponents, setLiveKitComponents] =
+    useState<LiveKitComponents>({});
   const [localAudioSignal, setLocalAudioSignal] = useState<LiveKitAudioSignal>({
     audioLevel: 0,
     isSpeaking: false,
@@ -572,6 +568,8 @@ export default function MeydanRoomScreen() {
   const isLive = room?.status === "live";
   const hasStream = Boolean(room?.streamUrl);
   const isLiveKitRoom = room?.voiceProvider !== "stream" || hasStream;
+  const LiveKitRoomComponent = liveKitComponents.Room;
+  const LiveKitAudioMonitorComponent = liveKitComponents.AudioMonitor;
   const videoSync = room?.videoSync;
   const isVideoPlaying = videoSync?.status === "playing";
   const hasRaisedHand = Boolean(currentParticipant?.handRaisedAt);
@@ -718,6 +716,7 @@ export default function MeydanRoomScreen() {
           return;
         }
 
+        setLiveKitComponents(resolveLiveKitComponents());
         setLiveKitInfo(info);
         setLiveKitError(null);
       })

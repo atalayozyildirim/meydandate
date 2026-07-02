@@ -1,7 +1,7 @@
 import { Platform } from "react-native";
 import Constants from "expo-constants";
-import * as SecureStore from "expo-secure-store";
 import { supabase } from "@/infrastructure/supabase/client";
+import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 
 type NotificationsModule = typeof import("expo-notifications");
 export type PushNotificationData = {
@@ -18,6 +18,7 @@ export type PushNotificationData = {
 let notificationsModule: NotificationsModule | null = null;
 let lastHandledNotificationId: string | null = null;
 const notificationPreferenceKey = "settings_notifications";
+const notificationStorage = new SecureStorageService();
 
 const isExpoGo = () =>
   Constants.appOwnership === "expo" ||
@@ -60,7 +61,7 @@ export const registerPushNotifications = async (userId: string) => {
     return;
   }
 
-  const storedPreference = await SecureStore.getItemAsync(
+  const storedPreference = await notificationStorage.getItem(
     notificationPreferenceKey,
   );
 
@@ -126,7 +127,7 @@ export const setPushNotificationsEnabled = async (
   userId: string,
   enabled: boolean,
 ) => {
-  await SecureStore.setItemAsync(notificationPreferenceKey, String(enabled));
+  await notificationStorage.setItem(notificationPreferenceKey, String(enabled));
 
   if (!enabled) {
     await setStoredTokensActive(userId, false);

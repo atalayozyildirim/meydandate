@@ -27,6 +27,10 @@ export const usePremium = () => {
     queryKey: [queryKeys.subscription, "plan-prices"],
     queryFn: () => container.paymentService.getPlanPrices()
   });
+  const badgePricesQuery = useQuery({
+    queryKey: [queryKeys.subscription, "badge-prices"],
+    queryFn: () => container.paymentService.getBadgePrices()
+  });
   const isPremiumActive =
     query.data?.status === "active" || Boolean(currentUser?.isPremium);
   const isBoostActive = isProfileBoostActive(currentUser?.boostedUntil);
@@ -137,6 +141,7 @@ export const usePremium = () => {
   return {
     subscription: query.data,
     planPrices: planPricesQuery.data,
+    badgePrices: badgePricesQuery.data,
     isPremiumActive,
     isBoostActive,
     boostExpiresAt: currentUser?.boostedUntil,

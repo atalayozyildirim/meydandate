@@ -8,6 +8,7 @@ import { Loading } from "@/shared/components/Loading";
 import { Screen } from "@/shared/components/Screen";
 import { premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
+import { isPurchaseCancelledError } from "@/features/premium/services/RevenueCatPaymentService";
 import { env } from "@/infrastructure/config/env";
 import { isExpoGo } from "@/shared/utils/expoRuntime";
 import { useTheme } from "@/shared/theme";
@@ -42,6 +43,10 @@ export default function PremiumScreen() {
           : "Satın alım tamamlandı.",
       );
     } catch (error) {
+      if (isPurchaseCancelledError(error)) {
+        return;
+      }
+
       Alert.alert(
         "Satın alım tamamlanamadı",
         error instanceof Error ? error.message : "Tekrar deneyin.",

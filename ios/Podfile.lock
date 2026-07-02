@@ -179,8 +179,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - PurchasesHybridCommon (14.3.0):
-    - RevenueCat (= 5.32.0)
+  - PurchasesHybridCommon (18.18.0):
+    - RevenueCat (= 5.80.0)
   - RCT-Folly (2024.11.18.00):
     - boost
     - DoubleConversion
@@ -2541,7 +2541,7 @@ PODS:
     - React-perflogger (= 0.81.5)
     - React-utils (= 0.81.5)
     - SocketRocket
-  - RevenueCat (5.32.0)
+  - RevenueCat (5.80.0)
   - RNGestureHandler (2.28.0):
     - boost
     - DoubleConversion
@@ -2600,8 +2600,8 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - RNPurchases (8.12.0):
-    - PurchasesHybridCommon (= 14.3.0)
+  - RNPurchases (10.4.1):
+    - PurchasesHybridCommon (= 18.18.0)
     - React-Core
   - RNReanimated (4.1.7):
     - boost
@@ -2754,7 +2754,7 @@ PODS:
     - ReactCommon/turbomodule/core
     - SocketRocket
     - Yoga
-  - RNSVG (15.15.5):
+  - RNSVG (15.12.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -2780,10 +2780,10 @@ PODS:
     - ReactCodegen
     - ReactCommon/turbomodule/bridging
     - ReactCommon/turbomodule/core
-    - RNSVG/common (= 15.15.5)
+    - RNSVG/common (= 15.12.1)
     - SocketRocket
     - Yoga
-  - RNSVG/common (15.15.5):
+  - RNSVG/common (15.12.1):
     - boost
     - DoubleConversion
     - fast_float
@@ -3276,7 +3276,7 @@ SPEC CHECKSUMS:
   LiveKitExpoPlugin: 244fe0ae6c8226121a2257a2408749ea10c5e11c
   lottie-ios: 8f959969761e9c45d70353667d00af0e5b9cadb3
   lottie-react-native: b410d8c9dcaf536198ce852ea47e73c9158ad04e
-  PurchasesHybridCommon: 7f0944cc5411bdcd1ea5d69affa6a6f9aaf87b13
+  PurchasesHybridCommon: a5c81898ee5e1fa4a679c3c12e948ce3b4f4e341
   RCT-Folly: 846fda9475e61ec7bcbf8a3fe81edfcaeb090669
   RCTDeprecation: 5eb1d2eeff5fb91151e8a8eef45b6c7658b6c897
   RCTRequired: cebcf9442fc296c9b89ac791dfd463021d9f6f23
@@ -3342,13 +3342,13 @@ SPEC CHECKSUMS:
   ReactAppDependencyProvider: 1bcd3527ac0390a1c898c114f81ff954be35ed79
   ReactCodegen: 6c26f8c25d0b5ae66f86a1cce1777076ac8bcbd8
   ReactCommon: 5f0e5c09a64a2717215dd84380e1a747810406f2
-  RevenueCat: 7e1d0768fb287c9983173c9b28e39ccbeeb828a9
+  RevenueCat: f4427b8a1daa7a04a26cb20d60807aa818d9420b
   RNGestureHandler: 3a73f098d74712952870e948b3d9cf7b6cae9961
   RNGoogleMobileAds: cc9fcfead13dedd1917f14b3ff85213c758030e4
-  RNPurchases: 6070b60f5d8f525a58905df50773f7a3252f0cfa
+  RNPurchases: 3a5c962673dee49d1210067000caea5ea218a7b9
   RNReanimated: d60fc0b1c70e8413d16e506897ca7f2a27f697be
   RNScreens: 0bbf16c074ae6bb1058a7bf2d1ae017f4306797c
-  RNSVG: 4dd2d79b3cb224bcb3ae666a2adda2ede9d3772f
+  RNSVG: 6f39605a4c4d200b11435c35bd077553c6b5963a
   RNWorklets: ad0606bee2a8103c14adb412149789c60b72bfb2
   SocketRocket: d4aabe649be1e368d1318fdf28a022d714d65748
   WebRTC-SDK: 1d7fc2ae91da6edd63e25f3882ff24f86a8d9d8b

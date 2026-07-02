@@ -48,30 +48,6 @@ const assertDeviceIsAllowed = async () => {
   }
 };
 
-const mergePremiumStatus = async (user: User): Promise<User> => {
-  try {
-    const subscription = await container.paymentService.getSubscription(
-      user.id,
-    );
-
-    if (subscription.status !== "active") {
-      return {
-        ...user,
-        isPremium: false,
-        badges: user.badges.filter((badge) => badge !== "premium_member"),
-      };
-    }
-
-    return {
-      ...user,
-      isPremium: true,
-      badges: Array.from(new Set([...user.badges, "premium_member"])),
-    };
-  } catch {
-    return user;
-  }
-};
-
 const persistSession = async (session: AuthSession) => {
   await container.tokenStorage.setItem(env.secureTokenKey, session.accessToken);
   if (session.refreshToken) {
@@ -83,7 +59,7 @@ const persistSession = async (session: AuthSession) => {
 
   return {
     ...session,
-    user: await mergePremiumStatus(session.user),
+    user: session.user,
   };
 };
 

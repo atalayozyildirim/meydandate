@@ -1,8 +1,11 @@
-import { Platform } from "react-native";
+import { LogBox, Platform } from "react-native";
 import { createId } from "@/shared/utils/id";
 import { env } from "@/infrastructure/config/env";
-import { supabase } from "@/infrastructure/supabase/client";
-import { paidBadgeProductByBadge } from "@/shared/constants/badges";
+import {
+  paidBadgeProducts,
+  paidBadgeProductByBadge,
+  type PaidBadgeProduct,
+} from "@/shared/constants/badges";
 import { isExpoGo } from "@/shared/utils/expoRuntime";
 import type { Badge } from "@/domain/entities/User";
 import type {
@@ -16,17 +19,23 @@ import type {
 import type { PaymentService } from "./MockPaymentService";
 import { MockPaymentService } from "./MockPaymentService";
 
+const isRevenueCatTestStoreRuntime = () =>
+  __DEV__ &&
+  !env.isProduction &&
+  env.useRevenueCatTestStore &&
+  env.revenueCatTestApiKey.startsWith("test_");
+
 const getRevenueCatApiKey = () => {
   if (!env.useRevenueCatPayments || isExpoGo) {
     return "";
   }
 
-  if (
-    !env.isProduction &&
-    env.useRevenueCatTestStore &&
-    env.revenueCatTestApiKey.startsWith("test_")
-  ) {
+  if (isRevenueCatTestStoreRuntime()) {
     return env.revenueCatTestApiKey;
+  }
+
+  if (__DEV__) {
+    return "";
   }
 
   if (Platform.OS === "ios" && env.revenueCatIosApiKey.startsWith("appl_")) {
@@ -44,15 +53,46 @@ const getRevenueCatApiKey = () => {
 };
 
 const STORE_PRICE_LABEL = "Mağaza fiyatı";
-const premiumProductByPlan: Record<Exclude<SubscriptionPlan, "lifetime">, string> = {
+type PremiumPlan = Exclude<SubscriptionPlan, "lifetime">;
+
+const appStorePremiumProductByPlan: Record<PremiumPlan, string> = {
   monthly: "ehlibyte.premium.monthly",
   yearly: "ehlibyte.premium.year",
 };
+
+const testStorePremiumProductByPlan: Record<PremiumPlan, string> = {
+  monthly: "monthly_premium",
+  yearly: "yearly",
+};
+
 const fireProductByAmount: Record<FirePackageAmount, string> = {
   100: "ehlibyte.fire.100",
   500: "ehlibyte.fire.500",
   1500: "ehlibyte.fire.1500",
 };
+
+const uniqueProductIds = (productIds: string[]) =>
+  Array.from(new Set(productIds.filter(Boolean)));
+
+const preferStoreProductIds = (
+  testStoreProductIds: string[],
+  appStoreProductIds: string[],
+) =>
+  isRevenueCatTestStoreRuntime()
+    ? uniqueProductIds([...testStoreProductIds, ...appStoreProductIds])
+    : uniqueProductIds([...appStoreProductIds, ...testStoreProductIds]);
+
+const getPremiumProductIds = (plan: PremiumPlan) =>
+  preferStoreProductIds(
+    [testStorePremiumProductByPlan[plan]],
+    [appStorePremiumProductByPlan[plan]],
+  );
+
+const getBadgeProductIds = (product: PaidBadgeProduct) =>
+  preferStoreProductIds(
+    product.revenueCatProductAliases ?? [],
+    [product.revenueCatProductId],
+  );
 
 interface RevenueCatStoreProduct {
   identifier?: string;
@@ -76,6 +116,12 @@ interface RevenueCatCustomerInfo {
 
 interface RevenueCatApi {
   configure(config: { apiKey: string; appUserID?: string }): void;
+  setLogHandler?: (
+    handler: (
+      level: "VERBOSE" | "DEBUG" | "INFO" | "WARN" | "ERROR",
+      message: string,
+    ) => void,
+  ) => void;
   logIn(userId: string): Promise<{ customerInfo: RevenueCatCustomerInfo }>;
   getCustomerInfo(): Promise<RevenueCatCustomerInfo>;
   getProducts?: (productIdentifiers: string[]) => Promise<RevenueCatStoreProduct[]>;
@@ -85,6 +131,26 @@ interface RevenueCatApi {
     productIdentifier: string;
   }>;
 }
+
+interface RevenueCatPurchaseError {
+  code?: string | number;
+  message?: string;
+  userCancelled?: boolean | null;
+}
+
+if (__DEV__) {
+  LogBox.ignoreLogs(["Purchase was cancelled."]);
+}
+
+export const isPurchaseCancelledError = (error: unknown) => {
+  const purchaseError = error as RevenueCatPurchaseError | null | undefined;
+
+  return (
+    purchaseError?.userCancelled === true ||
+    String(purchaseError?.code ?? "") === "1" ||
+    /purchase was cancelle?d/i.test(purchaseError?.message ?? "")
+  );
+};
 
 const resolvePurchasesApi = (module: unknown): RevenueCatApi | null => {
   const candidates = [
@@ -122,10 +188,21 @@ const loadPurchasesModule = (): unknown => {
 
 export class RevenueCatPaymentService implements PaymentService {
   private isConfigured = false;
+  private initializationQueue: Promise<void> = Promise.resolve();
+  private hasCustomLogHandler = false;
   private Purchases: RevenueCatApi | null = null;
   private currentUserId: string | null = null;
 
-  private async initialize(userId?: string) {
+  private initialize(userId?: string) {
+    const initialization = this.initializationQueue.then(() =>
+      this.initializeOnce(userId),
+    );
+
+    this.initializationQueue = initialization.catch(() => undefined);
+    return initialization;
+  }
+
+  private async initializeOnce(userId?: string) {
     const apiKey = getRevenueCatApiKey();
 
     if (!apiKey || Platform.OS === "web") {
@@ -141,6 +218,31 @@ export class RevenueCatPaymentService implements PaymentService {
 
     if (!this.Purchases) {
       return;
+    }
+
+    if (
+      __DEV__ &&
+      !this.hasCustomLogHandler &&
+      this.Purchases.setLogHandler
+    ) {
+      this.Purchases.setLogHandler((level, message) => {
+        const formattedMessage = `[RevenueCat] ${message}`;
+
+        if (/purchase was cancelle?d/i.test(message)) {
+          return;
+        }
+
+        if (level === "ERROR") {
+          console.error(formattedMessage);
+        } else if (level === "WARN") {
+          console.warn(formattedMessage);
+        } else if (level === "DEBUG" || level === "VERBOSE") {
+          console.debug(formattedMessage);
+        } else {
+          console.info(formattedMessage);
+        }
+      });
+      this.hasCustomLogHandler = true;
     }
 
     if (!this.isConfigured && this.Purchases) {
@@ -214,17 +316,24 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     const acceptedProductIds = Array.isArray(productIds)
-      ? productIds
+      ? uniqueProductIds(productIds)
       : [productIds];
+
+    if (acceptedProductIds.length === 0) {
+      return undefined;
+    }
 
     try {
       const products = await this.Purchases.getProducts(acceptedProductIds);
-
-      return products.find(
-        (product) =>
-          Boolean(product?.identifier) &&
-          acceptedProductIds.includes(product.identifier ?? ""),
+      const productById = new Map(
+        products
+          .filter((product) => Boolean(product?.identifier))
+          .map((product) => [product.identifier ?? "", product]),
       );
+
+      return acceptedProductIds
+        .map((productId) => productById.get(productId))
+        .find(Boolean);
     } catch (error) {
       if (__DEV__) {
         console.warn("RevenueCat ürünleri doğrudan alınamadı:", error);
@@ -269,8 +378,8 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     const [monthlyProduct, yearlyProduct] = await Promise.all([
-      this.selectStoreProduct(premiumProductByPlan.monthly),
-      this.selectStoreProduct(premiumProductByPlan.yearly),
+      this.selectStoreProduct(getPremiumProductIds("monthly")),
+      this.selectStoreProduct(getPremiumProductIds("yearly")),
     ]);
 
     return {
@@ -282,6 +391,39 @@ export class RevenueCatPaymentService implements PaymentService {
         STORE_PRICE_LABEL,
       lifetime: STORE_PRICE_LABEL,
     };
+  }
+
+  async getBadgePrices(): Promise<Partial<Record<Badge, string>>> {
+    if (!getRevenueCatApiKey() || Platform.OS === "web") {
+      return __DEV__
+        ? new MockPaymentService().getBadgePrices()
+        : {};
+    }
+
+    await this.initialize();
+
+    if (!this.Purchases) {
+      return __DEV__
+        ? new MockPaymentService().getBadgePrices()
+        : {};
+    }
+
+    const products = await Promise.all(
+      paidBadgeProducts.map(async (product) => ({
+        badge: product.badge,
+        storeProduct: await this.selectStoreProduct(
+          getBadgeProductIds(product),
+        ),
+      })),
+    );
+
+    return Object.fromEntries(
+      products.flatMap(({ badge, storeProduct }) =>
+        storeProduct?.priceString
+          ? [[badge, storeProduct.priceString] as const]
+          : [],
+      ),
+    );
   }
 
   async purchase(
@@ -310,7 +452,9 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Satın alma modülü yüklenemedi.");
     }
 
-    const productItem = await this.selectStoreProduct(premiumProductByPlan[plan]);
+    const productItem = await this.selectStoreProduct(
+      getPremiumProductIds(plan),
+    );
 
     if (!productItem || !this.Purchases.purchaseStoreProduct) {
       throw new Error(
@@ -326,39 +470,6 @@ export class RevenueCatPaymentService implements PaymentService {
       userId,
     );
     const receiptId = customerInfo?.originalAppUserId ?? createId("receipt");
-
-    try {
-      // isPremium güncelle
-      const { error: premiumUpdateError } = await supabase
-        .from("users")
-        .update({ isPremium: true })
-        .eq("id", userId);
-
-      if (premiumUpdateError && __DEV__) {
-        console.warn("Premium sync hatası:", premiumUpdateError.message);
-      }
-
-      // Mevcut badge'leri al ve premium_member ekle
-      const { data: userData } = await supabase
-        .from("users")
-        .select("badges")
-        .eq("id", userId)
-        .single();
-
-      if (userData) {
-        const updatedBadges = Array.from(
-          new Set([...(userData.badges ?? []), "premium_member"]),
-        );
-        await supabase
-          .from("users")
-          .update({ badges: updatedBadges })
-          .eq("id", userId);
-      }
-    } catch (syncError) {
-      if (__DEV__) {
-        console.warn("RevenueCat purchase Supabase sync hatası:", syncError);
-      }
-    }
 
     return { subscription, receiptId };
   }
@@ -392,7 +503,7 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     const productItem = await this.selectStoreProduct(
-      product.revenueCatProductId,
+      getBadgeProductIds(product),
     );
 
     if (!productItem || !this.Purchases.purchaseStoreProduct) {
@@ -432,7 +543,9 @@ export class RevenueCatPaymentService implements PaymentService {
       throw new Error("Satın alma modülü yüklenemedi.");
     }
 
-    const productItem = await this.selectStoreProduct(fireProductByAmount[amount]);
+    const productItem = await this.selectStoreProduct(
+      fireProductByAmount[amount],
+    );
 
     if (!productItem || !this.Purchases.purchaseStoreProduct) {
       throw new Error(
@@ -466,28 +579,6 @@ export class RevenueCatPaymentService implements PaymentService {
     }
 
     const customerInfo = await this.Purchases.restorePurchases();
-    const restored = this.mapCustomerInfoToSubscription(customerInfo, userId);
-
-    if (restored.status === "active") {
-      try {
-        const { error: syncError } = await supabase
-          .from("users")
-          .update({ isPremium: true })
-          .eq("id", userId);
-
-        if (syncError && __DEV__) {
-          console.warn("Restore premium sync hatası:", syncError.message);
-        }
-      } catch (syncError) {
-        if (__DEV__) {
-          console.warn(
-            "RevenueCat restorePurchases Supabase sync hatası:",
-            syncError,
-          );
-        }
-      }
-    }
-
-    return restored;
+    return this.mapCustomerInfoToSubscription(customerInfo, userId);
   }
 }

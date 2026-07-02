@@ -8,7 +8,6 @@ import {
   Text,
   View,
 } from "react-native";
-import * as SecureStore from "expo-secure-store";
 import { useRouter } from "expo-router";
 import * as Location from "expo-location";
 import { Ionicons } from "@expo/vector-icons";
@@ -26,6 +25,7 @@ import {
   clampMatchRadiusKm,
   DEFAULT_MATCH_RADIUS_KM,
 } from "@/shared/utils/location";
+import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 import { useTheme, type ThemePreference } from "@/shared/theme";
 
 interface SettingsRowProps {
@@ -44,6 +44,7 @@ const legalLinks = [
 ] as const;
 
 const locationRadiusOptions = [10, 25, 50, 100, 250] as const;
+const settingsStorage = new SecureStorageService();
 
 interface LocationPreferenceArgs {
   enabled: boolean;
@@ -110,9 +111,9 @@ export default function SettingsScreen() {
       try {
         const [storedNotifications, storedPrivacy, storedLanguage] =
           await Promise.all([
-            SecureStore.getItemAsync("settings_notifications"),
-            SecureStore.getItemAsync("settings_privacy_strict"),
-            SecureStore.getItemAsync("settings_language"),
+            settingsStorage.getItem("settings_notifications"),
+            settingsStorage.getItem("settings_privacy_strict"),
+            settingsStorage.getItem("settings_language"),
           ]);
         if (storedNotifications !== null)
           setNotificationsEnabled(storedNotifications === "true");
@@ -130,13 +131,13 @@ export default function SettingsScreen() {
     hasUnsavedChanges.current = true;
 
     if (!currentUser) {
-      void SecureStore.setItemAsync("settings_notifications", String(enabled));
+      void settingsStorage.setItem("settings_notifications", String(enabled));
       return;
     }
 
     void setPushNotificationsEnabled(currentUser.id, enabled).catch(() => {
       setNotificationsEnabled(!enabled);
-      void SecureStore.setItemAsync(
+      void settingsStorage.setItem(
         "settings_notifications",
         String(!enabled),
       );
@@ -150,13 +151,13 @@ export default function SettingsScreen() {
   const handlePrivacyStrictChange = (strict: boolean) => {
     setPrivacyStrict(strict);
     hasUnsavedChanges.current = true;
-    void SecureStore.setItemAsync("settings_privacy_strict", String(strict));
+    void settingsStorage.setItem("settings_privacy_strict", String(strict));
   };
 
   const handleLanguageChange = (lang: "tr" | "en") => {
     setLanguage(lang);
     hasUnsavedChanges.current = true;
-    void SecureStore.setItemAsync("settings_language", lang);
+    void settingsStorage.setItem("settings_language", lang);
   };
 
   // Warn user before leaving with unsaved changes
