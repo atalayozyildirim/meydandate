@@ -20,6 +20,7 @@ import { Avatar } from "@/shared/components/Avatar";
 import { Card } from "@/shared/components/Card";
 import { PremiumVerifiedBadge } from "@/shared/components/PremiumVerifiedBadge";
 import { ZulfiqarBadgeIcon } from "@/shared/components/ZulfiqarBadgeIcon";
+import { AdBanner } from "@/features/ads";
 import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { formatDateTime } from "@/shared/utils/date";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
@@ -316,6 +317,10 @@ export const FeedPostCard = ({
             <LinkPreviewCard preview={post.linkPreview} />
           ) : null}
 
+          {isSponsored && post.showAdMob ? (
+            <AdBanner style={styles.sponsorAd} />
+          ) : null}
+
           <View style={styles.tagRow}>
             {post.tags.map((tag) => (
               <View key={tag} style={styles.tag}>
@@ -601,6 +606,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     },
     nativeSponsorFooter: {
       paddingTop: theme.spacing.xs,
+    },
+    sponsorAd: {
+      marginTop: theme.spacing.xs,
+      paddingHorizontal: 0,
+      borderTopWidth: 0,
+      borderBottomWidth: 0,
+      backgroundColor: theme.colors.surface,
     },
     nativeSponsorCta: {
       minHeight: 54,

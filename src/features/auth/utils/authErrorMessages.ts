@@ -80,6 +80,14 @@ export const formatAuthErrorMessage = (
     return "Telefon numarası SMS sağlayıcısı tarafından kabul edilmedi. Numarayı ülke koduyla ve eksiksiz gir: örn. +90 5XX XXX XX XX.";
   }
 
+  if (hasAny(message, ["token has expired", "invalid otp", "otp expired"])) {
+    return "Doğrulama kodu geçersiz veya süresi dolmuş. En son gönderilen 6 haneli kodu kullan ya da yeni kod iste.";
+  }
+
+  if (hasAny(message, ["refresh token not found", "invalid refresh token"])) {
+    return "Oturumun süresi dolmuş. Güvenliğin için yeniden giriş yap.";
+  }
+
   if (hasAny(message, ["callback kodu bulunamadı", "auth session missing", "code verifier"])) {
     return [
       `${providerLabel} dönüşü alındı ama oturum tamamlanamadı.`,

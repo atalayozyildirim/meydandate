@@ -19,6 +19,7 @@ export const getSupabaseClient = () => {
         persistSession: true,
         detectSessionInUrl: false,
         flowType: "pkce",
+        storageKey: "ehlibyte-supabase-auth-v2",
         storage: {
           getItem: (key) => authStorage.getItem(key),
           setItem: (key, value) => authStorage.setItem(key, value),

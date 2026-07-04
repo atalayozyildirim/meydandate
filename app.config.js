@@ -28,12 +28,24 @@ const readEnv = (name) => process.env[name]?.trim() ?? "";
 const isProduction =
   readEnv("EXPO_PUBLIC_APP_ENV") === "production" ||
   readEnv("EAS_BUILD_PROFILE") === "production";
+const buildPlatform = readEnv("EAS_BUILD_PLATFORM");
 const isPlaceholder = (value) =>
   !value ||
   /your-|your_|placeholder|example|your-project/i.test(value) ||
   value.includes("3940256099942544");
 
 const isValidAdMobAppId = (value) => /^ca-app-pub-\d+~\d+$/.test(value);
+
+const shouldWarnForAdMobAppId = (name) => {
+  if (!buildPlatform) {
+    return true;
+  }
+
+  return (
+    (name.includes("_IOS_") && buildPlatform === "ios") ||
+    (name.includes("_ANDROID_") && buildPlatform === "android")
+  );
+};
 
 const resolveAdMobAppId = (name, fallback) => {
   const configuredValue = readEnv(name);
@@ -46,6 +58,7 @@ const resolveAdMobAppId = (name, fallback) => {
 
   if (
     isProduction &&
+    shouldWarnForAdMobAppId(name) &&
     (!configuredValue ||
       isPlaceholder(configuredValue) ||
       !isValidAdMobAppId(configuredValue))

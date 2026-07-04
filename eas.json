@@ -27,7 +27,8 @@
       "env": {
         "EXPO_PUBLIC_APP_ENV": "production",
         "EXPO_PUBLIC_USE_SUPABASE": "true",
-        "EXPO_PUBLIC_USE_REVENUECAT": "true"
+        "EXPO_PUBLIC_USE_REVENUECAT": "true",
+        "EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE": "false"
       }
     }
   },

@@ -209,6 +209,10 @@ export class RevenueCatPaymentService implements PaymentService {
       return;
     }
 
+    if (!__DEV__ && apiKey.startsWith("test_")) {
+      return;
+    }
+
     if (!this.Purchases) {
       const purchasesModule = loadPurchasesModule();
       this.Purchases = purchasesModule

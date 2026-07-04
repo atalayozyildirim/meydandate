@@ -88,14 +88,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       env.secureRefreshTokenKey,
     );
 
-    if (!token) {
+    if (!token && env.useMockServices) {
       set({ isHydrated: true });
       return;
     }
 
     try {
       const session = await container.authRepository.restoreSession(
-        token,
+        token ?? "",
         refreshToken ?? undefined,
       );
 
@@ -114,7 +114,9 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         isHydrated: true,
       });
     } catch {
-      set({ isHydrated: true });
+      await container.tokenStorage.deleteItem(env.secureTokenKey);
+      await container.tokenStorage.deleteItem(env.secureRefreshTokenKey);
+      set({ accessToken: null, currentUser: null, isHydrated: true });
     }
   },
   login: async (credentials) => {

@@ -11,10 +11,21 @@ import {
 } from "@react-navigation/native";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
+import { useAppOpenAd } from "@/features/ads";
 import { ThemeProvider, useTheme } from "@/shared/theme";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 
 const queryClient = new QueryClient();
+
+const AppOpenAdController = () => {
+  const currentUser = useAuthStore((state) => state.currentUser);
+  const isHydrated = useAuthStore((state) => state.isHydrated);
+  const enabled = isHydrated && Boolean(currentUser) && !currentUser?.isPremium;
+
+  useAppOpenAd({ enabled });
+
+  return null;
+};
 
 const RootNavigator = () => {
   const theme = useTheme();
@@ -43,6 +54,7 @@ const RootNavigator = () => {
 
   return (
     <NavigationThemeProvider value={navigationTheme}>
+      <AppOpenAdController />
       <Stack
         screenOptions={{
           headerShown: false,

@@ -26,6 +26,7 @@ const spotifyRedirectUri =
   "ehlibyte://spotify/callback";
 const enableAiStarterProfiles =
   readEnv(process.env.EXPO_PUBLIC_ENABLE_AI_STARTER_PROFILES) === "true";
+const enableAds = readEnv(process.env.EXPO_PUBLIC_ENABLE_ADS) === "true";
 
 const isPlaceholder = (value: string, fragments: string[]) =>
   !value || fragments.some((fragment) => value.includes(fragment));
@@ -43,8 +44,10 @@ const useRevenueCatPayments =
   explicitUseRevenueCat === ""
     ? appEnv === "production"
     : explicitUseRevenueCat === "true";
-const useRevenueCatTestStore =
+const requestedUseRevenueCatTestStore =
   readEnv(process.env.EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE) === "true";
+const useRevenueCatTestStore =
+  __DEV__ && appEnv !== "production" && requestedUseRevenueCatTestStore;
 
 export const env = {
   appEnv,
@@ -70,9 +73,18 @@ export const env = {
   adMobIosAppId: readEnv(process.env.EXPO_PUBLIC_ADMOB_IOS_APP_ID),
   adMobAndroidAppId: readEnv(process.env.EXPO_PUBLIC_ADMOB_ANDROID_APP_ID),
   adMobBannerUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID),
+  adMobNativeUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID),
+  adMobAppOpenUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID),
   adMobInterstitialUnitId:
     readEnv(process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID),
   adMobRewardedUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID),
+  enableAds,
+  yandexAdsBannerUnitId: readEnv(
+    process.env.EXPO_PUBLIC_YANDEX_ADS_BANNER_UNIT_ID,
+  ),
+  yandexAdsInterstitialUnitId: readEnv(
+    process.env.EXPO_PUBLIC_YANDEX_ADS_INTERSTITIAL_UNIT_ID,
+  ),
   spotifyClientId,
   spotifyRedirectUri,
   enableAiStarterProfiles,
@@ -109,7 +121,7 @@ export const getRuntimeConfigIssues = () => {
   }
 
   if (env.isProduction) {
-    if (env.useRevenueCatTestStore) {
+    if (requestedUseRevenueCatTestStore) {
       errors.push("Production build RevenueCat Test Store key ile gönderilemez. EXPO_PUBLIC_REVENUECAT_USE_TEST_STORE=false olmalı.");
     }
 
@@ -131,8 +143,24 @@ export const getRuntimeConfigIssues = () => {
       errors.push("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID boşluksuz lookup key olmalı. Örn: premium");
     }
 
-    if (!env.adMobIosAppId || !env.adMobAndroidAppId) {
-      warnings.push("Production reklam yayını için AdMob iOS/Android app ID değerlerini EAS env'e ekleyin. Eksikse build test AdMob kimlikleriyle devam eder.");
+    if (env.enableAds) {
+      if (!env.adMobIosAppId || !env.adMobAndroidAppId) {
+        warnings.push("Production reklam yayını için AdMob iOS/Android app ID değerlerini EAS env'e ekleyin. Eksikse build test AdMob kimlikleriyle devam eder.");
+      }
+
+      if (!env.adMobBannerUnitId && !env.adMobNativeUnitId) {
+        warnings.push("Feed reklamları için EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID veya EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID ayarlanmalı.");
+      }
+
+      if (!env.adMobAppOpenUnitId) {
+        warnings.push("Uygulama açıkken reklam biçimi için EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID ayarlanmalı.");
+      }
+
+      if (!env.yandexAdsBannerUnitId) {
+        warnings.push(
+          "Yandex production banner reklamı için EXPO_PUBLIC_YANDEX_ADS_BANNER_UNIT_ID ayarlanmalı.",
+        );
+      }
     }
 
     if (!env.spotifyClientId) {

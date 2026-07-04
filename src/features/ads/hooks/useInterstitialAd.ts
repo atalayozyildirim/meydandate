@@ -1,6 +1,7 @@
 // Tam ekran reklamlar icin yukle/goster yardimci hook'u.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { getAdUnitId, initializeAdMob, loadGoogleMobileAds } from "@/features/ads/services/adMob";
+import { env } from "@/infrastructure/config/env";
 
 type InterstitialInstance = ReturnType<
   typeof import("react-native-google-mobile-ads").InterstitialAd.createForAdRequest
@@ -15,7 +16,7 @@ export const useInterstitialAd = ({ enabled = true }: UseInterstitialAdOptions =
   const [isLoaded, setIsLoaded] = useState(false);
 
   const load = useCallback(async () => {
-    if (!enabled) {
+    if (!enabled || !env.enableAds) {
       return;
     }
 
@@ -77,7 +78,7 @@ export const useInterstitialAd = ({ enabled = true }: UseInterstitialAdOptions =
   }, [load]);
 
   const show = useCallback(async () => {
-    if (!isLoaded) {
+    if (!env.enableAds || !isLoaded) {
       return false;
     }
 

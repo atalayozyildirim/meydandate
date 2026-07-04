@@ -61,14 +61,19 @@
     ],
     "ios": {
       "bundleIdentifier": "com.ehlibyte.app",
-      "googleServicesFile": "./ios/Ehlibyte/GoogleService-Info.plist",
       "usesAppleSignIn": true,
       "infoPlist": {
         "NSPhotoLibraryUsageDescription": "Profil ve post fotoğrafı seçmek için fotoğraf kütüphanesine erişim gerekiyor.",
         "NSPhotoLibraryAddUsageDescription": "Paylaştığın görselleri kaydedebilmek için fotoğraf kütüphanesine erişim gerekiyor.",
         "NSCameraUsageDescription": "Profil ve post fotoğrafı çekmek için kamera erişimine izin verin.",
         "NSMicrophoneUsageDescription": "Meydan canlı ses odalarında konuşabilmen için mikrofon erişimi gerekiyor.",
-        "NSLocationWhenInUseUsageDescription": "Yakındaki eşleşmeleri göstermek için konumuna erişmek istiyoruz."
+        "NSLocationWhenInUseUsageDescription": "Yakındaki eşleşmeleri göstermek için konumuna erişmek istiyoruz.",
+        "ITSAppUsesNonExemptEncryption": false,
+        "SKAdNetworkItems": [
+          {
+            "SKAdNetworkIdentifier": "zq492l623r.skadnetwork"
+          }
+        ]
       },
       "entitlements": {
         "com.apple.developer.applesignin": ["Default"]

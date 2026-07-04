@@ -6,6 +6,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { AuthScaffold } from "@/features/auth/components/AuthScaffold";
 import { otpSchema, type OtpFormValues } from "@/features/auth/schemas/authSchemas";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import { formatAuthErrorMessage } from "@/features/auth/utils/authErrorMessages";
 import { Button } from "@/shared/components/Button";
 import { Input } from "@/shared/components/Input";
 import { Loading } from "@/shared/components/Loading";
@@ -62,7 +63,7 @@ export default function OtpScreen() {
       setIsCompleting(false);
       Alert.alert(
         "Kod doğrulanamadı",
-        error instanceof Error ? error.message : "Tekrar deneyin.",
+        formatAuthErrorMessage(error),
       );
     }
   });

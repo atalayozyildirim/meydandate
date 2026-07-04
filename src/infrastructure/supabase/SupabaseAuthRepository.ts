@@ -48,6 +48,18 @@ const isSmsProviderInvalidParameter = (error: unknown) => {
   return /60200|invalid parameter|error sending confirmation otp/i.test(message);
 };
 
+const getAuthErrorMessage = (error: unknown) =>
+  error instanceof Error
+    ? error.message
+    : typeof error === "object" && error !== null && "message" in error
+      ? String((error as { message?: unknown }).message ?? "")
+      : String(error ?? "");
+
+const isOtpSignupNotAllowed = (error: unknown) =>
+  /signup(s)? not allowed|signups? (is|are) disabled|otp.*not allowed/i.test(
+    getAuthErrorMessage(error),
+  );
+
 type AppleFullName = {
   givenName?: string | null;
   middleName?: string | null;
@@ -374,6 +386,18 @@ export class SupabaseAuthRepository implements AuthRepository {
     });
 
     if (error) {
+      if (isOtpSignupNotAllowed(error)) {
+        if (challenge.purpose === "login") {
+          throw new Error(
+            "Bu telefon numarasıyla kayıtlı hesap bulunamadı. Hesap oluştur ekranından yeni üyelik başlat.",
+          );
+        }
+
+        throw new Error(
+          "Yeni üyelik şu anda sunucu tarafında kapalı. Supabase Authentication ayarlarında yeni kullanıcı kaydına izin verilmeli.",
+        );
+      }
+
       if (
         challenge.phoneNumber === testAccount.phoneNumber &&
         isSmsProviderInvalidParameter(error)
@@ -518,16 +542,13 @@ export class SupabaseAuthRepository implements AuthRepository {
   }
 
   async restoreSession(token: string, refreshToken?: string): Promise<AuthSession | null> {
-    if (!refreshToken) {
-      return null;
-    }
+    // Supabase rotates refresh tokens. Its persisted session is the single source
+    // of truth; replaying the separately cached token causes "Refresh Token Not Found".
+    void token;
+    void refreshToken;
+    const { data, error } = await supabase.auth.getSession();
 
-    const { data, error } = await supabase.auth.setSession({
-      access_token: token,
-      refresh_token: refreshToken,
-    });
-
-    if (error || !data.session || !data.user) {
+    if (error || !data.session || !data.session.user) {
       return null;
     }
 

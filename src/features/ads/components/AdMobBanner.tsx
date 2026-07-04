@@ -3,15 +3,22 @@ import { useEffect, useState } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { useAuthStore } from "@/features/auth/stores/authStore";
 import { getAdUnitId, initializeAdMob, loadGoogleMobileAds } from "@/features/ads/services/adMob";
+import { env } from "@/infrastructure/config/env";
 import { useTheme } from "@/shared/theme";
 
 type GoogleMobileAdsModule = typeof import("react-native-google-mobile-ads");
 
 interface AdMobBannerProps {
   style?: StyleProp<ViewStyle>;
+  onAdLoaded?: () => void;
+  onAdFailedToLoad?: () => void;
 }
 
-export const AdMobBanner = ({ style }: AdMobBannerProps) => {
+export const AdMobBanner = ({
+  style,
+  onAdLoaded,
+  onAdFailedToLoad,
+}: AdMobBannerProps) => {
   const theme = useTheme();
   const styles = createStyles(theme);
   const isPremium = useAuthStore((state) => Boolean(state.currentUser?.isPremium));
@@ -20,22 +27,38 @@ export const AdMobBanner = ({ style }: AdMobBannerProps) => {
   useEffect(() => {
     let isMounted = true;
 
+    if (isPremium || !env.enableAds) {
+      return;
+    }
+
     void initializeAdMob()
-      .then(() => loadGoogleMobileAds())
+      .then(async (initialized) => {
+        if (!initialized) {
+          return null;
+        }
+
+        return loadGoogleMobileAds();
+      })
       .then((module) => {
-        if (isMounted) {
+        if (isMounted && module && getAdUnitId(module, "banner")) {
           setAdsModule(module);
+        } else if (isMounted) {
+          onAdFailedToLoad?.();
         }
       });
 
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [isPremium, onAdFailedToLoad]);
+
+  const unitId = adsModule ? getAdUnitId(adsModule, "banner") : "";
 
   if (
     isPremium ||
+    !env.enableAds ||
     !adsModule ||
+    !unitId ||
     !adsModule.BannerAd ||
     !adsModule.BannerAdSize?.ANCHORED_ADAPTIVE_BANNER
   ) {
@@ -47,11 +70,13 @@ export const AdMobBanner = ({ style }: AdMobBannerProps) => {
   return (
     <View style={[styles.container, style]}>
       <BannerAd
-        unitId={getAdUnitId(adsModule, "banner")}
+        unitId={unitId}
         size={adsModule.BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
         requestOptions={{
           requestNonPersonalizedAdsOnly: true,
         }}
+        onAdLoaded={onAdLoaded}
+        onAdFailedToLoad={onAdFailedToLoad}
       />
     </View>
   );

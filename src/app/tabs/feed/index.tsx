@@ -1,5 +1,5 @@
 // Topluluk akışını, post oluşturmayı ve etiket filtrelerini gösterir.
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -18,6 +18,7 @@ import { feedTagValues } from "@/domain/entities/Feed";
 import { Avatar } from "@/shared/components/Avatar";
 import { EmptyState } from "@/shared/components/EmptyState";
 import { Loading } from "@/shared/components/Loading";
+import { FeedAdPostCard } from "@/features/feed/components/FeedAdPostCard";
 import { FeedPostCard } from "@/features/feed/components/FeedPostCard";
 import { FeedAdminPanel } from "@/features/feed/screens/FeedAdminPanel";
 import { useFeed } from "@/features/feed/hooks/useFeed";
@@ -26,6 +27,13 @@ import { isPermanentBanError } from "@/features/moderation/utils/permanentBan";
 import { useUserRole } from "@/features/moderation/hooks/useModerationService";
 import { useTheme } from "@/shared/theme";
 import { useUnreadActivityCount } from "@/features/notifications/hooks/useActivities";
+
+const visibleFeedTags = feedTagValues.filter((tag) => tag !== "muharrem");
+const FEED_AD_INTERVAL = 5;
+
+type FeedListItem =
+  | { type: "post"; post: FeedPost }
+  | { type: "ad"; id: string };
 
 const feedTagLabels: Record<FeedTag | "all", string> = {
   all: "Sana özel",
@@ -39,7 +47,7 @@ export default function FeedScreen() {
   const router = useRouter();
   const theme = useTheme();
   const styles = createStyles(theme);
-  const listRef = useRef<FlatList<FeedPost>>(null);
+  const listRef = useRef<FlatList<FeedListItem>>(null);
   const applyPermanentBan = useAuthStore((state) => state.applyPermanentBan);
   const [selectedTag, setSelectedTag] = useState<FeedTag | "all">("all");
   const [showAdminPanel, setShowAdminPanel] = useState(false);
@@ -63,6 +71,23 @@ export default function FeedScreen() {
   const { data: currentUserRole = "user" } = useUserRole(currentUser?.id ?? "");
   const { unreadCount } = useUnreadActivityCount();
   const isAdmin = currentUserRole === "admin";
+  const feedItems = useMemo<FeedListItem[]>(() => {
+    if (currentUser?.isPremium) {
+      return posts.map((post) => ({ type: "post", post }));
+    }
+
+    return posts.flatMap((post, index) => {
+      const item: FeedListItem = { type: "post", post };
+      const shouldInsertAd =
+        index + 1 >= FEED_AD_INTERVAL && (index + 1) % FEED_AD_INTERVAL === 0;
+
+      if (!shouldInsertAd) {
+        return [item];
+      }
+
+      return [item, { type: "ad", id: `feed-ad-${index + 1}` }];
+    });
+  }, [currentUser?.isPremium, posts]);
 
   const quotePost = (post: FeedPost) => {
     router.push({
@@ -144,7 +169,7 @@ export default function FeedScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filters}
         >
-          {(["all", ...feedTagValues] as Array<FeedTag | "all">).map((tag) => {
+          {(["all", ...visibleFeedTags] as Array<FeedTag | "all">).map((tag) => {
             const selected = selectedTag === tag;
 
             return (
@@ -259,8 +284,10 @@ export default function FeedScreen() {
     <SafeAreaView style={styles.safeArea}>
       <FlatList
         ref={listRef}
-        data={posts}
-        keyExtractor={(post) => post.id}
+        data={feedItems}
+        keyExtractor={(item) =>
+          item.type === "post" ? item.post.id : item.id
+        }
         ListHeaderComponent={feedHeader}
         ListEmptyComponent={
           <EmptyState
@@ -276,32 +303,41 @@ export default function FeedScreen() {
           ) : null
         }
         contentContainerStyle={styles.screen}
-        renderItem={({ item }) => (
-          <FeedPostCard
-            post={item}
-            currentUser={currentUser}
-            disabled={isMutating}
-            onLike={toggleLike}
-            onComment={(postId, commentBody) =>
-              addComment({ postId, body: commentBody })
-            }
-            onReply={(postId, commentId, replyBody) =>
-              addReply({ postId, commentId, body: replyBody })
-            }
-            onReport={reportPost}
-            onDelete={deletePost}
-            onVote={(pollId, optionId) => void votePoll({ pollId, optionId })}
-            onQuote={quotePost}
-            canDelete={
-              !item.isSponsored && (isAdmin || item.authorId === currentUser.id)
-            }
-            onPermanentBan={handlePermanentBan}
-            isSponsored={Boolean(item.isSponsored)}
-            sponsorLabel={item.sponsorLabel ?? "Resmi rehber"}
-            ctaLabel={item.ctaLabel ?? "İncele"}
-            onCtaPress={() => router.push("/tabs/profile")}
-          />
-        )}
+        renderItem={({ item }) => {
+          if (item.type === "ad") {
+            return <FeedAdPostCard />;
+          }
+
+          return (
+            <FeedPostCard
+              post={item.post}
+              currentUser={currentUser}
+              disabled={isMutating}
+              onLike={toggleLike}
+              onComment={(postId, commentBody) =>
+                addComment({ postId, body: commentBody })
+              }
+              onReply={(postId, commentId, replyBody) =>
+                addReply({ postId, commentId, body: replyBody })
+              }
+              onReport={reportPost}
+              onDelete={deletePost}
+              onVote={(pollId, optionId) =>
+                void votePoll({ pollId, optionId })
+              }
+              onQuote={quotePost}
+              canDelete={
+                !item.post.isSponsored &&
+                (isAdmin || item.post.authorId === currentUser.id)
+              }
+              onPermanentBan={handlePermanentBan}
+              isSponsored={Boolean(item.post.isSponsored)}
+              sponsorLabel={item.post.sponsorLabel ?? "Resmi rehber"}
+              ctaLabel={item.post.ctaLabel ?? "İncele"}
+              onCtaPress={() => router.push("/tabs/profile")}
+            />
+          );
+        }}
         ItemSeparatorComponent={() => <View style={styles.postSeparator} />}
         refreshing={isRefreshing}
         onRefresh={() => void refresh()}

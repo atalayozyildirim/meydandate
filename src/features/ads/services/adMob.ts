@@ -4,7 +4,12 @@ import { env } from "@/infrastructure/config/env";
 import { isExpoGo } from "@/shared/utils/expoRuntime";
 
 type GoogleMobileAdsModule = typeof import("react-native-google-mobile-ads");
-export type AdMobPlacement = "banner" | "interstitial" | "rewarded";
+export type AdMobPlacement =
+  | "appOpen"
+  | "banner"
+  | "interstitial"
+  | "native"
+  | "rewarded";
 
 type MobileAdsController = {
   initialize?: () => Promise<unknown>;
@@ -16,6 +21,7 @@ let initializePromise: Promise<boolean> | null = null;
 
 export const isAdMobPlatform = Platform.OS === "ios" || Platform.OS === "android";
 export const isAdMobNativeModuleAvailable =
+  env.enableAds &&
   isAdMobPlatform &&
   !isExpoGo &&
   [
@@ -52,6 +58,10 @@ const getMobileAdsController = (
 };
 
 export const loadGoogleMobileAds = async () => {
+  if (!env.enableAds) {
+    return null;
+  }
+
   if (!isAdMobNativeModuleAvailable) {
     return null;
   }
@@ -74,8 +84,10 @@ export const getAdUnitId = (
   placement: AdMobPlacement,
 ) => {
   const configuredUnitIds: Record<AdMobPlacement, string> = {
+    appOpen: env.adMobAppOpenUnitId,
     banner: env.adMobBannerUnitId,
     interstitial: env.adMobInterstitialUnitId,
+    native: env.adMobNativeUnitId,
     rewarded: env.adMobRewardedUnitId,
   };
 
@@ -85,9 +97,15 @@ export const getAdUnitId = (
     return configuredUnitId;
   }
 
+  if (env.isProduction) {
+    return "";
+  }
+
   const testUnitIds: Record<AdMobPlacement, string> = {
+    appOpen: adsModule.TestIds.APP_OPEN,
     banner: adsModule.TestIds.BANNER,
     interstitial: adsModule.TestIds.INTERSTITIAL,
+    native: adsModule.TestIds.NATIVE,
     rewarded: adsModule.TestIds.REWARDED,
   };
 
@@ -95,6 +113,10 @@ export const getAdUnitId = (
 };
 
 export const initializeAdMob = async () => {
+  if (!env.enableAds) {
+    return false;
+  }
+
   if (initializePromise) {
     return initializePromise;
   }

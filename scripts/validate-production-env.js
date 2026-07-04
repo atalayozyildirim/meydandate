@@ -47,6 +47,7 @@ const value = (key) => env[key]?.trim() ?? "";
 const isPlaceholder = (candidate) =>
   !candidate ||
   /your-|your_|placeholder|example|your-project/i.test(candidate);
+const adsEnabled = value("EXPO_PUBLIC_ENABLE_ADS") === "true";
 
 if (value("EXPO_PUBLIC_USE_SUPABASE") !== "true") {
   errors.push("EXPO_PUBLIC_USE_SUPABASE=true olmalı.");
@@ -105,24 +106,43 @@ if (
   errors.push("EXPO_PUBLIC_REVENUECAT_ENTITLEMENT_ID boşluksuz lookup key olmalı. Örn: premium");
 }
 
-for (const key of [
-  "EXPO_PUBLIC_ADMOB_IOS_APP_ID",
-  "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
-]) {
-  if (
-    isPlaceholder(value(key)) ||
-    !/^ca-app-pub-\d+~\d+$/.test(value(key))
-  ) {
-    warnings.push(`${key} production AdMob app id değil; build test AdMob app id ile devam eder.`);
+if (adsEnabled) {
+  for (const key of [
+    "EXPO_PUBLIC_ADMOB_IOS_APP_ID",
+    "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
+  ]) {
+    if (
+      isPlaceholder(value(key)) ||
+      !/^ca-app-pub-\d+~\d+$/.test(value(key))
+    ) {
+      warnings.push(`${key} production AdMob app id değil; build test AdMob app id ile devam eder.`);
+    }
   }
-}
 
-for (const key of [
-  "EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID",
-  "EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID",
-]) {
-  if (isPlaceholder(value(key))) {
-    warnings.push(`${key} production için ayarlanmalı.`);
+  if (
+    isPlaceholder(value("EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID")) &&
+    isPlaceholder(value("EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID"))
+  ) {
+    warnings.push(
+      "Feed reklamları için EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID veya EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID production için ayarlanmalı.",
+    );
+  }
+
+  if (isPlaceholder(value("EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID"))) {
+    warnings.push("EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID production için ayarlanmalı.");
+  }
+
+  if (isPlaceholder(value("EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID"))) {
+    warnings.push("EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID production için ayarlanmalı.");
+  }
+
+  for (const key of [
+    "EXPO_PUBLIC_YANDEX_ADS_BANNER_UNIT_ID",
+    "EXPO_PUBLIC_YANDEX_ADS_INTERSTITIAL_UNIT_ID",
+  ]) {
+    if (!/^R-M-\d+-\d+$/.test(value(key))) {
+      warnings.push(`${key} production Yandex reklam birimi ID'si değil; ilgili reklam gösterilmez.`);
+    }
   }
 }
 
