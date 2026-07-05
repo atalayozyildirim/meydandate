@@ -75,6 +75,10 @@ export interface User {
   bio: string;
   hometown?: string;
   favoriteSong?: string;
+  spotifyTrackId?: string;
+  spotifyTrackName?: string;
+  spotifyArtistNames?: string[];
+  spotifyPresenceExpiresAt?: string;
   favoritePoet?: string;
   culturalIdentity: CulturalIdentity;
   cultureImportance: CultureImportance;

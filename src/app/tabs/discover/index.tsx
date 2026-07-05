@@ -155,80 +155,6 @@ const discoverModes: Array<{
   { value: "spotify", label: "Spotify", icon: "spotify" },
 ];
 
-const normalizeMusicSignal = (value?: string | null) =>
-  sanitizePlainText(value ?? "", 120)
-    .trim()
-    .toLocaleLowerCase("tr-TR");
-
-const splitMusicSignal = (value?: string | null) => {
-  const signal = normalizeMusicSignal(value);
-  const [track = signal, artist = ""] = signal.split(" - ");
-
-  return {
-    signal,
-    track: track.trim(),
-    artist: artist.trim(),
-    tokens: new Set(
-      signal
-        .split(/[\s,.-]+/)
-        .map((token) => token.trim())
-        .filter((token) => token.length > 2),
-    ),
-  };
-};
-
-const calculateSpotifyMatchRank = (
-  currentUser: User,
-  card: DiscoverCard,
-  currentSignal: string,
-) => {
-  const currentMusic = splitMusicSignal(currentSignal);
-  const candidateMusic = splitMusicSignal(card.user.favoriteSong);
-
-  if (!candidateMusic.signal) {
-    return -1;
-  }
-
-  let score = 0;
-
-  if (candidateMusic.signal === currentMusic.signal) {
-    score += 100;
-  }
-
-  if (candidateMusic.track && candidateMusic.track === currentMusic.track) {
-    score += 54;
-  }
-
-  if (
-    candidateMusic.artist &&
-    currentMusic.artist &&
-    (candidateMusic.artist.includes(currentMusic.artist) ||
-      currentMusic.artist.includes(candidateMusic.artist))
-  ) {
-    score += 42;
-  }
-
-  const sharedMusicTokens = [...currentMusic.tokens].filter((token) =>
-    candidateMusic.tokens.has(token),
-  );
-  score += Math.min(sharedMusicTokens.length * 8, 24);
-
-  const sharedInterests = currentUser.interests.filter((interest) =>
-    card.user.interests.includes(interest),
-  );
-  const hasMusicInterest = sharedInterests.some((interest) =>
-    /music|muzik|folk|deyis|baglama|turku|song/i.test(interest),
-  );
-  score += Math.min(sharedInterests.length * 3, 15);
-  score += hasMusicInterest ? 12 : 0;
-  score +=
-    card.compatibility.interests * 0.12 +
-    card.compatibility.cultural * 0.08 +
-    card.compatibility.lifestyle * 0.05;
-
-  return score;
-};
-
 const getCultureImportanceLabel = (value: User["cultureImportance"]) =>
   cultureImportanceOptions.find((option) => option.value === value)?.label ??
   value;
@@ -740,7 +666,25 @@ export default function DiscoverScreen() {
       : "Konumunu bir kez yenilemen gerekiyor."
     : "Yakındaki profilleri keşfet akışında öne çıkar.";
 
-  const currentMusicSignal = normalizeMusicSignal(currentUser?.favoriteSong);
+  const spotifyPresenceExpiresAt = currentUser?.spotifyPresenceExpiresAt
+    ? new Date(currentUser.spotifyPresenceExpiresAt).getTime()
+    : 0;
+  const hasLiveSpotifyPresence =
+    Boolean(currentUser?.spotifyTrackId) && spotifyPresenceExpiresAt > Date.now();
+  const currentSpotifyTrackId = hasLiveSpotifyPresence
+    ? currentUser?.spotifyTrackId
+    : undefined;
+  const currentMusicSignal = hasLiveSpotifyPresence
+    ? sanitizePlainText(
+        [
+          currentUser?.spotifyTrackName,
+          currentUser?.spotifyArtistNames?.join(", "),
+        ]
+          .filter(Boolean)
+          .join(" - "),
+        120,
+      )
+    : "";
   const isSpotifyModeMissingSignal =
     discoverMode === "spotify" && !currentMusicSignal && !isSpotifyLinked;
   const isSpotifyModeWaitingForTrack =
@@ -750,29 +694,23 @@ export default function DiscoverScreen() {
       return deck;
     }
 
-    if (!currentMusicSignal || !currentUser) {
+    if (!currentSpotifyTrackId || !currentUser) {
       return [];
     }
 
-    return [...deck]
-      .map((card) => ({
-        card,
-        spotifyRank: calculateSpotifyMatchRank(
-          currentUser,
-          card,
-          currentMusicSignal,
-        ),
-      }))
-      .filter((item) => item.spotifyRank >= 16)
-      .sort((first, second) => second.spotifyRank - first.spotifyRank)
-      .map((item) => item.card);
-  }, [currentMusicSignal, currentUser, deck, discoverMode]);
+    const now = Date.now();
+    return deck.filter(
+      (card) =>
+        card.user.spotifyTrackId === currentSpotifyTrackId &&
+        new Date(card.user.spotifyPresenceExpiresAt ?? 0).getTime() > now,
+    );
+  }, [currentSpotifyTrackId, currentUser, deck, discoverMode]);
   const activeCard = visibleDeck[0];
   const nextCard = visibleDeck[1];
   const activeModeLabel =
     discoverMode === "spotify"
-      ? currentUser?.favoriteSong
-        ? `Spotify · ${sanitizePlainText(currentUser.favoriteSong, 72)}`
+      ? currentMusicSignal
+        ? `Spotify · ${sanitizePlainText(currentMusicSignal, 72)}`
         : isSpotifyLinked
           ? "Spotify · aktif şarkı bekleniyor"
           : "Spotify hesabın bağlı değil"
@@ -1142,7 +1080,7 @@ export default function DiscoverScreen() {
       .catch(() => undefined);
   };
 
-  const connectSpotify = async () => {
+  const syncSpotify = async () => {
     if (isSpotifyConnecting) {
       return;
     }
@@ -1158,12 +1096,30 @@ export default function DiscoverScreen() {
     setIsSpotifyConnecting(true);
 
     try {
-      const result = await spotifyConnectionService.connectAndGetCurrentTrack();
+      const wasLinked = isSpotifyLinked;
+      const result = wasLinked
+        ? await spotifyConnectionService.refreshCurrentTrack()
+        : await spotifyConnectionService.connectAndGetCurrentTrack();
       setIsSpotifyLinked(result.connected);
 
       if (!result.trackSignal) {
+        const updatedUser = await container.userRepository.updateProfile(
+          currentUser.id,
+          { favoriteSong: "" },
+        );
+        setCurrentUser({
+          ...updatedUser,
+          spotifyTrackId: undefined,
+          spotifyTrackName: undefined,
+          spotifyArtistNames: undefined,
+          spotifyPresenceExpiresAt: undefined,
+        });
+        await Promise.all([
+          queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
+          queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
+        ]);
         Alert.alert(
-          "Spotify bağlandı",
+          wasLinked ? "Spotify güncellendi" : "Spotify bağlandı",
           "Şu an aktif çalan şarkı bulamadık. Spotify'da bir şarkı çalarken tekrar yenile.",
         );
         return;
@@ -1173,22 +1129,35 @@ export default function DiscoverScreen() {
         currentUser.id,
         { favoriteSong: result.trackSignal },
       );
-      setCurrentUser(updatedUser);
+      setCurrentUser({
+        ...updatedUser,
+        spotifyTrackId: result.trackId,
+        spotifyTrackName: result.trackName,
+        spotifyArtistNames: result.artistNames,
+        spotifyPresenceExpiresAt: new Date(Date.now() + 130_000).toISOString(),
+      });
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: [queryKeys.profile] }),
         queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
       ]);
       await refresh();
       Alert.alert(
-        "Spotify bağlandı",
+        wasLinked ? "Şarkı güncellendi" : "Spotify bağlandı",
         `${result.trackSignal} ile eşleşme modu güncellendi.`,
       );
     } catch (error) {
-      Alert.alert(
-        "Spotify bağlanamadı",
+      const message =
         error instanceof Error
           ? error.message
-          : "Spotify bağlantısı tamamlanamadı.",
+          : "Spotify bağlantısı tamamlanamadı.";
+
+      if (/yeniden bağla|refresh credentials|invalid_grant/i.test(message)) {
+        setIsSpotifyLinked(false);
+      }
+
+      Alert.alert(
+        isSpotifyLinked ? "Şarkı yenilenemedi" : "Spotify bağlanamadı",
+        message,
       );
     } finally {
       setIsSpotifyConnecting(false);
@@ -1633,6 +1602,49 @@ export default function DiscoverScreen() {
         })}
       </View>
 
+      {discoverMode === "spotify" ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={
+            isSpotifyLinked ? "Spotify şarkısını yenile" : "Spotify hesabını bağla"
+          }
+          disabled={isSpotifyConnecting}
+          onPress={() => void syncSpotify()}
+          style={({ pressed }) => [
+            styles.spotifyStatusCard,
+            pressed && styles.pressed,
+          ]}
+        >
+          <View style={styles.spotifyStatusIcon}>
+            <FontAwesome name="spotify" size={24} color="#FFFFFF" />
+          </View>
+          <View style={styles.spotifyStatusCopy}>
+            <Text numberOfLines={1} style={styles.spotifyStatusEyebrow}>
+              {currentMusicSignal
+                ? "ŞİMDİ ÇALIYOR"
+                : isSpotifyLinked
+                  ? "SPOTIFY BAĞLI"
+                  : "ANLIK MÜZİK EŞLEŞMESİ"}
+            </Text>
+            <Text numberOfLines={1} style={styles.spotifyStatusTitle}>
+              {currentMusicSignal ||
+                (isSpotifyLinked
+                  ? "Aktif şarkı bekleniyor"
+                  : "Hesabını bağla")}
+            </Text>
+            <Text numberOfLines={1} style={styles.spotifyStatusSubtitle}>
+              {isSpotifyLinked
+                ? "Aynı şarkıyı dinleyenler arka planda eşleştirilir"
+                : "Çalan şarkına göre kişileri keşfet"}
+            </Text>
+          </View>
+          <Ionicons
+            name={isSpotifyConnecting ? "hourglass-outline" : "refresh"}
+            size={19}
+            color="#1ED760"
+          />
+        </Pressable>
+      ) : (
       <Pressable
         accessibilityRole="button"
         accessibilityLabel="Konuma göre eşleşme ayarlarını aç"
@@ -1671,6 +1683,7 @@ export default function DiscoverScreen() {
         </View>
         <Ionicons name="chevron-forward" size={18} color={theme.colors.muted} />
       </Pressable>
+      )}
 
       {specialInvite ? (
         <View style={styles.specialInvitePanel}>
@@ -1726,6 +1739,8 @@ export default function DiscoverScreen() {
                   user={nextCard.user}
                   compatibility={nextCard.compatibility}
                   height={cardHeight}
+                  spotifyMode={discoverMode === "spotify"}
+                  currentSpotifyTrackId={currentSpotifyTrackId}
                   onOpenSafety={() => undefined}
                 />
               </View>
@@ -1740,6 +1755,8 @@ export default function DiscoverScreen() {
                   user={activeCard.user}
                   compatibility={activeCard.compatibility}
                   height={cardHeight}
+                  spotifyMode={discoverMode === "spotify"}
+                  currentSpotifyTrackId={currentSpotifyTrackId}
                   onOpenSafety={() => setActiveSafetyUser(activeCard.user)}
                   onOpenProfile={() =>
                     router.push({
@@ -1958,7 +1975,7 @@ export default function DiscoverScreen() {
           }
           onAction={
             isSpotifyModeMissingSignal || isSpotifyModeWaitingForTrack
-              ? () => void connectSpotify()
+              ? () => void syncSpotify()
               : undefined
           }
         />
@@ -2417,6 +2434,50 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       shadowOpacity: theme.isDark ? 0.2 : 0.06,
       shadowRadius: 10,
       shadowOffset: { width: 0, height: 5 },
+    },
+    spotifyStatusCard: {
+      minHeight: 72,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.sm,
+      borderRadius: theme.radius.lg,
+      borderWidth: 1,
+      borderColor: theme.isDark
+        ? "rgba(30, 215, 96, 0.44)"
+        : "rgba(29, 185, 84, 0.30)",
+      backgroundColor: theme.isDark ? "#101A13" : "#F0FBF4",
+    },
+    spotifyStatusIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#1DB954",
+    },
+    spotifyStatusCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 1,
+    },
+    spotifyStatusEyebrow: {
+      ...theme.typography.caption,
+      color: "#1DB954",
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.55,
+    },
+    spotifyStatusTitle: {
+      ...theme.typography.body,
+      color: theme.colors.text,
+      fontWeight: "900",
+    },
+    spotifyStatusSubtitle: {
+      ...theme.typography.caption,
+      color: theme.colors.muted,
     },
     locationShortcut: {
       flexDirection: "row",

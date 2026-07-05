@@ -33,6 +33,7 @@ const activityIcons: Record<
   match: "people",
   profile_like: "person-add",
   super_like: "flash",
+  spotify_match: "musical-notes",
 };
 
 const startOfDay = (date: Date) =>

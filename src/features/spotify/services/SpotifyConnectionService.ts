@@ -1,6 +1,7 @@
 import * as Crypto from "expo-crypto";
 import * as WebBrowser from "expo-web-browser";
 import { env } from "@/infrastructure/config/env";
+import { supabase } from "@/infrastructure/supabase/client";
 import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 import { sanitizePlainText } from "@/shared/utils/sanitize";
 
@@ -8,6 +9,7 @@ const spotifyAccessTokenKey = "ehlibyte-spotify-access-token";
 const spotifyRefreshTokenKey = "ehlibyte-spotify-refresh-token";
 const spotifyExpiresAtKey = "ehlibyte-spotify-expires-at";
 const spotifyScope = "user-read-currently-playing";
+const tokenRefreshLeewayMs = 60_000;
 const verifierChars =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 
@@ -21,19 +23,32 @@ interface SpotifyTokenResponse {
 
 interface SpotifyCurrentlyPlayingResponse {
   is_playing?: boolean;
+  progress_ms?: number;
   item?: {
+    id?: string;
+    type?: string;
     name?: string;
+    duration_ms?: number;
     artists?: Array<{ name?: string }>;
+    album?: {
+      images?: Array<{ url?: string; width?: number; height?: number }>;
+    };
   } | null;
 }
 
 export interface SpotifyCurrentTrackResult {
   connected: boolean;
   trackSignal?: string;
+  trackId?: string;
+  trackName?: string;
+  artistNames?: string[];
+  albumImageUrl?: string;
+  progressMs?: number;
+  durationMs?: number;
 }
 
-const createCodeVerifier = () => {
-  const bytes = Crypto.getRandomBytes(64);
+const createRandomString = (length: number) => {
+  const bytes = Crypto.getRandomBytes(length);
 
   return Array.from(bytes)
     .map((byte) => verifierChars[byte % verifierChars.length])
@@ -52,12 +67,16 @@ const createCodeChallenge = async (verifier: string) =>
     ),
   );
 
-const parseAuthCode = (redirectUrl: string) => {
+const parseAuthCode = (redirectUrl: string, expectedState: string) => {
   const parsedUrl = new URL(redirectUrl);
   const error = parsedUrl.searchParams.get("error");
 
   if (error) {
     throw new Error(`Spotify bağlantısı iptal edildi: ${error}`);
+  }
+
+  if (parsedUrl.searchParams.get("state") !== expectedState) {
+    throw new Error("Spotify bağlantısı güvenlik doğrulamasından geçemedi.");
   }
 
   const code = parsedUrl.searchParams.get("code");
@@ -68,6 +87,11 @@ const parseAuthCode = (redirectUrl: string) => {
 
   return code;
 };
+
+const getSpotifyTokenError = (
+  payload: SpotifyTokenResponse,
+  fallback: string,
+) => payload.error_description || payload.error || fallback;
 
 export class SpotifyConnectionService {
   constructor(private readonly storage = new SecureStorageService()) {}
@@ -83,12 +107,110 @@ export class SpotifyConnectionService {
     return Boolean(refreshToken || accessToken);
   }
 
+  private async persistTokens(payload: SpotifyTokenResponse) {
+    if (!payload.access_token) {
+      throw new Error("Spotify erişim anahtarı alınamadı.");
+    }
+
+    const expiresAt = Date.now() + (payload.expires_in ?? 3600) * 1000;
+    await Promise.all([
+      this.storage.setItem(spotifyAccessTokenKey, payload.access_token),
+      payload.refresh_token
+        ? this.storage.setItem(spotifyRefreshTokenKey, payload.refresh_token)
+        : Promise.resolve(),
+      this.storage.setItem(spotifyExpiresAtKey, String(expiresAt)),
+    ]);
+
+    return { accessToken: payload.access_token, expiresAt };
+  }
+
+  private async refreshAccessToken() {
+    if (!env.spotifyClientId) {
+      throw new Error("Spotify Client ID eksik. EXPO_PUBLIC_SPOTIFY_CLIENT_ID eklenmeli.");
+    }
+
+    const refreshToken = await this.storage
+      .getItem(spotifyRefreshTokenKey)
+      .catch(() => null);
+
+    if (!refreshToken) {
+      throw new Error("Spotify oturumu yenilenemedi. Hesabını yeniden bağla.");
+    }
+
+    const response = await fetch("https://accounts.spotify.com/api/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: env.spotifyClientId,
+        grant_type: "refresh_token",
+        refresh_token: refreshToken,
+      }).toString(),
+    });
+    const payload = (await response.json().catch(() => ({}))) as SpotifyTokenResponse;
+
+    if (!response.ok || !payload.access_token) {
+      throw new Error(
+        getSpotifyTokenError(
+          payload,
+          "Spotify oturumu yenilenemedi. Hesabını yeniden bağla.",
+        ),
+      );
+    }
+
+    return this.persistTokens(payload);
+  }
+
+  private async getValidAccessToken(forceRefresh = false) {
+    const [accessToken, expiresAtValue] = await Promise.all([
+      this.storage.getItem(spotifyAccessTokenKey).catch(() => null),
+      this.storage.getItem(spotifyExpiresAtKey).catch(() => null),
+    ]);
+    const expiresAt = Number(expiresAtValue ?? 0);
+    const shouldRefresh =
+      forceRefresh ||
+      !accessToken ||
+      !Number.isFinite(expiresAt) ||
+      expiresAt <= Date.now() + tokenRefreshLeewayMs;
+
+    if (shouldRefresh) {
+      return this.refreshAccessToken();
+    }
+
+    return { accessToken, expiresAt };
+  }
+
+  private async syncServer(
+    accessToken: string,
+    expiresAt: number,
+  ) {
+    if (env.useMockServices) {
+      return;
+    }
+
+    const refreshToken = await this.storage
+      .getItem(spotifyRefreshTokenKey)
+      .catch(() => null);
+    const { error } = await supabase.functions.invoke("spotify-live-match", {
+      body: {
+        action: "sync",
+        accessToken,
+        refreshToken,
+        expiresAt: new Date(expiresAt).toISOString(),
+      },
+    });
+
+    if (error && __DEV__) {
+      console.info("Spotify arka plan eşleştirmesi güncellenemedi", error.message);
+    }
+  }
+
   async connectAndGetCurrentTrack(): Promise<SpotifyCurrentTrackResult> {
     if (!env.spotifyClientId) {
       throw new Error("Spotify Client ID eksik. EXPO_PUBLIC_SPOTIFY_CLIENT_ID eklenmeli.");
     }
 
-    const verifier = createCodeVerifier();
+    const verifier = createRandomString(64);
+    const state = createRandomString(32);
     const challenge = await createCodeChallenge(verifier);
     const authParams = new URLSearchParams({
       response_type: "code",
@@ -97,6 +219,7 @@ export class SpotifyConnectionService {
       redirect_uri: env.spotifyRedirectUri,
       code_challenge_method: "S256",
       code_challenge: challenge,
+      state,
     });
     const authResult = await WebBrowser.openAuthSessionAsync(
       `https://accounts.spotify.com/authorize?${authParams.toString()}`,
@@ -108,12 +231,10 @@ export class SpotifyConnectionService {
       throw new Error("Spotify bağlantısı tamamlanmadı.");
     }
 
-    const code = parseAuthCode(authResult.url);
+    const code = parseAuthCode(authResult.url, state);
     const tokenResponse = await fetch("https://accounts.spotify.com/api/token", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
       body: new URLSearchParams({
         client_id: env.spotifyClientId,
         grant_type: "authorization_code",
@@ -126,73 +247,107 @@ export class SpotifyConnectionService {
 
     if (!tokenResponse.ok || !tokenPayload.access_token) {
       throw new Error(
-        tokenPayload.error_description ||
-          tokenPayload.error ||
-          "Spotify token alınamadı.",
+        getSpotifyTokenError(tokenPayload, "Spotify token alınamadı."),
       );
     }
 
-    await Promise.all([
-      this.storage.setItem(spotifyAccessTokenKey, tokenPayload.access_token),
-      tokenPayload.refresh_token
-        ? this.storage.setItem(spotifyRefreshTokenKey, tokenPayload.refresh_token)
-        : Promise.resolve(),
-      tokenPayload.expires_in
-        ? this.storage.setItem(
-            spotifyExpiresAtKey,
-            String(Date.now() + tokenPayload.expires_in * 1000),
-          )
-        : Promise.resolve(),
-    ]);
-
-    return this.getCurrentTrack(tokenPayload.access_token);
+    const tokens = await this.persistTokens(tokenPayload);
+    const result = await this.getCurrentTrackWithToken(tokens.accessToken);
+    await this.syncServer(tokens.accessToken, tokens.expiresAt);
+    return result;
   }
 
-  async getCurrentTrack(accessToken?: string): Promise<SpotifyCurrentTrackResult> {
-    const token =
-      accessToken ||
-      (await this.storage.getItem(spotifyAccessTokenKey).catch(() => null));
-
-    if (!token) {
-      return { connected: false };
-    }
-
-    const playbackResponse = await fetch(
+  private async getCurrentTrackWithToken(
+    accessToken: string,
+  ): Promise<SpotifyCurrentTrackResult> {
+    const response = await fetch(
       "https://api.spotify.com/v1/me/player/currently-playing",
-      {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      },
+      { headers: { Authorization: `Bearer ${accessToken}` } },
     );
 
-    if (playbackResponse.status === 204) {
+    if (response.status === 401) {
+      throw new Error("SPOTIFY_TOKEN_EXPIRED");
+    }
+
+    if (response.status === 204) {
       return { connected: true };
     }
 
-    if (!playbackResponse.ok) {
-      return { connected: true };
+    if (response.status === 429) {
+      throw new Error("Spotify çok sık yenilendi. Biraz bekleyip tekrar dene.");
+    }
+
+    if (!response.ok) {
+      throw new Error("Spotify'da çalan şarkı şu an okunamadı.");
     }
 
     const playback =
-      (await playbackResponse.json().catch(() => null)) as SpotifyCurrentlyPlayingResponse | null;
+      (await response.json().catch(() => null)) as SpotifyCurrentlyPlayingResponse | null;
     const trackName = sanitizePlainText(playback?.item?.name ?? "", 80);
-    const artists =
+    const artistNames =
       playback?.item?.artists
         ?.map((artist) => sanitizePlainText(artist.name ?? "", 60))
         .filter(Boolean) ?? [];
+    const trackId = sanitizePlainText(playback?.item?.id ?? "", 80);
 
-    if (!playback?.is_playing || !trackName) {
+    if (
+      !playback?.is_playing ||
+      playback.item?.type !== "track" ||
+      !trackId ||
+      !trackName
+    ) {
       return { connected: true };
     }
 
     return {
       connected: true,
+      trackId,
+      trackName,
+      artistNames,
       trackSignal: sanitizePlainText(
-        artists.length > 0 ? `${trackName} - ${artists.join(", ")}` : trackName,
+        artistNames.length > 0
+          ? `${trackName} - ${artistNames.join(", ")}`
+          : trackName,
         120,
       ),
+      albumImageUrl: playback.item.album?.images?.find((image) => image.url)?.url,
+      progressMs: playback.progress_ms,
+      durationMs: playback.item.duration_ms,
     };
+  }
+
+  async getCurrentTrack(): Promise<SpotifyCurrentTrackResult> {
+    let tokens = await this.getValidAccessToken();
+
+    try {
+      return await this.getCurrentTrackWithToken(tokens.accessToken);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "SPOTIFY_TOKEN_EXPIRED") {
+        throw error;
+      }
+
+      tokens = await this.getValidAccessToken(true);
+      return this.getCurrentTrackWithToken(tokens.accessToken);
+    }
+  }
+
+  async refreshCurrentTrack(): Promise<SpotifyCurrentTrackResult> {
+    let tokens = await this.getValidAccessToken();
+    let result: SpotifyCurrentTrackResult;
+
+    try {
+      result = await this.getCurrentTrackWithToken(tokens.accessToken);
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "SPOTIFY_TOKEN_EXPIRED") {
+        throw error;
+      }
+
+      tokens = await this.getValidAccessToken(true);
+      result = await this.getCurrentTrackWithToken(tokens.accessToken);
+    }
+
+    await this.syncServer(tokens.accessToken, tokens.expiresAt);
+    return result;
   }
 }
 

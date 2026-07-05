@@ -4,7 +4,8 @@ export type ActivityType =
   | "message"
   | "match"
   | "profile_like"
-  | "super_like";
+  | "super_like"
+  | "spotify_match";
 
 export interface ActivityActor {
   id: string;

@@ -1,7 +1,7 @@
 // Tinder benzeri kartin profil bilgilerini ve uyum skorlarini gosterir.
 import { memo } from "react";
 import { ImageBackground, Pressable, StyleSheet, Text, View } from "react-native";
-import { Ionicons } from "@expo/vector-icons";
+import { FontAwesome, Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import type { CulturalCompatibility } from "@/domain/entities/Match";
 import type { User } from "@/domain/entities/User";
@@ -20,6 +20,8 @@ interface SwipeProfileCardProps {
   onOpenSafety: () => void;
   onOpenProfile?: () => void;
   onOpenCompatibility?: () => void;
+  spotifyMode?: boolean;
+  currentSpotifyTrackId?: string;
 }
 
 const SwipeProfileCardComponent = ({
@@ -29,6 +31,8 @@ const SwipeProfileCardComponent = ({
   onOpenSafety,
   onOpenProfile,
   onOpenCompatibility,
+  spotifyMode = false,
+  currentSpotifyTrackId,
 }: SwipeProfileCardProps) => {
   const theme = useTheme();
   const isCompactCard = height < 430;
@@ -42,6 +46,10 @@ const SwipeProfileCardComponent = ({
   const featuredPrompt = user.profilePrompts?.find((prompt) =>
     prompt.answer.trim(),
   );
+  const isListeningTogether =
+    spotifyMode &&
+    Boolean(currentSpotifyTrackId) &&
+    currentSpotifyTrackId === user.spotifyTrackId;
   const scoreItems = (
     <>
       <View style={styles.scoreItem}>
@@ -60,9 +68,15 @@ const SwipeProfileCardComponent = ({
   );
 
   return (
-    <Card style={[styles.card, { height }]}>
+    <Card style={[styles.card, spotifyMode && styles.spotifyCard, { height }]}>
       <ImageBackground source={{ uri: primaryPhoto }} style={styles.photo} imageStyle={styles.photoImage}>
         <View pointerEvents="none" style={styles.topBadges}>
+          {spotifyMode ? (
+            <View style={[styles.statusPill, styles.spotifyPill]}>
+              <FontAwesome name="spotify" size={13} color="#FFFFFF" />
+              <Text style={styles.statusPillText}>Spotify</Text>
+            </View>
+          ) : null}
           {isStarterProfile ? (
             <View style={[styles.statusPill, styles.guidePill]}>
               <Ionicons name="compass" size={13} color="#FFFFFF" />
@@ -156,7 +170,36 @@ const SwipeProfileCardComponent = ({
               {distanceLabel ? `${distanceLabel} · ${user.city}` : user.city}
             </Text>
           </View>
-          <Text numberOfLines={isCompactCard ? 1 : 2} style={styles.bio}>{user.bio}</Text>
+          {!isCompactCard || !spotifyMode ? (
+            <Text numberOfLines={isCompactCard ? 1 : 2} style={styles.bio}>
+              {user.bio}
+            </Text>
+          ) : null}
+          {spotifyMode && user.spotifyTrackName ? (
+            <View style={styles.spotifyTrackPanel}>
+              <View style={styles.spotifyIconWrap}>
+                <FontAwesome name="spotify" size={20} color="#FFFFFF" />
+              </View>
+              <View style={styles.spotifyTrackCopy}>
+                <Text numberOfLines={1} style={styles.spotifyEyebrow}>
+                  {isListeningTogether
+                    ? "AYNI ANDA DİNLİYORSUNUZ"
+                    : "SPOTIFY EŞLEŞMESİ"}
+                </Text>
+                <Text numberOfLines={1} style={styles.spotifyTrackName}>
+                  {user.spotifyTrackName}
+                </Text>
+                {(user.spotifyArtistNames?.length ?? 0) > 0 ? (
+                  <Text numberOfLines={1} style={styles.spotifyArtistName}>
+                    {user.spotifyArtistNames?.join(", ")}
+                  </Text>
+                ) : null}
+              </View>
+              {isListeningTogether ? (
+                <Ionicons name="radio" size={19} color="#1ED760" />
+              ) : null}
+            </View>
+          ) : null}
           {!isCompactCard && featuredPrompt ? (
             <View style={styles.promptPreview}>
               <Text numberOfLines={1} style={styles.promptQuestion}>
@@ -198,6 +241,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       overflow: "hidden",
       borderRadius: 30,
       borderWidth: 0
+    },
+    spotifyCard: {
+      borderWidth: 2,
+      borderColor: "#1DB954",
     },
     photo: {
       flex: 1,
@@ -261,6 +308,9 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     guidePill: {
       backgroundColor: "rgba(15, 23, 42, 0.72)"
     },
+    spotifyPill: {
+      backgroundColor: "rgba(29, 185, 84, 0.94)",
+    },
     statusPillText: {
       ...theme.typography.caption,
       color: "#FFFFFF"
@@ -318,6 +368,48 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     bio: {
       ...theme.typography.body,
       color: "rgba(255, 255, 255, 0.88)"
+    },
+    spotifyTrackPanel: {
+      minHeight: 62,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing.sm,
+      paddingHorizontal: theme.spacing.sm,
+      paddingVertical: theme.spacing.xs,
+      borderRadius: 18,
+      borderWidth: 1,
+      borderColor: "rgba(30, 215, 96, 0.48)",
+      backgroundColor: "rgba(10, 10, 10, 0.72)",
+    },
+    spotifyIconWrap: {
+      width: 38,
+      height: 38,
+      borderRadius: 19,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "#1DB954",
+    },
+    spotifyTrackCopy: {
+      flex: 1,
+      minWidth: 0,
+      gap: 1,
+    },
+    spotifyEyebrow: {
+      ...theme.typography.caption,
+      color: "#1ED760",
+      fontSize: 10,
+      lineHeight: 13,
+      fontWeight: "900",
+      letterSpacing: 0.55,
+    },
+    spotifyTrackName: {
+      ...theme.typography.body,
+      color: "#FFFFFF",
+      fontWeight: "900",
+    },
+    spotifyArtistName: {
+      ...theme.typography.caption,
+      color: "rgba(255, 255, 255, 0.72)",
     },
     promptPreview: {
       gap: 2,

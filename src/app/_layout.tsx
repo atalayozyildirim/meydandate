@@ -3,7 +3,7 @@ import "react-native-gesture-handler";
 import "react-native-url-polyfill/auto";
 import "@/shared/utils/installCryptoPolyfill";
 import { useEffect, useMemo } from "react";
-import { Stack } from "expo-router";
+import { Stack, useRouter } from "expo-router";
 import {
   DarkTheme as NavigationDarkTheme,
   DefaultTheme as NavigationDefaultTheme,
@@ -14,6 +14,11 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { useAppOpenAd } from "@/features/ads";
 import { ThemeProvider, useTheme } from "@/shared/theme";
 import { useAuthStore } from "@/features/auth/stores/authStore";
+import {
+  registerPushNotifications,
+  subscribeToPushNotificationResponses,
+  type PushNotificationData,
+} from "@/features/notifications/services/pushNotifications";
 
 const queryClient = new QueryClient();
 
@@ -23,6 +28,73 @@ const AppOpenAdController = () => {
   const enabled = isHydrated && Boolean(currentUser) && !currentUser?.isPremium;
 
   useAppOpenAd({ enabled });
+
+  return null;
+};
+
+const PushNotificationController = () => {
+  const router = useRouter();
+  const currentUser = useAuthStore((state) => state.currentUser);
+
+  useEffect(() => {
+    if (!currentUser) {
+      return undefined;
+    }
+
+    let disposed = false;
+    let unsubscribe = () => undefined;
+    const openNotification = (data: PushNotificationData) => {
+      if (data.conversationId) {
+        router.push({
+          pathname: "/tabs/chat/[conversationId]",
+          params: { conversationId: data.conversationId },
+        });
+        return;
+      }
+
+      if (data.postId) {
+        router.push({
+          pathname: "/tabs/feed/[postId]",
+          params: { postId: data.postId },
+        });
+        return;
+      }
+
+      if (data.userId) {
+        router.push({
+          pathname: "/tabs/profile/[userId]",
+          params: { userId: data.userId },
+        });
+        return;
+      }
+
+      if (data.matchId || data.type === "match") {
+        router.push("/tabs/matches");
+      }
+    };
+
+    void registerPushNotifications(currentUser.id).catch((error) => {
+      if (__DEV__) console.info("Push kaydı tamamlanamadı", error);
+    });
+    void subscribeToPushNotificationResponses(openNotification).then(
+      (cleanup) => {
+        if (disposed) {
+          cleanup();
+          return;
+        }
+
+        unsubscribe = cleanup;
+      },
+      (error) => {
+        if (__DEV__) console.info("Push yönlendirmesi başlatılamadı", error);
+      },
+    );
+
+    return () => {
+      disposed = true;
+      unsubscribe();
+    };
+  }, [currentUser?.id, router]);
 
   return null;
 };
@@ -55,6 +127,7 @@ const RootNavigator = () => {
   return (
     <NavigationThemeProvider value={navigationTheme}>
       <AppOpenAdController />
+      <PushNotificationController />
       <Stack
         screenOptions={{
           headerShown: false,

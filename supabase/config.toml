@@ -439,3 +439,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/gemini-bot-reply/deno.json"
 entrypoint = "./functions/gemini-bot-reply/index.ts"
+
+[functions.spotify-live-match]
+enabled = true
+verify_jwt = true
+import_map = "./functions/spotify-live-match/deno.json"
+entrypoint = "./functions/spotify-live-match/index.ts"

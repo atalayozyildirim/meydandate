@@ -21,6 +21,14 @@ type PrivateProfile = Partial<User> & {
   mutedUsers?: string[];
 };
 
+type SpotifyPresenceRow = {
+  user_id: string;
+  spotify_track_id: string;
+  track_name: string;
+  artist_names: string[] | null;
+  expires_at: string;
+};
+
 const hasStoredLocation = (profile: Partial<User>) =>
   typeof profile.locationLatitude === "number" &&
   typeof profile.locationLongitude === "number";
@@ -160,6 +168,47 @@ const getDiscoveryRank = (
 };
 
 export class SupabaseUserRepository implements UserRepository {
+  private async hydrateSpotifyPresence(candidates: User[]): Promise<User[]> {
+    if (candidates.length === 0) {
+      return candidates;
+    }
+
+    const { data, error } = await supabase
+      .from("spotify_live_presence")
+      .select("user_id,spotify_track_id,track_name,artist_names,expires_at")
+      .in("user_id", candidates.map((candidate) => candidate.id))
+      .eq("is_playing", true)
+      .gt("expires_at", new Date().toISOString());
+
+    if (error) {
+      if (__DEV__) console.info("Spotify canlı sinyalleri yüklenemedi", error.message);
+      return candidates;
+    }
+
+    const presenceByUser = new Map(
+      ((data ?? []) as SpotifyPresenceRow[]).map((presence) => [
+        presence.user_id,
+        presence,
+      ]),
+    );
+
+    return candidates.map((candidate) => {
+      const presence = presenceByUser.get(candidate.id);
+
+      if (!presence) {
+        return candidate;
+      }
+
+      return {
+        ...candidate,
+        spotifyTrackId: presence.spotify_track_id,
+        spotifyTrackName: presence.track_name,
+        spotifyArtistNames: presence.artist_names ?? [],
+        spotifyPresenceExpiresAt: presence.expires_at,
+      };
+    });
+  }
+
   async getCurrentUser(userId: string): Promise<User> {
     const { data, error } = await supabase.rpc("get_my_profile").maybeSingle();
     const profile = data as Partial<User> | null;
@@ -168,7 +217,8 @@ export class SupabaseUserRepository implements UserRepository {
       throw createSupabaseRepositoryError("Kullanıcı yüklenemedi", error);
     }
 
-    return mapSupabaseUser(profile);
+    const mappedProfile = mapSupabaseUser(profile);
+    return (await this.hydrateSpotifyPresence([mappedProfile]))[0] ?? mappedProfile;
   }
 
   async getUserById(userId: string): Promise<User> {
@@ -586,7 +636,9 @@ export class SupabaseUserRepository implements UserRepository {
       const locationCandidates = (data || []).map((row) =>
         mapSupabaseUser(row as Partial<User>),
       );
-      const sortedLocationCandidates = rankCandidates(locationCandidates);
+      const sortedLocationCandidates = rankCandidates(
+        await this.hydrateSpotifyPresence(locationCandidates),
+      );
       const memberCandidates = sortedLocationCandidates.filter(
         (candidate) => (candidate.profileKind ?? "member") === "member",
       );
@@ -628,7 +680,11 @@ export class SupabaseUserRepository implements UserRepository {
     }
 
     const memberCandidates = rankCandidates(
-      (memberData || []).map((row) => mapSupabaseUser(row as unknown as Partial<User>))
+      await this.hydrateSpotifyPresence(
+        (memberData || []).map((row) =>
+          mapSupabaseUser(row as unknown as Partial<User>),
+        ),
+      ),
     );
 
     // If we have enough real members, return them

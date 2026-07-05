@@ -13,6 +13,8 @@ export type PushNotificationData = {
   userId?: string;
   matchId?: string;
   activityId?: string;
+  trackId?: string;
+  trackName?: string;
 };
 
 let notificationsModule: NotificationsModule | null = null;
