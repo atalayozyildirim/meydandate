@@ -10,6 +10,7 @@ const spotifyRefreshTokenKey = "ehlibyte-spotify-refresh-token";
 const spotifyExpiresAtKey = "ehlibyte-spotify-expires-at";
 const spotifyScope = "user-read-currently-playing";
 const tokenRefreshLeewayMs = 60_000;
+const reconnectRequiredCode = "SPOTIFY_RECONNECT_REQUIRED";
 const verifierChars =
   "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
 
@@ -93,8 +94,51 @@ const getSpotifyTokenError = (
   fallback: string,
 ) => payload.error_description || payload.error || fallback;
 
+const isRevokedSpotifyTokenError = (payload: SpotifyTokenResponse) => {
+  const errorText = `${payload.error ?? ""} ${payload.error_description ?? ""}`.toLowerCase();
+
+  return (
+    errorText.includes("invalid_grant") ||
+    errorText.includes("revoked") ||
+    errorText.includes("invalid refresh") ||
+    errorText.includes("refresh token")
+  );
+};
+
+export const isSpotifyReconnectRequiredError = (error: unknown) =>
+  error instanceof Error && error.message === reconnectRequiredCode;
+
+class SpotifyReconnectRequiredError extends Error {
+  constructor() {
+    super(reconnectRequiredCode);
+    this.name = "SpotifyReconnectRequiredError";
+  }
+}
+
 export class SpotifyConnectionService {
   constructor(private readonly storage = new SecureStorageService()) {}
+
+  async clearStoredConnection() {
+    await Promise.all([
+      this.storage.deleteItem(spotifyAccessTokenKey),
+      this.storage.deleteItem(spotifyRefreshTokenKey),
+      this.storage.deleteItem(spotifyExpiresAtKey),
+    ]);
+  }
+
+  private async deactivateServerConnection() {
+    if (env.useMockServices) {
+      return;
+    }
+
+    const { error } = await supabase.functions.invoke("spotify-live-match", {
+      body: { action: "disconnect" },
+    });
+
+    if (error && __DEV__) {
+      console.info("Spotify arka plan bağlantısı kapatılamadı", error.message);
+    }
+  }
 
   async hasStoredConnection() {
     const refreshToken = await this.storage
@@ -107,19 +151,27 @@ export class SpotifyConnectionService {
     return Boolean(refreshToken || accessToken);
   }
 
-  private async persistTokens(payload: SpotifyTokenResponse) {
+  private async persistTokens(
+    payload: SpotifyTokenResponse,
+    options: { replaceRefreshToken?: boolean } = {},
+  ) {
     if (!payload.access_token) {
       throw new Error("Spotify erişim anahtarı alınamadı.");
     }
 
     const expiresAt = Date.now() + (payload.expires_in ?? 3600) * 1000;
-    await Promise.all([
+    const writes: Array<Promise<void>> = [
       this.storage.setItem(spotifyAccessTokenKey, payload.access_token),
-      payload.refresh_token
-        ? this.storage.setItem(spotifyRefreshTokenKey, payload.refresh_token)
-        : Promise.resolve(),
       this.storage.setItem(spotifyExpiresAtKey, String(expiresAt)),
-    ]);
+    ];
+
+    if (payload.refresh_token) {
+      writes.push(this.storage.setItem(spotifyRefreshTokenKey, payload.refresh_token));
+    } else if (options.replaceRefreshToken) {
+      writes.push(this.storage.deleteItem(spotifyRefreshTokenKey));
+    }
+
+    await Promise.all(writes);
 
     return { accessToken: payload.access_token, expiresAt };
   }
@@ -134,7 +186,9 @@ export class SpotifyConnectionService {
       .catch(() => null);
 
     if (!refreshToken) {
-      throw new Error("Spotify oturumu yenilenemedi. Hesabını yeniden bağla.");
+      await this.clearStoredConnection();
+      await this.deactivateServerConnection().catch(() => undefined);
+      throw new SpotifyReconnectRequiredError();
     }
 
     const response = await fetch("https://accounts.spotify.com/api/token", {
@@ -149,6 +203,12 @@ export class SpotifyConnectionService {
     const payload = (await response.json().catch(() => ({}))) as SpotifyTokenResponse;
 
     if (!response.ok || !payload.access_token) {
+      if (isRevokedSpotifyTokenError(payload)) {
+        await this.clearStoredConnection();
+        await this.deactivateServerConnection().catch(() => undefined);
+        throw new SpotifyReconnectRequiredError();
+      }
+
       throw new Error(
         getSpotifyTokenError(
           payload,
@@ -209,6 +269,7 @@ export class SpotifyConnectionService {
       throw new Error("Spotify Client ID eksik. EXPO_PUBLIC_SPOTIFY_CLIENT_ID eklenmeli.");
     }
 
+    const hadStoredConnection = await this.hasStoredConnection();
     const verifier = createRandomString(64);
     const state = createRandomString(32);
     const challenge = await createCodeChallenge(verifier);
@@ -221,6 +282,11 @@ export class SpotifyConnectionService {
       code_challenge: challenge,
       state,
     });
+
+    if (hadStoredConnection) {
+      authParams.set("show_dialog", "true");
+    }
+
     const authResult = await WebBrowser.openAuthSessionAsync(
       `https://accounts.spotify.com/authorize?${authParams.toString()}`,
       env.spotifyRedirectUri,
@@ -251,7 +317,9 @@ export class SpotifyConnectionService {
       );
     }
 
-    const tokens = await this.persistTokens(tokenPayload);
+    const tokens = await this.persistTokens(tokenPayload, {
+      replaceRefreshToken: true,
+    });
     const result = await this.getCurrentTrackWithToken(tokens.accessToken);
     await this.syncServer(tokens.accessToken, tokens.expiresAt);
     return result;

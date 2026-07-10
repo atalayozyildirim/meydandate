@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import {
   Image,
   StyleSheet,
-  TouchableOpacity,
   View,
   type StyleProp,
   type ViewStyle,
@@ -57,6 +56,7 @@ export const AdMobNativeAd = ({
       })
       .then(async (module) => {
         if (!module?.NativeAd) {
+          onAdFailedToLoad?.();
           return null;
         }
 
@@ -137,11 +137,9 @@ export const AdMobNativeAd = ({
 
       {nativeAd.callToAction ? (
         <NativeAsset assetType={NativeAssetType.CALL_TO_ACTION}>
-          <TouchableOpacity activeOpacity={0.86} style={styles.cta}>
-            <Text numberOfLines={1} style={styles.ctaText}>
-              {nativeAd.callToAction}
-            </Text>
-          </TouchableOpacity>
+          <Text numberOfLines={1} style={styles.cta}>
+            {nativeAd.callToAction}
+          </Text>
         </NativeAsset>
       ) : null}
     </NativeAdView>
@@ -203,12 +201,10 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
       alignSelf: "flex-start",
       maxWidth: "100%",
       minHeight: 40,
-      justifyContent: "center",
       paddingHorizontal: theme.spacing.md,
+      paddingVertical: theme.spacing.xs,
       borderRadius: theme.radius.md,
       backgroundColor: theme.colors.primary,
-    },
-    ctaText: {
       color: theme.colors.onPrimary,
       fontSize: 14,
       lineHeight: 18,

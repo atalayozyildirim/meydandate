@@ -35,8 +35,14 @@ export const useInterstitialAd = ({ enabled = true }: UseInterstitialAdOptions =
       return;
     }
 
+    const unitId = getAdUnitId(adsModule, "interstitial");
+
+    if (!unitId) {
+      return;
+    }
+
     const interstitial = adsModule.InterstitialAd.createForAdRequest(
-      getAdUnitId(adsModule, "interstitial"),
+      unitId,
       {
         requestNonPersonalizedAdsOnly: true,
       },

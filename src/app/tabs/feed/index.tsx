@@ -29,7 +29,8 @@ import { useTheme } from "@/shared/theme";
 import { useUnreadActivityCount } from "@/features/notifications/hooks/useActivities";
 
 const visibleFeedTags = feedTagValues.filter((tag) => tag !== "muharrem");
-const FEED_AD_INTERVAL = 5;
+const FIRST_FEED_AD_AFTER = 3;
+const FEED_AD_REPEAT_INTERVAL = 5;
 
 type FeedListItem =
   | { type: "post"; post: FeedPost }
@@ -78,14 +79,17 @@ export default function FeedScreen() {
 
     return posts.flatMap((post, index) => {
       const item: FeedListItem = { type: "post", post };
+      const itemNumber = index + 1;
       const shouldInsertAd =
-        index + 1 >= FEED_AD_INTERVAL && (index + 1) % FEED_AD_INTERVAL === 0;
+        (posts.length < FIRST_FEED_AD_AFTER && index === posts.length - 1) ||
+        (itemNumber >= FIRST_FEED_AD_AFTER &&
+          (itemNumber - FIRST_FEED_AD_AFTER) % FEED_AD_REPEAT_INTERVAL === 0);
 
       if (!shouldInsertAd) {
         return [item];
       }
 
-      return [item, { type: "ad", id: `feed-ad-${index + 1}` }];
+      return [item, { type: "ad", id: `feed-ad-${itemNumber}` }];
     });
   }, [currentUser?.isPremium, posts]);
 

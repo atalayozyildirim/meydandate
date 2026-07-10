@@ -11,7 +11,7 @@ export const legalDocuments = {
       "",
       "Veriler; uygulamanın teknik olarak çalışması ve sözleşmesel yükümlülüklerin yerine getirilmesi, güvenliğin sağlanması, kötüye kullanımın önlenmesi, topluluk kurallarının uygulanması, abonelik ve satın alma doğrulaması, hata ayıklama, kullanıcı desteği ve yasal yükümlülüklerin yerine getirilmesi amaçlarıyla kullanılabilir.",
       "",
-      "Veriler; Supabase altyapısı, Apple ve Google kimlik/mağaza servisleri, RevenueCat abonelik altyapısı, push bildirim servisleri, AdMob ve Yandex reklam servisleri ile güvenlik için gereken sınırlı teknik sağlayıcılarla paylaşılabilir. Bu paylaşım yalnızca hizmetin sunulması, güvenliğin korunması, destek verilmesi ve mevzuata uyum için yapılır.",
+      "Veriler; Supabase altyapısı, Apple ve Google kimlik/mağaza servisleri, RevenueCat abonelik altyapısı, push bildirim servisleri ve AdMob reklam servisi ile güvenlik için gereken sınırlı teknik sağlayıcılarla paylaşılabilir. Bu paylaşım yalnızca hizmetin sunulması, güvenliğin korunması, destek verilmesi ve mevzuata uyum için yapılır.",
       "",
       "Profil içeriğinde veya topluluk deneyiminde kullanılan bazı beyanlar hassas nitelik taşıyabilir. Bu veriler eşleşme deneyimini iyileştirmek, topluluk güvenliğini yönetmek ve kullanıcının açıkça sunduğu profil bilgisini göstermek dışında kullanılmaz. Açık rıza gerektiren bildirim, pazarlama, analitik veya reklam kişiselleştirme tercihleri ayrıca yönetilir.",
       "",

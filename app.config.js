@@ -64,7 +64,7 @@ const resolveAdMobAppId = (name, fallback) => {
       !isValidAdMobAppId(configuredValue))
   ) {
     console.warn(
-      `${name} is not configured with a production AdMob app id. Falling back to Google test app id for this build.`,
+      `${name} is not configured with a production AdMob app id. Falling back to the checked-in production app id for this build.`,
     );
   }
 
@@ -73,11 +73,11 @@ const resolveAdMobAppId = (name, fallback) => {
 
 const iosAdMobAppId = resolveAdMobAppId(
   "EXPO_PUBLIC_ADMOB_IOS_APP_ID",
-  "ca-app-pub-3940256099942544~1458002511",
+  "ca-app-pub-8907156442339934~1837089170",
 );
 const androidAdMobAppId = resolveAdMobAppId(
   "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
-  "ca-app-pub-3940256099942544~3347511713",
+  "ca-app-pub-8907156442339934~2735237875",
 );
 const easProjectId =
   readEnv("EXPO_PUBLIC_EAS_PROJECT_ID") ||

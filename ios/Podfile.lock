@@ -1,72 +1,4 @@
 PODS:
-  - AppMetricaAdSupport (6.3.0):
-    - AppMetricaCore (= 6.3.0)
-    - AppMetricaCoreExtension (= 6.3.0)
-  - AppMetricaCore (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaEncodingUtils (= 6.3.0)
-    - AppMetricaFMDB (= 6.3.0)
-    - AppMetricaHostState (= 6.3.0)
-    - AppMetricaIdentifiers (= 6.3.0)
-    - AppMetricaKeychain (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-    - AppMetricaNetwork (= 6.3.0)
-    - AppMetricaPlatform (= 6.3.0)
-    - AppMetricaProtobuf (= 6.3.0)
-    - AppMetricaProtobufUtils (= 6.3.0)
-    - AppMetricaStorageUtils (= 6.3.0)
-  - AppMetricaCoreExtension (6.3.0):
-    - AppMetricaCore (= 6.3.0)
-    - AppMetricaStorageUtils (= 6.3.0)
-  - AppMetricaCoreUtils (6.3.0):
-    - AppMetricaLog (= 6.3.0)
-  - AppMetricaEncodingUtils (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-    - AppMetricaPlatform (= 6.3.0)
-  - AppMetricaFMDB (6.3.0)
-  - AppMetricaHostState (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-  - AppMetricaIdentifiers (6.3.0):
-    - AppMetricaKeychain (= 6.3.0)
-    - AppMetricaLogSwift (= 6.3.0)
-    - AppMetricaPlatform (= 6.3.0)
-    - AppMetricaStorageUtils (= 6.3.0)
-    - AppMetricaSynchronization (= 6.3.0)
-  - AppMetricaIDSync (6.3.0):
-    - AppMetricaCore (= 6.3.0)
-    - AppMetricaCoreExtension (= 6.3.0)
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-    - AppMetricaNetwork (= 6.3.0)
-    - AppMetricaPlatform (= 6.3.0)
-    - AppMetricaStorageUtils (= 6.3.0)
-  - AppMetricaKeychain (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-    - AppMetricaStorageUtils (= 6.3.0)
-  - AppMetricaLibraryAdapter (6.3.0):
-    - AppMetricaCore (= 6.3.0)
-    - AppMetricaCoreExtension (= 6.3.0)
-  - AppMetricaLog (6.3.0)
-  - AppMetricaLogSwift (6.3.0):
-    - AppMetricaLog (= 6.3.0)
-  - AppMetricaNetwork (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-    - AppMetricaPlatform (= 6.3.0)
-  - AppMetricaPlatform (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-  - AppMetricaProtobuf (6.3.0)
-  - AppMetricaProtobufUtils (6.3.0):
-    - AppMetricaProtobuf (= 6.3.0)
-  - AppMetricaStorageUtils (6.3.0):
-    - AppMetricaCoreUtils (= 6.3.0)
-    - AppMetricaLog (= 6.3.0)
-  - AppMetricaSynchronization (6.3.0):
-    - AppMetricaLogSwift (= 6.3.0)
   - EXApplication (7.0.8):
     - ExpoModulesCore
   - EXConstants (18.0.13):
@@ -2404,34 +2336,6 @@ PODS:
     - ReactNativeDependencies
     - Yoga
   - WebRTC-SDK (144.7559.10)
-  - yandex-mobile-ads (8.1.0):
-    - hermes-engine
-    - RCTRequired
-    - RCTTypeSafety
-    - React-Core
-    - React-Core-prebuilt
-    - React-debug
-    - React-Fabric
-    - React-featureflags
-    - React-graphics
-    - React-ImageManager
-    - React-jsi
-    - React-NativeModulesApple
-    - React-RCTFabric
-    - React-renderercss
-    - React-rendererdebug
-    - React-utils
-    - ReactCodegen
-    - ReactCommon/turbomodule/bridging
-    - ReactCommon/turbomodule/core
-    - ReactNativeDependencies
-    - YandexMobileAds (= 8.1.0)
-    - Yoga
-  - YandexMobileAds (8.1.0):
-    - AppMetricaAdSupport (~> 6.3.0)
-    - AppMetricaCore (~> 6.3.0)
-    - AppMetricaIDSync (~> 6.3.0)
-    - AppMetricaLibraryAdapter (~> 6.3.0)
   - Yoga (0.0.0)
 
 DEPENDENCIES:
@@ -2544,37 +2448,16 @@ DEPENDENCIES:
   - RNScreens (from `../node_modules/react-native-screens`)
   - RNSVG (from `../node_modules/react-native-svg`)
   - RNWorklets (from `../node_modules/react-native-worklets`)
-  - yandex-mobile-ads (from `../node_modules/yandex-mobile-ads`)
   - Yoga (from `../node_modules/react-native/ReactCommon/yoga`)
 
 SPEC REPOS:
   trunk:
-    - AppMetricaAdSupport
-    - AppMetricaCore
-    - AppMetricaCoreExtension
-    - AppMetricaCoreUtils
-    - AppMetricaEncodingUtils
-    - AppMetricaFMDB
-    - AppMetricaHostState
-    - AppMetricaIdentifiers
-    - AppMetricaIDSync
-    - AppMetricaKeychain
-    - AppMetricaLibraryAdapter
-    - AppMetricaLog
-    - AppMetricaLogSwift
-    - AppMetricaNetwork
-    - AppMetricaPlatform
-    - AppMetricaProtobuf
-    - AppMetricaProtobufUtils
-    - AppMetricaStorageUtils
-    - AppMetricaSynchronization
     - Google-Mobile-Ads-SDK
     - GoogleUserMessagingPlatform
     - lottie-ios
     - PurchasesHybridCommon
     - RevenueCat
     - WebRTC-SDK
-    - YandexMobileAds
 
 EXTERNAL SOURCES:
   EXApplication:
@@ -2794,31 +2677,10 @@ EXTERNAL SOURCES:
     :path: "../node_modules/react-native-svg"
   RNWorklets:
     :path: "../node_modules/react-native-worklets"
-  yandex-mobile-ads:
-    :path: "../node_modules/yandex-mobile-ads"
   Yoga:
     :path: "../node_modules/react-native/ReactCommon/yoga"
 
 SPEC CHECKSUMS:
-  AppMetricaAdSupport: d9d6516e5e21032f058b7aef3f17aefe9c7cc116
-  AppMetricaCore: 12186e7fca8c7e293bd45f66f0e18d64435f1ab7
-  AppMetricaCoreExtension: 71f4f4b7e993e963241a764790e07b0813926f18
-  AppMetricaCoreUtils: 88b1288644a44ddc2572483bcd64c2e62f6f76ba
-  AppMetricaEncodingUtils: a895862856ee06b9b22fdc02771157e4004b3819
-  AppMetricaFMDB: cc66f2b0c0e8d3d451313b0ac7174b111820f6ec
-  AppMetricaHostState: c6bbff91eb4e35a16da4cf721a729029db455d9b
-  AppMetricaIdentifiers: 7dd47f89a04955b8913c96a6be367c4dc739b3db
-  AppMetricaIDSync: 6799f35fd10a5616f4d214d896829136dc2b4533
-  AppMetricaKeychain: 743d4d2e1dadcce2e33c892b82409e5882e87da1
-  AppMetricaLibraryAdapter: b476a378a83c89e2b4e7b874f4a3874266989ee9
-  AppMetricaLog: a939df984c6564ac0007b6634ea6c24dc54df3a9
-  AppMetricaLogSwift: fa337df59c92edcd51bed406c4298ab1ce9ddd4b
-  AppMetricaNetwork: 1d7cb179c7dce7dbac5f54fb28cc378410b89e61
-  AppMetricaPlatform: 0732c0de92c8db13b25592c49e9bc82df1cc27eb
-  AppMetricaProtobuf: 4d554ca95b28d1d11c661ad4b6b8c6e5c647624a
-  AppMetricaProtobufUtils: f3bfe7f36e3d0b00552398e0c06bd2af515800dd
-  AppMetricaStorageUtils: 658dc0cd262a94c0a4ce450af11a50aef0809a82
-  AppMetricaSynchronization: d629fdefd72af0bb7768ae4d32fb107c42662811
   EXApplication: 1e98d4b1dccdf30627f92917f4b2c5a53c330e5f
   EXConstants: fce59a631a06c4151602843667f7cfe35f81e271
   EXImageLoader: 189e3476581efe3ad4d1d3fb4735b7179eb26f05
@@ -2933,8 +2795,6 @@ SPEC CHECKSUMS:
   RNSVG: 31d6639663c249b7d5abc9728dde2041eb2a3c34
   RNWorklets: 76fce72926e28e304afb44f0da23b2d24f2c1fa0
   WebRTC-SDK: 1d7fc2ae91da6edd63e25f3882ff24f86a8d9d8b
-  yandex-mobile-ads: 304839d7428152a98e9367df2012e83e560471ef
-  YandexMobileAds: 47d9d0ce6705e79e3801138e8c1d9898e4c79a51
   Yoga: 5934998fbeaef7845dbf698f698518695ab4cd1a
 
 PODFILE CHECKSUM: 2aad5c577459238e744326f75a2b24bfc68c07e6

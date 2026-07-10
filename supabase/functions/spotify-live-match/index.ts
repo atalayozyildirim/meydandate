@@ -278,15 +278,20 @@ const pollConnection = async (
       500,
     );
     const disable = /refresh credentials|invalid_grant/i.test(message);
-    await admin
-      .from("spotify_connections")
-      .update({
-        is_active: !disable,
-        last_polled_at: new Date().toISOString(),
-        last_error: message,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("user_id", connection.user_id);
+    await Promise.all([
+      admin
+        .from("spotify_connections")
+        .update({
+          is_active: !disable,
+          last_polled_at: new Date().toISOString(),
+          last_error: message,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("user_id", connection.user_id),
+      disable
+        ? persistPresence(admin, connection.user_id, null)
+        : Promise.resolve(),
+    ]);
   }
 };
 
@@ -469,6 +474,10 @@ const saveClientSync = async (
   const accessToken = cleanText(body.accessToken, 4096);
   const suppliedRefreshToken = cleanText(body.refreshToken, 4096) || null;
   const expiresAt = new Date(cleanText(body.expiresAt, 80));
+  const replacesRefreshToken = Object.prototype.hasOwnProperty.call(
+    body,
+    "refreshToken",
+  );
 
   if (!accessToken || !Number.isFinite(expiresAt.getTime())) {
     throw new Error("Invalid Spotify session");
@@ -479,10 +488,13 @@ const saveClientSync = async (
     .select("refresh_token")
     .eq("user_id", userId)
     .maybeSingle();
+  const nextRefreshToken = replacesRefreshToken
+    ? suppliedRefreshToken
+    : existing?.refresh_token ?? null;
   const { error } = await admin.from("spotify_connections").upsert({
     user_id: userId,
     access_token: accessToken,
-    refresh_token: suppliedRefreshToken ?? existing?.refresh_token ?? null,
+    refresh_token: nextRefreshToken,
     expires_at: expiresAt.toISOString(),
     is_active: true,
     last_polled_at: new Date().toISOString(),
@@ -494,9 +506,29 @@ const saveClientSync = async (
   await pollConnection(admin, {
     user_id: userId,
     access_token: accessToken,
-    refresh_token: suppliedRefreshToken ?? existing?.refresh_token ?? null,
+    refresh_token: nextRefreshToken,
     expires_at: expiresAt.toISOString(),
   });
+};
+
+const disconnectClientSync = async (
+  admin: SupabaseClient,
+  userId: string,
+) => {
+  const now = new Date().toISOString();
+
+  await Promise.all([
+    admin
+      .from("spotify_connections")
+      .update({
+        is_active: false,
+        last_polled_at: now,
+        last_error: null,
+        updated_at: now,
+      })
+      .eq("user_id", userId),
+    persistPresence(admin, userId, null),
+  ]);
 };
 
 export default {
@@ -558,7 +590,7 @@ export default {
         });
       }
 
-      if (action !== "sync" || !bearerToken) {
+      if (!["sync", "disconnect"].includes(String(action)) || !bearerToken) {
         return json(400, { error: "Valid action is required" });
       }
 
@@ -568,6 +600,11 @@ export default {
 
       if (authError || !userId) {
         return json(401, { error: "Invalid session" });
+      }
+
+      if (action === "disconnect") {
+        await disconnectClientSync(admin, userId);
+        return json(200, { ok: true, delivered: 0 });
       }
 
       await saveClientSync(admin, userId, body);

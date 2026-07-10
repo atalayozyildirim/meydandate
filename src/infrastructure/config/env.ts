@@ -79,12 +79,6 @@ export const env = {
     readEnv(process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID),
   adMobRewardedUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID),
   enableAds,
-  yandexAdsBannerUnitId: readEnv(
-    process.env.EXPO_PUBLIC_YANDEX_ADS_BANNER_UNIT_ID,
-  ),
-  yandexAdsInterstitialUnitId: readEnv(
-    process.env.EXPO_PUBLIC_YANDEX_ADS_INTERSTITIAL_UNIT_ID,
-  ),
   spotifyClientId,
   spotifyRedirectUri,
   enableAiStarterProfiles,
@@ -154,12 +148,6 @@ export const getRuntimeConfigIssues = () => {
 
       if (!env.adMobAppOpenUnitId) {
         warnings.push("Uygulama açıkken reklam biçimi için EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID ayarlanmalı.");
-      }
-
-      if (!env.yandexAdsBannerUnitId) {
-        warnings.push(
-          "Yandex production banner reklamı için EXPO_PUBLIC_YANDEX_ADS_BANNER_UNIT_ID ayarlanmalı.",
-        );
       }
     }
 

@@ -48,7 +48,11 @@ import { useFire } from "@/features/fire/hooks/useFire";
 import { MatchModal } from "@/features/match/components/MatchModal";
 import { SafetySheet } from "@/features/profile/components/SafetySheet";
 import { useAuthStore } from "@/features/auth/stores/authStore";
-import { spotifyConnectionService } from "@/features/spotify/services/SpotifyConnectionService";
+import {
+  isSpotifyReconnectRequiredError,
+  spotifyConnectionService,
+  type SpotifyCurrentTrackResult,
+} from "@/features/spotify/services/SpotifyConnectionService";
 import { Avatar } from "@/shared/components/Avatar";
 import { BottomSheet } from "@/shared/components/BottomSheet";
 import { Button } from "@/shared/components/Button";
@@ -1097,9 +1101,23 @@ export default function DiscoverScreen() {
 
     try {
       const wasLinked = isSpotifyLinked;
-      const result = wasLinked
-        ? await spotifyConnectionService.refreshCurrentTrack()
-        : await spotifyConnectionService.connectAndGetCurrentTrack();
+      let didReconnectSpotify = false;
+      let result: SpotifyCurrentTrackResult;
+
+      try {
+        result = wasLinked
+          ? await spotifyConnectionService.refreshCurrentTrack()
+          : await spotifyConnectionService.connectAndGetCurrentTrack();
+      } catch (error) {
+        if (!wasLinked || !isSpotifyReconnectRequiredError(error)) {
+          throw error;
+        }
+
+        setIsSpotifyLinked(false);
+        didReconnectSpotify = true;
+        result = await spotifyConnectionService.connectAndGetCurrentTrack();
+      }
+
       setIsSpotifyLinked(result.connected);
 
       if (!result.trackSignal) {
@@ -1119,7 +1137,11 @@ export default function DiscoverScreen() {
           queryClient.invalidateQueries({ queryKey: [queryKeys.discover] }),
         ]);
         Alert.alert(
-          wasLinked ? "Spotify güncellendi" : "Spotify bağlandı",
+          wasLinked && !didReconnectSpotify
+            ? "Spotify güncellendi"
+            : didReconnectSpotify
+              ? "Spotify tekrar bağlandı"
+              : "Spotify bağlandı",
           "Şu an aktif çalan şarkı bulamadık. Spotify'da bir şarkı çalarken tekrar yenile.",
         );
         return;
@@ -1142,16 +1164,22 @@ export default function DiscoverScreen() {
       ]);
       await refresh();
       Alert.alert(
-        wasLinked ? "Şarkı güncellendi" : "Spotify bağlandı",
+        wasLinked && !didReconnectSpotify
+          ? "Şarkı güncellendi"
+          : didReconnectSpotify
+            ? "Spotify tekrar bağlandı"
+            : "Spotify bağlandı",
         `${result.trackSignal} ile eşleşme modu güncellendi.`,
       );
     } catch (error) {
-      const message =
-        error instanceof Error
+      const shouldReconnect = isSpotifyReconnectRequiredError(error);
+      const message = shouldReconnect
+        ? "Spotify oturumunun süresi doldu. Hesabını bir kez daha bağlayınca şarkı yenileme tekrar çalışacak."
+        : error instanceof Error
           ? error.message
           : "Spotify bağlantısı tamamlanamadı.";
 
-      if (/yeniden bağla|refresh credentials|invalid_grant/i.test(message)) {
+      if (shouldReconnect || /yeniden bağla|refresh credentials|invalid_grant|revoked/i.test(message)) {
         setIsSpotifyLinked(false);
       }
 

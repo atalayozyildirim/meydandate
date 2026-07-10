@@ -132,18 +132,6 @@ if (adsEnabled) {
     warnings.push("EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID production için ayarlanmalı.");
   }
 
-  if (isPlaceholder(value("EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID"))) {
-    warnings.push("EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID production için ayarlanmalı.");
-  }
-
-  for (const key of [
-    "EXPO_PUBLIC_YANDEX_ADS_BANNER_UNIT_ID",
-    "EXPO_PUBLIC_YANDEX_ADS_INTERSTITIAL_UNIT_ID",
-  ]) {
-    if (!/^R-M-\d+-\d+$/.test(value(key))) {
-      warnings.push(`${key} production Yandex reklam birimi ID'si değil; ilgili reklam gösterilmez.`);
-    }
-  }
 }
 
 if (warnings.length > 0) {
