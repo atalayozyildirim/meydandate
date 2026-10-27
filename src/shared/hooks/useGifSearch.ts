@@ -8,13 +8,13 @@ type GifResult = {
 };
 
 export const useGifSearch = () => {
-  const tenorKey = (env as any).tenorApiKey || "";
-  const giphyKey = (env as any).giphyApiKey || "";
+  const tenorKey = env.tenorApiKey || "";
+  const giphyKey = env.giphyApiKey || "";
 
   const searchTenor = async (query: string, limit = 24): Promise<GifResult[]> => {
-    const key = tenorKey || "LIVDSRZULELA";
+    if (!tenorKey) return [];
     try {
-      const url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=${encodeURIComponent(key)}&limit=${limit}`;
+      const url = `https://tenor.googleapis.com/v2/search?q=${encodeURIComponent(query)}&key=${encodeURIComponent(tenorKey)}&limit=${limit}`;
       const res = await fetch(url);
       if (!res.ok) return [];
       const json = await res.json();

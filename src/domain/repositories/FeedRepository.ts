@@ -1,9 +1,12 @@
 // Akış postları, yorumları, anketler ve etkileşimleri için repository sözleşmesi.
 import type { FeedPost, FeedTag } from "@/domain/entities/Feed";
 
+export type FeedScope = "all" | "following" | "saved";
+
 export interface FeedPageOptions {
   offset?: number;
   limit?: number;
+  scope?: FeedScope;
 }
 
 export interface FeedPage {
@@ -93,12 +96,26 @@ export interface FeedRepository {
   ): Promise<FeedPost>;
   addComment(payload: CreateFeedCommentPayload): Promise<FeedPost>;
   addReply(payload: CreateFeedReplyPayload): Promise<FeedPost>;
-  reportPost(postId: string, reporterId: string): Promise<FeedPost>;
+  reportPost(
+    postId: string,
+    reporterId: string,
+    category?: string,
+    reason?: string,
+  ): Promise<FeedPost>;
   reportComment(
     postId: string,
     commentId: string,
     reporterId: string,
+    reason?: string,
   ): Promise<FeedPost>;
+  updatePost(
+    postId: string,
+    payload: { body: string; tags?: FeedTag[] },
+  ): Promise<FeedPost>;
+  toggleBookmark(postId: string, userId: string): Promise<boolean>;
+  toggleFollow(targetUserId: string, userId: string): Promise<boolean>;
+  blockUser(targetUserId: string): Promise<void>;
+  unblockUser(targetUserId: string): Promise<void>;
   deletePost(postId: string, requesterId: string): Promise<void>;
   votePoll(pollId: string, optionId: string, userId: string): Promise<void>;
 }

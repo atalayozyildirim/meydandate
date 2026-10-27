@@ -22,7 +22,14 @@ const getSupabaseSecretKey = () => {
 const getBearerToken = (req: Request) => {
   const authorization = req.headers.get("authorization")?.trim() ?? "";
   const match = authorization.match(/^Bearer\s+(.+)$/i);
-  return match?.[1] ?? "";
+  const token = match?.[1] ?? "";
+
+  // Validate token format (JWT tokens are base64url encoded)
+  if (token && !/^[A-Za-z0-9\-._~+/]+$/.test(token)) {
+    return "";
+  }
+
+  return token;
 };
 
 export default {

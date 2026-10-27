@@ -107,31 +107,8 @@ if (
 }
 
 if (adsEnabled) {
-  for (const key of [
-    "EXPO_PUBLIC_ADMOB_IOS_APP_ID",
-    "EXPO_PUBLIC_ADMOB_ANDROID_APP_ID",
-  ]) {
-    if (
-      isPlaceholder(value(key)) ||
-      !/^ca-app-pub-\d+~\d+$/.test(value(key))
-    ) {
-      warnings.push(`${key} production AdMob app id değil; build test AdMob app id ile devam eder.`);
-    }
-  }
-
-  if (
-    isPlaceholder(value("EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID")) &&
-    isPlaceholder(value("EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID"))
-  ) {
-    warnings.push(
-      "Feed reklamları için EXPO_PUBLIC_ADMOB_BANNER_UNIT_ID veya EXPO_PUBLIC_ADMOB_NATIVE_UNIT_ID production için ayarlanmalı.",
-    );
-  }
-
-  if (isPlaceholder(value("EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID"))) {
-    warnings.push("EXPO_PUBLIC_ADMOB_APP_OPEN_UNIT_ID production için ayarlanmalı.");
-  }
-
+  const { resolveAdsConfig } = require("../config/ads.cjs");
+  errors.push(...resolveAdsConfig({ ...env, EXPO_PUBLIC_APP_ENV: "production" }).errors);
 }
 
 if (warnings.length > 0) {

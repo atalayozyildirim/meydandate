@@ -1,3 +1,4 @@
+import "react-native-url-polyfill/auto";
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { env } from "@/infrastructure/config/env";
 import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
@@ -32,7 +33,7 @@ export const getSupabaseClient = () => {
   return client;
 };
 
-// Mock servislerle calisan dev build'lerde import aninda Supabase key zorunlu olmasin.
+// İstemci tarafında Supabase istemcisine tembel (lazy) erişim sağlar.
 export const supabase = new Proxy({} as SupabaseClient, {
   get(_target, property) {
     const value = (getSupabaseClient() as any)[property];

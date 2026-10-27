@@ -11,48 +11,28 @@ import { SupabaseModerationRepository } from "@/infrastructure/supabase/Supabase
 import { SupabaseFeedRepository } from "@/infrastructure/supabase/SupabaseFeedRepository";
 import { SupabaseLiveRoomRepository } from "@/infrastructure/supabase/SupabaseLiveRoomRepository";
 import { SupabaseActivityRepository } from "@/infrastructure/supabase/SupabaseActivityRepository";
+import { SupabaseCommunityRepository } from "@/infrastructure/supabase/SupabaseCommunityRepository";
+import { SupabaseEventRepository } from "@/infrastructure/supabase/SupabaseEventRepository";
 import { ContentModerationService } from "@/features/moderation/services/ContentModerationService";
-import { MockModerationRepository } from "@/features/moderation/services/MockModerationRepository";
-import { MockAuthRepository } from "@/features/auth/services/MockAuthRepository";
-import { MockChatRepository } from "@/features/chat/services/MockChatRepository";
-import { MockMatchRepository } from "@/features/match/services/MockMatchRepository";
-import { MockUserRepository } from "@/features/profile/services/MockUserRepository";
-import { MockFeedRepository } from "@/features/feed/services/MockFeedRepository";
 import { ApiLiveRoomRepository } from "@/features/live/services/ApiLiveRoomRepository";
-import { MockLiveRoomRepository } from "@/features/live/services/MockLiveRoomRepository";
-import { MockActivityRepository } from "@/features/notifications/services/MockActivityRepository";
 
 validateRuntimeConfig();
 
 const apiClient = new ApiClient(env.apiBaseUrl);
 
-const authRepository = env.useMockServices
-  ? new MockAuthRepository()
-  : new SupabaseAuthRepository();
-const chatRepository = env.useMockServices
-  ? new MockChatRepository()
-  : new SupabaseChatRepository();
-const matchRepository = env.useMockServices
-  ? new MockMatchRepository()
-  : new SupabaseMatchRepository();
+const authRepository = new SupabaseAuthRepository();
+const chatRepository = new SupabaseChatRepository();
+const matchRepository = new SupabaseMatchRepository();
 const paymentService = new RevenueCatPaymentService();
-const userRepository = env.useMockServices
-  ? new MockUserRepository()
-  : new SupabaseUserRepository();
+const userRepository = new SupabaseUserRepository();
 const liveRoomRepository = env.useLiveApi
   ? new ApiLiveRoomRepository(apiClient)
-  : env.useMockServices
-    ? new MockLiveRoomRepository()
-    : new SupabaseLiveRoomRepository();
-const moderationRepository = env.useMockServices
-  ? new MockModerationRepository()
-  : new SupabaseModerationRepository();
-const feedRepository = env.useMockServices
-  ? new MockFeedRepository()
-  : new SupabaseFeedRepository();
-const activityRepository = env.useMockServices
-  ? new MockActivityRepository()
-  : new SupabaseActivityRepository();
+  : new SupabaseLiveRoomRepository();
+const moderationRepository = new SupabaseModerationRepository();
+const feedRepository = new SupabaseFeedRepository();
+const activityRepository = new SupabaseActivityRepository();
+const communityRepository = new SupabaseCommunityRepository();
+const eventRepository = new SupabaseEventRepository();
 
 export const container = {
   apiClient,
@@ -66,5 +46,7 @@ export const container = {
   moderationRepository,
   feedRepository,
   activityRepository,
+  communityRepository,
+  eventRepository,
   contentModerationService: new ContentModerationService(),
 } as const;

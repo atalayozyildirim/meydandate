@@ -99,7 +99,26 @@ const isAuthorized = (req: Request) => {
   }
 
   const actual = req.headers.get("authorization")?.trim() ?? "";
-  return actual === expected || actual === normalizeExpectedAuthorization(expected);
+
+  // Prevent timing attacks by using constant-time comparison
+  if (actual.length !== expected.length) {
+    return false;
+  }
+
+  const normalizedExpected = normalizeExpectedAuthorization(expected);
+  const normalizedActual = normalizeExpectedAuthorization(actual);
+
+  if (normalizedActual.length !== normalizedExpected.length) {
+    return false;
+  }
+
+  // Simple constant-time comparison
+  let result = 0;
+  for (let i = 0; i < normalizedActual.length; i++) {
+    result |= normalizedActual.charCodeAt(i) ^ normalizedExpected.charCodeAt(i);
+  }
+
+  return result === 0;
 };
 
 const getSupabaseSecretKey = () => {

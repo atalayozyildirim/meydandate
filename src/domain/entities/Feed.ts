@@ -85,6 +85,9 @@ export interface FeedPost {
   poll?: FeedPoll | null;
   quotedPost?: FeedQuotedPost | null;
   linkPreview?: FeedLinkPreview | null;
+  isBookmarked?: boolean;
+  isFollowingAuthor?: boolean;
+  isRemoved?: boolean;
   createdAt: string;
   updatedAt: string;
 }

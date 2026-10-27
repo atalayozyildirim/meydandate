@@ -54,7 +54,7 @@ iOS bundleIdentifier: com.ehlibyte.app
 Android package: com.ehlibyte.app
 Custom scheme: ehlibyte
 Callback URL: ehlibyte://auth/callback
-Supabase project callback: https://ymrzddxgxdswibtypuwr.supabase.co/auth/v1/callback
+Supabase project callback: https://aururygssrwkayawliup.supabase.co/auth/v1/callback
 ```
 
 ## Supabase Ayarları
@@ -82,7 +82,7 @@ Google Cloud Console > APIs & Services > Credentials:
 - Authorized redirect URI olarak şunu ekle:
 
 ```text
-https://ymrzddxgxdswibtypuwr.supabase.co/auth/v1/callback
+https://aururygssrwkayawliup.supabase.co/auth/v1/callback
 ```
 
 Bu Web Client ID/Secret değerlerini Supabase Google provider içine gir.
@@ -119,7 +119,7 @@ Web OAuth fallback kullanilacaksa ek olarak:
 - Services ID return URL olarak sunu ekle:
 
 ```text
-https://ymrzddxgxdswibtypuwr.supabase.co/auth/v1/callback
+https://aururygssrwkayawliup.supabase.co/auth/v1/callback
 ```
 
 - Supabase `Secret` alanina `.p8` dosyasindan uretilen Apple client secret JWT yapistirilir.

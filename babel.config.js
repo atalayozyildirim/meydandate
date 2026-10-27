@@ -6,9 +6,9 @@ module.exports = function (api) {
       [
         "module-resolver",
         {
-          root: ["./"],
           alias: {
             "@": "./src",
+            "expo-router/native-tabs": "expo-router/unstable-native-tabs",
           },
         },
       ],

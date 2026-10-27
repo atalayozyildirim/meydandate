@@ -14,3 +14,9 @@ dist
 bun.lock
 AuthKey_*.p8
 *.p8
+docs/design
+# Local configuration and credentials
+.env
+.env.*
+!.env.example
+docs

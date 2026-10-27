@@ -1,5 +1,6 @@
 import type {
   ChatRepository,
+  ListMessagesOptions,
   SendMessagePayload,
 } from "@/domain/repositories/ChatRepository";
 import type { Conversation, Message } from "@/domain/entities/Message";
@@ -50,6 +51,8 @@ const createMissingParticipant = (id: string, createdAt: string): User => ({
 });
 
 export class SupabaseChatRepository implements ChatRepository {
+  private activeChannels = new Map<string, any>();
+
   private async deleteConversationDirectly(conversationId: string): Promise<void> {
     const { error } = await supabase
       .from("conversations")
@@ -157,6 +160,87 @@ export class SupabaseChatRepository implements ChatRepository {
     }
 
     return this.buildConversation(conversation as unknown as ConversationRow);
+  }
+
+  async listMessages(
+    conversationId: string,
+    options?: ListMessagesOptions,
+  ): Promise<Message[]> {
+    let query = supabase
+      .from("messages")
+      .select("id,conversationId,senderId,body,status,createdAt")
+      .eq("conversationId", conversationId)
+      .order("createdAt", { ascending: false });
+
+    if (options?.before) {
+      query = query.lt("createdAt", options.before);
+    }
+    if (options?.limit) {
+      query = query.limit(options.limit);
+    } else {
+      query = query.limit(50);
+    }
+
+    const { data, error } = await query;
+    if (error) {
+      throw createSupabaseRepositoryError("Mesajlar yüklenemedi.", error);
+    }
+
+    const rows = (data || []) as MessageRow[];
+    return rows.reverse().map((m) => ({
+      id: m.id,
+      conversationId: m.conversationId,
+      senderId: m.senderId,
+      body: m.body,
+      status: m.status ?? "sent",
+      createdAt: m.createdAt,
+    }));
+  }
+
+  subscribeToMessages(
+    conversationId: string,
+    onMessage: (message: Message) => void,
+  ): () => void {
+    const channelName = `messages:${conversationId}`;
+    const channel = supabase
+      .channel(channelName)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "messages",
+          filter: `conversationId=eq.${conversationId}`,
+        },
+        (payload: any) => {
+          const m = payload.new as MessageRow;
+          if (m) {
+            onMessage({
+              id: m.id,
+              conversationId: m.conversationId,
+              senderId: m.senderId,
+              body: m.body,
+              status: m.status ?? "sent",
+              createdAt: m.createdAt,
+            });
+          }
+        },
+      )
+      .subscribe();
+
+    this.activeChannels.set(channelName, channel);
+
+    return () => {
+      this.activeChannels.delete(channelName);
+      void supabase.removeChannel(channel);
+    };
+  }
+
+  clearSessionCache(): void {
+    for (const [, channel] of this.activeChannels) {
+      void supabase.removeChannel(channel);
+    }
+    this.activeChannels.clear();
   }
 
   async sendMessage(payload: SendMessagePayload): Promise<Message> {

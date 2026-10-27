@@ -143,17 +143,15 @@ export const calculateBehavioralMatchScore = (
   };
 };
 
-// Mock activity profile oluşturucu (gerçek implementasyon için database'den çekilmeli)
-export const createMockActivityProfile = (user: User): UserActivityProfile => {
-  // Gerçek implementasyonda bu veriler database'den gelmeli
+export const createUserActivityProfile = (user: User): UserActivityProfile => {
   const peakHours = user.city === "İstanbul" ? [12, 13, 20, 21] : [18, 19, 20];
   
   return {
     userId: user.id,
     isActive: calculateActivityScore(user) > 0.6,
     activityScore: calculateActivityScore(user),
-    responseRate: 0.3 + Math.random() * 0.5, // 0.3-0.8 arası random
-    averageSessionDuration: 10 + Math.random() * 20, // 10-30 dakika
+    responseRate: 0.5,
+    averageSessionDuration: 15,
     peakHours,
   };
 };

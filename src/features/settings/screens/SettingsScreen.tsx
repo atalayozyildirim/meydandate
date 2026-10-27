@@ -27,14 +27,10 @@ import {
 } from "@/shared/utils/location";
 import { SecureStorageService } from "@/infrastructure/storage/SecureStorageService";
 import { useTheme, type ThemePreference } from "@/shared/theme";
-
-interface SettingsRowProps {
-  title: string;
-  subtitle: string;
-  icon?: keyof typeof Ionicons.glyphMap;
-  danger?: boolean;
-  onPress?: () => void;
-}
+import { createSettingsStyles } from "../components/settingsStyles";
+import { SettingsRow, type SettingsRowProps } from "../components/SettingsRow";
+import { SettingsLocationSection } from "../components/SettingsLocationSection";
+import { SettingsPrivacySection } from "../components/SettingsPrivacySection";
 
 const legalLinks = [
   { title: "Gizlilik Politikası", path: "/legal/privacy-policy" },
@@ -43,7 +39,6 @@ const legalLinks = [
   { title: "Rıza Yönetimi", path: "/legal/consent-management" },
 ] as const;
 
-const locationRadiusOptions = [10, 25, 50, 100, 250] as const;
 const settingsStorage = new SecureStorageService();
 
 interface LocationPreferenceArgs {
@@ -96,7 +91,7 @@ const requestCurrentLocation = async () => {
 export default function SettingsScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const styles = createSettingsStyles(theme);
   const queryClient = useQueryClient();
   const { currentUser, logout } = useSession();
   const setCurrentUser = useAuthStore((state) => state.setCurrentUser);
@@ -286,33 +281,8 @@ export default function SettingsScreen() {
     locationMatchingMutation.mutate({ enabled, radiusKm, refreshLocation });
   };
 
-  const row = ({
-    title,
-    subtitle,
-    icon,
-    danger = false,
-    onPress,
-  }: SettingsRowProps) => (
-    <Pressable onPress={onPress} style={styles.row}>
-      {icon ? (
-        <View style={[styles.rowIcon, danger && styles.rowIconDanger]}>
-          <Ionicons
-            name={icon}
-            size={20}
-            color={danger ? theme.colors.danger : theme.colors.primary}
-          />
-        </View>
-      ) : null}
-      <View style={styles.rowBody}>
-        <Text style={[styles.rowTitle, danger && styles.dangerText]}>
-          {title}
-        </Text>
-        <Text style={styles.rowSubtitle}>{subtitle}</Text>
-      </View>
-      {onPress ? (
-        <Ionicons name="chevron-forward" size={20} color={theme.colors.muted} />
-      ) : null}
-    </Pressable>
+  const row = (props: Omit<SettingsRowProps, "styles">) => (
+    <SettingsRow {...props} styles={styles} />
   );
 
   const openAccountDeletion = () => {
@@ -449,114 +419,25 @@ export default function SettingsScreen() {
         </View>
       </Card>
 
-      <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Eşleşme</Text>
-        <View style={styles.toggleRow}>
-          <View style={styles.rowIcon}>
-            <Ionicons
-              name="navigate-outline"
-              size={20}
-              color={theme.colors.primary}
-            />
-          </View>
-          <View style={styles.rowBody}>
-            <Text style={styles.rowTitle}>Konuma göre eşleşme</Text>
-            <Text style={styles.rowSubtitle}>{locationSubtitle}</Text>
-          </View>
-          <Switch
-            value={locationMatchEnabled}
-            disabled={!currentUser || locationMatchingMutation.isPending}
-            onValueChange={(enabled) =>
-              updateLocationPreference(enabled, matchRadiusKm, enabled)
-            }
-            trackColor={{
-              true: theme.colors.primary,
-              false: theme.colors.border,
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-        <View style={styles.chipWrap}>
-          {locationRadiusOptions.map((radiusKm) => (
-            <OptionChip
-              key={radiusKm}
-              label={`${radiusKm} km`}
-              selected={matchRadiusKm === radiusKm}
-              disabled={!currentUser || locationMatchingMutation.isPending}
-              onPress={() =>
-                updateLocationPreference(
-                  true,
-                  radiusKm,
-                  !locationMatchEnabled || !hasProfileLocation,
-                )
-              }
-            />
-          ))}
-        </View>
-        <Button
-          label={locationMatchEnabled ? "Konumu yenile" : "Konumu kullan"}
-          variant="ghost"
-          loading={locationMatchingMutation.isPending}
-          disabled={!currentUser}
-          icon={
-            <Ionicons name="locate" size={18} color={theme.colors.primary} />
-          }
-          onPress={() => updateLocationPreference(true, matchRadiusKm, true)}
-        />
-      </Card>
+      <SettingsLocationSection
+        locationMatchEnabled={locationMatchEnabled}
+        locationSubtitle={locationSubtitle}
+        matchRadiusKm={matchRadiusKm}
+        hasProfileLocation={hasProfileLocation}
+        isPending={locationMatchingMutation.isPending}
+        disabled={!currentUser}
+        onUpdatePreference={updateLocationPreference}
+        styles={styles}
+      />
 
-      <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Gizlilik</Text>
-        <View style={styles.toggleRow}>
-          <View style={styles.rowIcon}>
-            <Ionicons
-              name="eye-off-outline"
-              size={20}
-              color={theme.colors.primary}
-            />
-          </View>
-          <View style={styles.rowBody}>
-            <Text style={styles.rowTitle}>Profili gizle</Text>
-            <Text style={styles.rowSubtitle}>
-              Profilini keşfet akışı dışında tut.
-            </Text>
-          </View>
-          <Switch
-            value={profileHidden}
-            disabled={profileVisibilityMutation.isPending}
-            onValueChange={(hidden) => profileVisibilityMutation.mutate(hidden)}
-            trackColor={{
-              true: theme.colors.primary,
-              false: theme.colors.border,
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-        <View style={styles.toggleRow}>
-          <View style={styles.rowIcon}>
-            <Ionicons
-              name="shield-checkmark-outline"
-              size={20}
-              color={theme.colors.primary}
-            />
-          </View>
-          <View style={styles.rowBody}>
-            <Text style={styles.rowTitle}>Gizlilik koruması</Text>
-            <Text style={styles.rowSubtitle}>
-              KVKK/GDPR tercihlerini daha sıkı uygula.
-            </Text>
-          </View>
-          <Switch
-            value={privacyStrict}
-            onValueChange={handlePrivacyStrictChange}
-            trackColor={{
-              true: theme.colors.primary,
-              false: theme.colors.border,
-            }}
-            thumbColor="#FFFFFF"
-          />
-        </View>
-      </Card>
+      <SettingsPrivacySection
+        profileHidden={profileHidden}
+        profileVisibilityPending={profileVisibilityMutation.isPending}
+        privacyStrict={privacyStrict}
+        onToggleProfileHidden={(hidden) => profileVisibilityMutation.mutate(hidden)}
+        onTogglePrivacyStrict={handlePrivacyStrictChange}
+        styles={styles}
+      />
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Dil</Text>
@@ -594,88 +475,3 @@ export default function SettingsScreen() {
     </Screen>
   );
 }
-
-const createStyles = (theme: ReturnType<typeof useTheme>) =>
-  StyleSheet.create({
-    header: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing.lg,
-    },
-    backButton: {
-      width: 42,
-      height: 42,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
-    },
-    headerText: {
-      flex: 1,
-      gap: theme.spacing.xxs,
-    },
-    kicker: {
-      ...theme.typography.caption,
-      color: theme.colors.primary,
-      textTransform: "uppercase",
-    },
-    title: {
-      ...theme.typography.title,
-      color: theme.colors.text,
-    },
-    section: {
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing.md,
-    },
-    sectionTitle: {
-      ...theme.typography.subheading,
-      color: theme.colors.text,
-    },
-    row: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingVertical: theme.spacing.xs,
-    },
-    rowIcon: {
-      width: 38,
-      height: 38,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
-    },
-    rowIconDanger: {
-      backgroundColor: "rgba(220, 38, 38, 0.10)",
-    },
-    toggleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "space-between",
-      gap: theme.spacing.sm,
-    },
-    rowBody: {
-      flex: 1,
-      gap: theme.spacing.xxs,
-    },
-    rowTitle: {
-      ...theme.typography.body,
-      color: theme.colors.text,
-    },
-    dangerText: {
-      color: theme.colors.danger,
-    },
-    rowSubtitle: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
-    chipWrap: {
-      flexDirection: "row",
-      flexWrap: "wrap",
-      gap: theme.spacing.xs,
-    },
-    pressed: {
-      opacity: 0.78,
-    },
-  });

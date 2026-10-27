@@ -55,8 +55,8 @@ export const env = {
   apiBaseUrl: readEnv(process.env.EXPO_PUBLIC_API_BASE_URL) || "https://api.ehlibyte.local",
   supabaseUrl,
   supabaseAnonKey: supabasePublishableKey,
-  useMockServices: !useSupabase,
   useLiveApi: process.env.EXPO_PUBLIC_USE_LIVE_API === "true",
+  phoneAuthEnabled: readEnv(process.env.EXPO_PUBLIC_ENABLE_PHONE_AUTH) === "true",
   secureTokenKey: "ehlibyte-access-token",
   secureRefreshTokenKey: "ehlibyte-refresh-token",
   permanentBanKey: "ehlibyte-permanent-ban",
@@ -79,6 +79,13 @@ export const env = {
     readEnv(process.env.EXPO_PUBLIC_ADMOB_INTERSTITIAL_UNIT_ID),
   adMobRewardedUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_REWARDED_UNIT_ID),
   enableAds,
+  adsRequestTracking: readEnv(process.env.EXPO_PUBLIC_ADS_REQUEST_TRACKING) === "true",
+  adMobIosBannerUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_IOS_BANNER_UNIT_ID),
+  adMobAndroidBannerUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_ANDROID_BANNER_UNIT_ID),
+  adMobIosNativeUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_IOS_NATIVE_UNIT_ID),
+  adMobAndroidNativeUnitId: readEnv(process.env.EXPO_PUBLIC_ADMOB_ANDROID_NATIVE_UNIT_ID),
+  tenorApiKey,
+  giphyApiKey,
   spotifyClientId,
   spotifyRedirectUri,
   enableAiStarterProfiles,
@@ -88,30 +95,24 @@ export const getRuntimeConfigIssues = () => {
   const errors: string[] = [];
   const warnings: string[] = [];
 
-  if (!env.useMockServices) {
-    if (
-      isPlaceholder(env.supabaseUrl, ["your-project", "example", "localhost"]) ||
-      !/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(env.supabaseUrl)
-    ) {
-      errors.push("EXPO_PUBLIC_SUPABASE_URL production Supabase proje URL'i olmalı.");
-    }
-
-    if (
-      isPlaceholder(env.supabaseAnonKey, ["your_key", "your-key", "placeholder"]) ||
-      !/^(sb_publishable_|eyJ)/.test(env.supabaseAnonKey)
-    ) {
-      errors.push(
-        "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY veya EXPO_PUBLIC_SUPABASE_ANON_KEY geçerli public key olmalı.",
-      );
-    }
+  if (
+    isPlaceholder(env.supabaseUrl, ["your-project", "example", "localhost"]) ||
+    !/^https:\/\/[a-z0-9-]+\.supabase\.co$/i.test(env.supabaseUrl)
+  ) {
+    errors.push("EXPO_PUBLIC_SUPABASE_URL production Supabase proje URL'i olmalı.");
   }
 
-  if (env.isProduction && env.useMockServices) {
-    errors.push("Production build mock servislerle çalışamaz. EXPO_PUBLIC_USE_SUPABASE=true verin.");
+  if (
+    isPlaceholder(env.supabaseAnonKey, ["your_key", "your-key", "placeholder"]) ||
+    !/^(sb_publishable_|eyJ)/.test(env.supabaseAnonKey)
+  ) {
+    errors.push(
+      "EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY veya EXPO_PUBLIC_SUPABASE_ANON_KEY geçerli public key olmalı.",
+    );
   }
 
   if (env.isProduction && !env.useRevenueCatPayments) {
-    errors.push("Production build mock odeme ile calisamaz. EXPO_PUBLIC_USE_REVENUECAT=true verin.");
+    errors.push("Production build ödeme servisi olmadan çalışamaz. EXPO_PUBLIC_USE_REVENUECAT=true verin.");
   }
 
   if (env.isProduction) {

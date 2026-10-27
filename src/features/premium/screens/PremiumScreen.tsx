@@ -1,4 +1,4 @@
-// Premium özellikleri ve mock ödeme planlarını sunar.
+// Premium özellikleri ve ödeme planlarını sunar.
 import { Alert, StyleSheet, Text, View } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { SubscriptionPlan } from "@/domain/entities/Subscription";
@@ -9,15 +9,12 @@ import { Screen } from "@/shared/components/Screen";
 import { premiumFeatures } from "@/shared/constants/options";
 import { usePremium } from "@/features/premium/hooks/usePremium";
 import { isPurchaseCancelledError } from "@/features/premium/services/RevenueCatPaymentService";
-import { env } from "@/infrastructure/config/env";
-import { isExpoGo } from "@/shared/utils/expoRuntime";
 import { useTheme } from "@/shared/theme";
 import { formatProfileBoostExpiry } from "@/shared/utils/profileBoost";
 
 export default function PremiumScreen() {
   const theme = useTheme();
   const styles = createStyles(theme);
-  const isMockPaymentMode = !env.useRevenueCatPayments || isExpoGo;
   const {
     subscription,
     planPrices,
@@ -37,10 +34,8 @@ export default function PremiumScreen() {
     try {
       await purchase(plan);
       Alert.alert(
-        isMockPaymentMode ? "Demo Premium aktif" : "Premium aktif",
-        isMockPaymentMode
-          ? "Gerçek ödeme alınmadan demo Premium etkinleştirildi."
-          : "Satın alım tamamlandı.",
+        "Premium aktif",
+        "Satın alım tamamlandı.",
       );
     } catch (error) {
       if (isPurchaseCancelledError(error)) {
@@ -101,15 +96,6 @@ export default function PremiumScreen() {
         <Text style={styles.statusLabel}>Abonelik durumu</Text>
         <Text style={styles.statusValue}>{subscription?.status === "active" ? "Aktif" : "Pasif"}</Text>
       </Card>
-
-      {isMockPaymentMode ? (
-        <Card style={styles.noticeCard}>
-          <Ionicons name="information-circle-outline" size={20} color={theme.colors.warning} />
-          <Text style={styles.noticeText}>
-            Geliştirme modunda gerçek ödeme alınmaz. Satın alma butonları demo olarak Premium'u aktif eder.
-          </Text>
-        </Card>
-      ) : null}
 
       <Card style={styles.boostCard}>
         <View style={styles.boostHeader}>
@@ -205,18 +191,6 @@ const createStyles = (theme: ReturnType<typeof useTheme>) =>
     statusCard: {
       gap: theme.spacing.xs,
       marginBottom: theme.spacing.md
-    },
-    noticeCard: {
-      flexDirection: "row",
-      alignItems: "flex-start",
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing.md,
-      backgroundColor: "#FFF8E6"
-    },
-    noticeText: {
-      ...theme.typography.caption,
-      flex: 1,
-      color: theme.colors.text
     },
     statusLabel: {
       ...theme.typography.caption,

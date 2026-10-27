@@ -22,19 +22,9 @@ import {
   useUnreadActivityCount,
 } from "@/features/notifications/hooks/useActivities";
 import { useTheme } from "@/shared/theme";
-
-const activityIcons: Record<
-  ActivityType,
-  React.ComponentProps<typeof Ionicons>["name"]
-> = {
-  feed_like: "heart",
-  feed_comment: "chatbubble",
-  message: "paper-plane",
-  match: "people",
-  profile_like: "person-add",
-  super_like: "flash",
-  spotify_match: "musical-notes",
-};
+import { createActivityStyles } from "../components/activityStyles";
+import { ActivityItem } from "../components/ActivityItem";
+import { ActivityFilterBar } from "../components/ActivityFilterBar";
 
 const startOfDay = (date: Date) =>
   new Date(date.getFullYear(), date.getMonth(), date.getDate());
@@ -52,24 +42,10 @@ const getDateGroup = (value: string) => {
   return "Daha önce";
 };
 
-const formatRelativeTime = (value: string) => {
-  const time = new Date(value).getTime();
-  const differenceSeconds = Math.max(0, Math.floor((Date.now() - time) / 1000));
-
-  if (differenceSeconds < 60) return "Şimdi";
-  if (differenceSeconds < 3600) return `${Math.floor(differenceSeconds / 60)} dk`;
-  if (differenceSeconds < 86400) return `${Math.floor(differenceSeconds / 3600)} sa`;
-
-  return new Intl.DateTimeFormat("tr-TR", {
-    day: "numeric",
-    month: "short",
-  }).format(new Date(value));
-};
-
 export default function ActivityScreen() {
   const router = useRouter();
   const theme = useTheme();
-  const styles = createStyles(theme);
+  const styles = createActivityStyles(theme);
   const [unreadOnly, setUnreadOnly] = useState(false);
   const {
     activities,
@@ -139,62 +115,15 @@ export default function ActivityScreen() {
     activity: UserActivity;
     group: string;
     showGroup: boolean;
-  }> = ({ item }) => {
-    const { activity, group, showGroup } = item;
-    const unread = !activity.readAt;
-
-    return (
-      <View>
-        {showGroup ? <Text style={styles.groupTitle}>{group}</Text> : null}
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${activity.title}. ${activity.body}`}
-          onPress={() => openActivity(activity)}
-          style={({ pressed }) => [
-            styles.activityRow,
-            unread && styles.activityRowUnread,
-            pressed && styles.pressed,
-          ]}
-        >
-          <View style={styles.avatarWrap}>
-            <Avatar
-              name={activity.actor?.name ?? "Ehlibyte"}
-              uri={activity.actor?.photoUri}
-              size={50}
-            />
-            <View style={styles.typeIcon}>
-              <Ionicons
-                name={activityIcons[activity.type]}
-                size={13}
-                color={theme.colors.onPrimary}
-              />
-            </View>
-          </View>
-
-          <View style={styles.activityCopy}>
-            <View style={styles.activityTitleRow}>
-              <Text numberOfLines={1} style={styles.activityTitle}>
-                {activity.title}
-              </Text>
-              <Text style={styles.activityTime}>
-                {formatRelativeTime(activity.createdAt)}
-              </Text>
-            </View>
-            <Text numberOfLines={2} style={styles.activityBody}>
-              {activity.body}
-            </Text>
-          </View>
-
-          {unread ? <View style={styles.unreadDot} /> : null}
-          <Ionicons
-            name="chevron-forward"
-            size={16}
-            color={theme.colors.muted}
-          />
-        </Pressable>
-      </View>
-    );
-  };
+  }> = ({ item }) => (
+    <ActivityItem
+      activity={item.activity}
+      group={item.group}
+      showGroup={item.showGroup}
+      onPress={openActivity}
+      styles={styles}
+    />
+  );
 
   return (
     <Screen scroll={false} style={styles.screen}>
@@ -244,54 +173,12 @@ export default function ActivityScreen() {
         ) : null}
       </View>
 
-      <View style={styles.filterFrame}>
-        {[
-          { label: "Tümü", value: false },
-          { label: "Okunmamış", value: true },
-        ].map((filter) => {
-          const selected = unreadOnly === filter.value;
-
-          return (
-            <Pressable
-              key={filter.label}
-              accessibilityRole="button"
-              accessibilityState={{ selected }}
-              onPress={() => setUnreadOnly(filter.value)}
-              style={({ pressed }) => [
-                styles.filterButton,
-                selected && styles.filterButtonSelected,
-                pressed && styles.pressed,
-              ]}
-            >
-              <Text
-                style={[
-                  styles.filterText,
-                  selected && styles.filterTextSelected,
-                ]}
-              >
-                {filter.label}
-              </Text>
-              {filter.value && unreadCount > 0 ? (
-                <View
-                  style={[
-                    styles.filterCount,
-                    selected && styles.filterCountSelected,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.filterCountText,
-                      selected && styles.filterCountTextSelected,
-                    ]}
-                  >
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </Text>
-                </View>
-              ) : null}
-            </Pressable>
-          );
-        })}
-      </View>
+      <ActivityFilterBar
+        unreadOnly={unreadOnly}
+        onSelectFilter={setUnreadOnly}
+        unreadCount={unreadCount}
+        styles={styles}
+      />
 
       {isLoading ? (
         <View style={styles.loadingState}>
@@ -341,214 +228,3 @@ export default function ActivityScreen() {
     </Screen>
   );
 }
-
-const createStyles = (theme: ReturnType<typeof useTheme>) =>
-  StyleSheet.create({
-    screen: {
-      flex: 1,
-      padding: 0,
-      paddingBottom: 0,
-      backgroundColor: theme.colors.surface,
-    },
-    header: {
-      minHeight: 70,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    headerButton: {
-      width: 40,
-      height: 40,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.elevated,
-    },
-    headerCopy: {
-      flex: 1,
-      minWidth: 0,
-    },
-    title: {
-      ...theme.typography.heading,
-      color: theme.colors.text,
-      fontSize: 22,
-      lineHeight: 27,
-    },
-    subtitle: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      fontVariant: ["tabular-nums"],
-    },
-    markAllButton: {
-      minHeight: 36,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: 5,
-      paddingHorizontal: theme.spacing.sm,
-      borderRadius: theme.radius.pill,
-      backgroundColor: theme.colors.elevated,
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    markAllText: {
-      ...theme.typography.caption,
-      color: theme.colors.text,
-      fontWeight: "800",
-    },
-    filterFrame: {
-      minHeight: 58,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-      paddingHorizontal: theme.spacing.lg,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    filterButton: {
-      minHeight: 36,
-      flexDirection: "row",
-      alignItems: "center",
-      justifyContent: "center",
-      gap: 6,
-      paddingHorizontal: theme.spacing.md,
-      borderRadius: theme.radius.pill,
-      backgroundColor: "transparent",
-      borderWidth: 1,
-      borderColor: theme.colors.border,
-    },
-    filterButtonSelected: {
-      backgroundColor: theme.colors.primary,
-      borderColor: theme.colors.primary,
-    },
-    filterText: {
-      ...theme.typography.caption,
-      color: theme.colors.text,
-      fontWeight: "800",
-    },
-    filterTextSelected: {
-      color: theme.colors.onPrimary,
-    },
-    filterCount: {
-      minWidth: 20,
-      height: 20,
-      alignItems: "center",
-      justifyContent: "center",
-      paddingHorizontal: 5,
-      borderRadius: theme.radius.pill,
-      backgroundColor: theme.colors.elevated,
-    },
-    filterCountSelected: {
-      backgroundColor: theme.colors.onPrimary,
-    },
-    filterCountText: {
-      fontSize: 10,
-      lineHeight: 12,
-      fontWeight: "900",
-      color: theme.colors.text,
-      fontVariant: ["tabular-nums"],
-    },
-    filterCountTextSelected: {
-      color: theme.colors.primary,
-    },
-    listContent: {
-      flexGrow: 1,
-      paddingBottom: 120,
-      backgroundColor: theme.colors.surface,
-    },
-    groupTitle: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      fontWeight: "900",
-      textTransform: "uppercase",
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.lg,
-      paddingBottom: theme.spacing.xs,
-    },
-    activityRow: {
-      minHeight: 82,
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.lg,
-      paddingVertical: theme.spacing.sm,
-      backgroundColor: theme.colors.surface,
-      borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border,
-    },
-    activityRowUnread: {
-      backgroundColor: theme.colors.elevated,
-    },
-    avatarWrap: {
-      position: "relative",
-      width: 54,
-      height: 54,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-    typeIcon: {
-      position: "absolute",
-      right: -1,
-      bottom: -1,
-      width: 23,
-      height: 23,
-      borderRadius: theme.radius.pill,
-      alignItems: "center",
-      justifyContent: "center",
-      backgroundColor: theme.colors.primary,
-      borderWidth: 2,
-      borderColor: theme.colors.surface,
-    },
-    activityCopy: {
-      flex: 1,
-      minWidth: 0,
-      gap: 3,
-    },
-    activityTitleRow: {
-      flexDirection: "row",
-      alignItems: "center",
-      gap: theme.spacing.xs,
-    },
-    activityTitle: {
-      flex: 1,
-      ...theme.typography.body,
-      color: theme.colors.text,
-      fontWeight: "800",
-    },
-    activityTime: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      fontVariant: ["tabular-nums"],
-    },
-    activityBody: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-      lineHeight: 18,
-    },
-    unreadDot: {
-      width: 8,
-      height: 8,
-      borderRadius: theme.radius.pill,
-      backgroundColor: theme.colors.primary,
-    },
-    pressed: {
-      opacity: 0.72,
-    },
-    loadingState: {
-      flex: 1,
-      alignItems: "center",
-      justifyContent: "center",
-      gap: theme.spacing.sm,
-    },
-    loadingText: {
-      ...theme.typography.caption,
-      color: theme.colors.muted,
-    },
-    listFooter: {
-      minHeight: 64,
-      alignItems: "center",
-      justifyContent: "center",
-    },
-  });

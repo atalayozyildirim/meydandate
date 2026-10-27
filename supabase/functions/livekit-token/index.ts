@@ -22,7 +22,14 @@ const getSupabaseSecretKey = () => {
 const getBearerToken = (req: Request) => {
   const authorization = req.headers.get("authorization")?.trim() ?? "";
   const match = authorization.match(/^Bearer\s+(.+)$/i);
-  return match?.[1] ?? "";
+  const token = match?.[1] ?? "";
+
+  // Validate token format (JWT tokens are base64url encoded)
+  if (token && !/^[A-Za-z0-9\-._~+/]+$/.test(token)) {
+    return "";
+  }
+
+  return token;
 };
 
 const base64UrlEncode = (input: Uint8Array | string) => {
@@ -116,6 +123,11 @@ export default {
       return json(400, { error: "roomId is required" });
     }
 
+    // Validate roomId format (UUID)
+    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(safeRoomId)) {
+      return json(400, { error: "Invalid roomId format" });
+    }
+
     const supabaseAdmin = createClient(supabaseUrl, supabaseSecretKey, {
       auth: { persistSession: false },
     });
@@ -152,27 +164,32 @@ export default {
       .eq("userId", user.id)
       .maybeSingle();
 
-    await supabaseAdmin.from("live_room_participants").upsert(
-      {
+    const { data: existingParticipant } = await supabaseAdmin
+      .from("live_room_participants")
+      .select("stage_status,is_banned")
+      .eq("room_id", safeRoomId)
+      .eq("user_id", user.id)
+      .maybeSingle();
+
+    if (existingParticipant?.is_banned) {
+      return json(403, { error: "User is banned from this live room" });
+    }
+
+    if (!existingParticipant) {
+      await supabaseAdmin.from("live_room_participants").insert({
         room_id: safeRoomId,
         user_id: user.id,
         role: "Dinleyici",
         stage_status: "listener",
         is_muted: true,
-      },
-      { onConflict: "room_id,user_id", ignoreDuplicates: true },
-    );
+        is_banned: false,
+      });
+    }
 
-    const { data: participant } = await supabaseAdmin
-      .from("live_room_participants")
-      .select("stage_status")
-      .eq("room_id", safeRoomId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-
+    const stageStatus = existingParticipant?.stage_status ?? "listener";
     const role = roleRow?.role as string | undefined;
     const canManage = role === "admin" || role === "moderator";
-    const canPublish = canManage || participant?.stage_status === "speaker";
+    const canPublish = canManage || stageStatus === "speaker";
     const roomName = room.livekit_room_name || `ehlibyte-${safeRoomId}`;
     const livekitToken = await signLiveKitToken({
       apiKey: livekitApiKey,

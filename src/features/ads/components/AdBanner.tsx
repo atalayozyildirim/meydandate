@@ -1,36 +1,19 @@
-// Feed reklam slotunda AdMob native reklami birincil, AdMob banner yedek kullanilir.
 import { useCallback, useState } from "react";
-import { type StyleProp, type ViewStyle } from "react-native";
-import { env } from "@/infrastructure/config/env";
+import type { StyleProp, ViewStyle } from "react-native";
 import { AdMobBanner } from "./AdMobBanner";
 import { AdMobNativeAd } from "./AdMobNativeAd";
+import { useAds } from "../providers/AdsProvider";
 
-interface AdBannerProps {
-  style?: StyleProp<ViewStyle>;
+interface AdBannerProps { style?: StyleProp<ViewStyle>; isAdFree?: boolean; }
+function Placement({ style, isAdFree }: AdBannerProps) {
+  const [provider, setProvider] = useState<"native" | "banner" | "none">("native");
+  const fallback = useCallback(() => setProvider("banner"), []);
+  const hide = useCallback(() => setProvider("none"), []);
+  if (provider === "none" || isAdFree) return null;
+  return provider === "native" ? <AdMobNativeAd style={style} onAdFailedToLoad={fallback} /> : <AdMobBanner style={style} onAdFailedToLoad={hide} />;
 }
-
-type AdProvider = "admob-native" | "admob-banner" | "none";
-
-export const AdBanner = ({ style }: AdBannerProps) => {
-  const [provider, setProvider] = useState<AdProvider>("admob-native");
-  const showAdMobBanner = useCallback(() => setProvider("admob-banner"), []);
-  const hideBanner = useCallback(() => setProvider("none"), []);
-
-  if (!env.enableAds) {
-    return null;
-  }
-
-  if (provider === "none") {
-    return null;
-  }
-
-  if (provider === "admob-banner") {
-    return <AdMobBanner style={style} onAdFailedToLoad={hideBanner} />;
-  }
-
-  if (env.adMobNativeUnitId) {
-    return <AdMobNativeAd style={style} onAdFailedToLoad={showAdMobBanner} />;
-  }
-
-  return <AdMobBanner style={style} onAdFailedToLoad={hideBanner} />;
-};
+export function AdBanner(props: AdBannerProps) {
+  const { phase, revision } = useAds();
+  // No fake ad, blank card, spinner or infinite retry on blocked/no-fill paths.
+  return phase === "ready" ? <Placement key={revision} {...props} /> : null;
+}

@@ -9,7 +9,7 @@ Son kontrol: 2026-06-09
 ```text
 EXPO_PUBLIC_APP_ENV=production
 EXPO_PUBLIC_USE_SUPABASE=true
-EXPO_PUBLIC_SUPABASE_URL=https://ymrzddxgxdswibtypuwr.supabase.co
+EXPO_PUBLIC_SUPABASE_URL=https://aururygssrwkayawliup.supabase.co
 EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_...
 ```
 

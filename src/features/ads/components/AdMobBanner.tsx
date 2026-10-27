@@ -1,95 +1,35 @@
-// Premium olmayan kullanicilar icin guvenli AdMob banner alani.
 import { useEffect, useState } from "react";
-import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { useAuthStore } from "@/features/auth/stores/authStore";
-import { getAdUnitId, initializeAdMob, loadGoogleMobileAds } from "@/features/ads/services/adMob";
-import { env } from "@/infrastructure/config/env";
-import { useTheme } from "@/shared/theme";
+import { StyleSheet, Text, View, type StyleProp, type ViewStyle } from "react-native";
+import { useAds } from "../providers/AdsProvider";
+import { adUnitId, loadGoogleAds, type GoogleAdsModule } from "../services/googleAdsAdapter";
 
-type GoogleMobileAdsModule = typeof import("react-native-google-mobile-ads");
-
-interface AdMobBannerProps {
+export interface AdMobBannerProps {
   style?: StyleProp<ViewStyle>;
+  isAdFree?: boolean;
   onAdLoaded?: () => void;
   onAdFailedToLoad?: () => void;
 }
-
-export const AdMobBanner = ({
-  style,
-  onAdLoaded,
-  onAdFailedToLoad,
-}: AdMobBannerProps) => {
-  const theme = useTheme();
-  const styles = createStyles(theme);
-  const isPremium = useAuthStore((state) => Boolean(state.currentUser?.isPremium));
-  const [adsModule, setAdsModule] = useState<GoogleMobileAdsModule | null>(null);
-
+export const AdMobBanner = ({ style, isAdFree = false, onAdLoaded, onAdFailedToLoad }: AdMobBannerProps) => {
+  const { phase, revision } = useAds();
+  const [module, setModule] = useState<GoogleAdsModule | null>(null);
+  const [failed, setFailed] = useState(false);
   useEffect(() => {
-    let isMounted = true;
-
-    if (isPremium || !env.enableAds) {
-      return;
-    }
-
-    void initializeAdMob()
-      .then(async (initialized) => {
-        if (!initialized) {
-          return null;
-        }
-
-        return loadGoogleMobileAds();
-      })
-      .then((module) => {
-        if (isMounted && module && getAdUnitId(module, "banner")) {
-          setAdsModule(module);
-        } else if (isMounted) {
-          onAdFailedToLoad?.();
-        }
-      });
-
-    return () => {
-      isMounted = false;
-    };
-  }, [isPremium, onAdFailedToLoad]);
-
-  const unitId = adsModule ? getAdUnitId(adsModule, "banner") : "";
-
-  if (
-    isPremium ||
-    !env.enableAds ||
-    !adsModule ||
-    !unitId ||
-    !adsModule.BannerAd ||
-    !adsModule.BannerAdSize?.ANCHORED_ADAPTIVE_BANNER
-  ) {
-    return null;
-  }
-
-  const BannerAd = adsModule.BannerAd;
-
-  return (
-    <View style={[styles.container, style]}>
-      <BannerAd
-        unitId={unitId}
-        size={adsModule.BannerAdSize.ANCHORED_ADAPTIVE_BANNER}
-        requestOptions={{
-          requestNonPersonalizedAdsOnly: true,
-        }}
-        onAdLoaded={onAdLoaded}
-        onAdFailedToLoad={onAdFailedToLoad}
-      />
-    </View>
-  );
+    let disposed = false;
+    setModule(null);
+    setFailed(false);
+    if (phase !== "ready" || isAdFree) return;
+    void loadGoogleAds().then((loaded) => {
+      if (disposed) return;
+      if (!loaded || !adUnitId(loaded, "banner")) { setFailed(true); onAdFailedToLoad?.(); return; }
+      setModule(loaded);
+    });
+    return () => { disposed = true; };
+  }, [phase, revision, isAdFree]);
+  if (phase !== "ready" || isAdFree || failed || !module) return null;
+  const Banner = module.BannerAd;
+  return <View style={[styles.surface, style]} accessibilityLabel="Reklam alanı">
+    <Text style={styles.label}>Reklam</Text>
+    <Banner key={revision} unitId={adUnitId(module, "banner")} size={module.BannerAdSize.BANNER} requestOptions={{ requestNonPersonalizedAdsOnly: true }} onAdLoaded={onAdLoaded} onAdFailedToLoad={() => { setFailed(true); onAdFailedToLoad?.(); }} />
+  </View>;
 };
-
-const createStyles = (theme: ReturnType<typeof useTheme>) =>
-  StyleSheet.create({
-    container: {
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: 58,
-      borderRadius: theme.radius.md,
-      overflow: "hidden",
-      backgroundColor: "rgba(255, 255, 255, 0.74)",
-    },
-  });
+const styles = StyleSheet.create({ surface: { alignItems: "center", paddingVertical: 12, gap: 8 }, label: { fontSize: 11, color: "#686662" } });

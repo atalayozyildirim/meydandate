@@ -47,6 +47,12 @@ export interface UndoSwipeResult {
   matchRemoved: boolean;
 }
 
+export interface SwipeResult {
+  action: LikeAction;
+  match?: Match;
+  conversationId?: string;
+}
+
 export type SpecialMatchInviteStatus = "pending" | "accepted" | "declined" | "cancelled";
 
 export interface SpecialMatchInvite {

@@ -88,7 +88,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       env.secureRefreshTokenKey,
     );
 
-    if (!token && env.useMockServices) {
+    if (!token) {
       set({ isHydrated: true });
       return;
     }

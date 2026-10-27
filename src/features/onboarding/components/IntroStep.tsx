@@ -17,40 +17,40 @@ export const IntroStep = () => {
       }
       style={styles.introCard}
     >
-      <View style={styles.mockCardTop}>
-        <View style={styles.mockAvatar}>
-          <Text style={styles.mockAvatarText}>
+      <View style={styles.sampleCardTop}>
+        <View style={styles.sampleAvatar}>
+          <Text style={styles.sampleAvatarText}>
             {"Ç".charAt(0).toLocaleUpperCase("tr-TR")}
           </Text>
         </View>
-        <View style={styles.mockSignalBadge}>
+        <View style={styles.sampleSignalBadge}>
           <Ionicons
             name="sparkles"
             size={16}
             color={theme.isDark ? "#050505" : "#FFFFFF"}
           />
-          <Text style={styles.mockSignalText}>Uyum %82</Text>
+          <Text style={styles.sampleSignalText}>Uyum %82</Text>
         </View>
       </View>
-      <View style={styles.mockCardCopy}>
-        <Text style={styles.mockName}>{"Senin kartın"}</Text>
-        <Text style={styles.mockMeta}>
+      <View style={styles.sampleCardCopy}>
+        <Text style={styles.sampleName}>{"Senin kartın"}</Text>
+        <Text style={styles.sampleMeta}>
           Profil bilgileri, müzik sinyali ve ilgi alanları burada
           birleşir.
         </Text>
       </View>
-      <View style={styles.mockStats}>
-        <View style={styles.mockStat}>
-          <Text style={styles.mockStatValue}>%68</Text>
-          <Text style={styles.mockStatLabel}>Kültür</Text>
+      <View style={styles.sampleStats}>
+        <View style={styles.sampleStat}>
+          <Text style={styles.sampleStatValue}>%68</Text>
+          <Text style={styles.sampleStatLabel}>Kültür</Text>
         </View>
-        <View style={styles.mockStat}>
-          <Text style={styles.mockStatValue}>%55</Text>
-          <Text style={styles.mockStatLabel}>Müzik</Text>
+        <View style={styles.sampleStat}>
+          <Text style={styles.sampleStatValue}>%55</Text>
+          <Text style={styles.sampleStatLabel}>Müzik</Text>
         </View>
-        <View style={styles.mockStat}>
-          <Text style={styles.mockStatValue}>%81</Text>
-          <Text style={styles.mockStatLabel}>Sohbet</Text>
+        <View style={styles.sampleStat}>
+          <Text style={styles.sampleStatValue}>%81</Text>
+          <Text style={styles.sampleStatLabel}>Sohbet</Text>
         </View>
       </View>
       <View style={styles.introSignals}>
@@ -100,13 +100,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => ({
     shadowOffset: { width: 0, height: 12 },
     elevation: 4,
   } as const,
-  mockCardTop: {
+  sampleCardTop: {
     flexDirection: "row" as const,
     alignItems: "center" as const,
     justifyContent: "space-between" as const,
     gap: theme.spacing.sm,
   } as const,
-  mockAvatar: {
+  sampleAvatar: {
     width: 56,
     height: 56,
     borderRadius: 21,
@@ -114,13 +114,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => ({
     justifyContent: "center" as const,
     backgroundColor: theme.colors.text,
   } as const,
-  mockAvatarText: {
+  sampleAvatarText: {
     fontSize: 28,
     lineHeight: 32,
     fontWeight: "900" as const,
     color: theme.colors.background,
   } as const,
-  mockSignalBadge: {
+  sampleSignalBadge: {
     minHeight: 34,
     borderRadius: theme.radius.pill,
     flexDirection: "row" as const,
@@ -129,28 +129,28 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => ({
     paddingHorizontal: theme.spacing.md,
     backgroundColor: theme.colors.text,
   } as const,
-  mockSignalText: {
+  sampleSignalText: {
     ...theme.typography.caption,
     color: theme.colors.background,
   } as const,
-  mockCardCopy: {
+  sampleCardCopy: {
     gap: theme.spacing.xs,
   } as const,
-  mockName: {
+  sampleName: {
     fontSize: 28,
     lineHeight: 32,
     fontWeight: "900" as const,
     color: theme.colors.text,
   } as const,
-  mockMeta: {
+  sampleMeta: {
     ...theme.typography.body,
     color: theme.colors.muted,
   } as const,
-  mockStats: {
+  sampleStats: {
     flexDirection: "row" as const,
     gap: theme.spacing.xs,
   } as const,
-  mockStat: {
+  sampleStat: {
     flex: 1,
     minHeight: 58,
     borderRadius: 18,
@@ -164,13 +164,13 @@ const createStyles = (theme: ReturnType<typeof useTheme>) => ({
       ? "rgba(255, 255, 255, 0.12)"
       : "rgba(0, 0, 0, 0.08)",
   } as const,
-  mockStatValue: {
+  sampleStatValue: {
     fontSize: 20,
     lineHeight: 24,
     fontWeight: "900" as const,
     color: theme.colors.text,
   } as const,
-  mockStatLabel: {
+  sampleStatLabel: {
     ...theme.typography.caption,
     color: theme.colors.muted,
   } as const,

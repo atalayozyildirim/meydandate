@@ -127,10 +127,6 @@ export class SpotifyConnectionService {
   }
 
   private async deactivateServerConnection() {
-    if (env.useMockServices) {
-      return;
-    }
-
     const { error } = await supabase.functions.invoke("spotify-live-match", {
       body: { action: "disconnect" },
     });
@@ -243,10 +239,6 @@ export class SpotifyConnectionService {
     accessToken: string,
     expiresAt: number,
   ) {
-    if (env.useMockServices) {
-      return;
-    }
-
     const refreshToken = await this.storage
       .getItem(spotifyRefreshTokenKey)
       .catch(() => null);
